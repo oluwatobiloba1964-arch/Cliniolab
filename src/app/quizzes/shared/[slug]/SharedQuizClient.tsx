@@ -8,6 +8,7 @@ import { StudyModeRunner } from '@/components/quiz/StudyModeRunner';
 import { Button } from '@/components/ui/Button';
 import { Card, DifficultyBadge } from '@/components/ui/Card';
 import { QuizLeaderboardSection } from '@/components/quiz/QuizLeaderboardSection';
+import { CreatorProfileCard } from '@/components/creator/CreatorProfileCard';
 import type { Quiz, QuizQuestion } from '@/types';
 
 const MODE_LABELS: Record<Quiz['mode'], string> = {
@@ -112,6 +113,9 @@ export function SharedQuizClient() {
           onSubmitted={() => setHasAttempted(true)}
         />
         {hasAttempted && <QuizLeaderboardSection quizId={quiz.id} currentUserId={user?.id ?? null} />}
+        <div className="mt-6">
+          <CreatorProfileCard creatorId={quiz.creatorId} />
+        </div>
       </div>
     );
   }
