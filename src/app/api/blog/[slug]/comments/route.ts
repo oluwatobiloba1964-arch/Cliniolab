@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit';
 import { commentService, cmsService, featureFlagService } from '@/lib/db';
 import { sendCommentReplyEmail } from '@/lib/email/emailService';
 import { sendCommentReplyPush } from '@/lib/push/pushNotificationService';
@@ -40,6 +41,12 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: 'Login required to comment' }, { status: 401 });
+
+    const limited = await enforceRateLimit(
+      { name: 'comment-user', id: user.id, limit: 10, windowSeconds: 300 },
+      { name: 'comment-ip', id: getClientIp(request), limit: 30, windowSeconds: 300 }
+    );
+    if (limited) return limited;
 
     let body: { body: string; parentCommentId?: string };
     try {
