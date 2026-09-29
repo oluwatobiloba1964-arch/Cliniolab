@@ -42,3 +42,4 @@ export * as retentionService from './services/retentionService';
 
 export { RetakeNotAllowedError } from './services/attemptService';
 export * as blogCategoryService from './services/blogCategoryService';
+export * as rateLimitService from './services/rateLimitService';
