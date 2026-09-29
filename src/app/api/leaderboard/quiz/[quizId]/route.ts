@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { featureFlagService, leaderboardService, siteSettingsService } from '@/lib/db';
+import { featureFlagService, leaderboardService, siteSettingsService, quizService } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 
 interface RouteParams {
@@ -10,6 +10,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const { quizId } = await params;
   const enabled = await featureFlagService.isFeatureEnabled('leaderboard_per_quiz');
   if (!enabled) return NextResponse.json({ enabled: false, entries: [] });
+
+  // Private quizzes let their creator turn the leaderboard off for that
+  // one quiz. Only ever narrows visibility beyond the global admin flag.
+  const quiz = await quizService.getQuizById(quizId);
+  if (quiz?.visibility === 'private' && !quiz.leaderboardEnabled) {
+    return NextResponse.json({ enabled: false, entries: [] });
+  }
 
   const limit = await siteSettingsService.getLeaderboardSize();
   const entries = await leaderboardService.getQuizLeaderboard(quizId, limit);
