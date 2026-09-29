@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { featureFlagService, feedbackService } from '@/lib/db';
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit';
 import type { FeedbackCategory } from '@/types';
 
 export async function POST(request: Request) {
   const enabled = await featureFlagService.isFeatureEnabled('feedback_widget');
   if (!enabled) return NextResponse.json({ error: 'Feedback is currently disabled' }, { status: 403 });
+
+  const limited = await enforceRateLimit(
+    { name: 'feedback-ip', id: getClientIp(request), limit: 5, windowSeconds: 3600 }
+  );
+  if (limited) return limited;
 
   const user = await getCurrentUser(); // optional - anonymous feedback is allowed
 
