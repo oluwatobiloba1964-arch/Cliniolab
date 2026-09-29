@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { quizService, reportService } from '@/lib/db';
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit';
 
 interface RouteParams {
   params: Promise<{ quizId: string; questionId: string }>;
@@ -12,6 +13,11 @@ export async function POST(request: Request, { params }: RouteParams) {
   if (!user) {
     return NextResponse.json({ error: 'Login required to flag a question' }, { status: 401 });
   }
+
+  const limited = await enforceRateLimit(
+    { name: 'report-user', id: user.id, limit: 20, windowSeconds: 3600 }
+  );
+  if (limited) return limited;
 
   const quiz = await quizService.getQuizById(quizId);
   if (!quiz) return NextResponse.json({ error: 'Quiz not found' }, { status: 404 });
