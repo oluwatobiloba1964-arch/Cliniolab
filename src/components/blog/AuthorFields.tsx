@@ -10,10 +10,12 @@ export interface AuthorFieldsValue {
   authorCredentials: string;
   authorPhotoUrl: string;
   authorContributorId: string;
+  authorBio: string;
   reviewerName: string;
   reviewerCredentials: string;
   reviewerPhotoUrl: string;
   reviewerContributorId: string;
+  reviewerBio: string;
 }
 
 interface Props {
@@ -55,6 +57,7 @@ export function AuthorFields({ value, onChange }: Props) {
         authorName: c.name,
         authorCredentials: c.credentials ?? '',
         authorPhotoUrl: c.photoUrl ?? '',
+        authorBio: c.bio ?? '',
       });
     } else {
       onChange({
@@ -63,6 +66,7 @@ export function AuthorFields({ value, onChange }: Props) {
         reviewerName: c.name,
         reviewerCredentials: c.credentials ?? '',
         reviewerPhotoUrl: c.photoUrl ?? '',
+        reviewerBio: c.bio ?? '',
       });
     }
   }
@@ -99,6 +103,14 @@ export function AuthorFields({ value, onChange }: Props) {
           />
           <ImagePicker value={value.authorPhotoUrl} onChange={(v) => set('authorPhotoUrl', v)} purpose="blog" label="Author photo" circularPreview />
         </div>
+        <textarea
+          value={value.authorBio}
+          onChange={(e) => set('authorBio', e.target.value)}
+          placeholder="Full bio shown on the author's profile card (optional)"
+          rows={3}
+          maxLength={1500}
+          className="mt-2 w-full rounded-md border border-ink-100 px-3 py-2 text-sm text-ink-700"
+        />
       </div>
 
       <div>
@@ -129,6 +141,14 @@ export function AuthorFields({ value, onChange }: Props) {
           />
           <ImagePicker value={value.reviewerPhotoUrl} onChange={(v) => set('reviewerPhotoUrl', v)} purpose="blog" label="Reviewer photo" circularPreview />
         </div>
+        <textarea
+          value={value.reviewerBio}
+          onChange={(e) => set('reviewerBio', e.target.value)}
+          placeholder="Full bio shown on the reviewer's profile card (optional)"
+          rows={3}
+          maxLength={1500}
+          className="mt-2 w-full rounded-md border border-ink-100 px-3 py-2 text-sm text-ink-700"
+        />
       </div>
     </div>
   );
