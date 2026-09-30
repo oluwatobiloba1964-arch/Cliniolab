@@ -57,7 +57,8 @@ export function ImagePicker({ value, onChange, purpose, label, circularPreview }
       {label && <label className="text-sm font-medium text-ink-700">{label}</label>}
       {circularPreview && (
         <p className="mt-0.5 text-xs text-ink-400">
-          Square photo works best (about 400×400px), with the face centered — it's shown cropped into a circle.
+          Shown as a circle. The full photo is kept visible (shrunk to fit) rather than cropped, so a tall or wide
+          photo will show some background padding around it.
         </p>
       )}
       <div className="mt-1 flex gap-2">
@@ -123,7 +124,7 @@ export function ImagePicker({ value, onChange, purpose, label, circularPreview }
           alt=""
           className={
             circularPreview
-              ? 'mx-auto mt-3 h-24 w-24 rounded-full object-cover'
+              ? 'mx-auto mt-3 h-24 w-24 rounded-full bg-ink-50 object-contain'
               : 'mt-3 h-32 w-full rounded-md object-cover'
           }
         />
