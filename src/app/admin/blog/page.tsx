@@ -1,3 +1,4 @@
+// src/app/admin/blog/page.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -74,10 +75,12 @@ export default function AdminBlogPage() {
     authorCredentials: '',
     authorPhotoUrl: '',
     authorContributorId: '',
+    authorBio: '',
     reviewerName: '',
     reviewerCredentials: '',
     reviewerPhotoUrl: '',
     reviewerContributorId: '',
+    reviewerBio: '',
   });
   const [sendAsNewsletter, setSendAsNewsletter] = useState(false);
   const [sendPush, setSendPush] = useState(false);
@@ -232,10 +235,12 @@ export default function AdminBlogPage() {
       authorCredentials: '',
       authorPhotoUrl: '',
       authorContributorId: '',
+      authorBio: '',
       reviewerName: '',
       reviewerCredentials: '',
       reviewerPhotoUrl: '',
       reviewerContributorId: '',
+      reviewerBio: '',
     });
     setError(null);
     window.localStorage.removeItem('cliniolab-blog-draft');
@@ -267,10 +272,12 @@ export default function AdminBlogPage() {
       authorCredentials: post.authorCredentials ?? '',
       authorPhotoUrl: post.authorPhotoUrl ?? '',
       authorContributorId: post.authorContributorId ?? '',
+      authorBio: post.authorBio ?? '',
       reviewerName: post.reviewerName ?? '',
       reviewerCredentials: post.reviewerCredentials ?? '',
       reviewerPhotoUrl: post.reviewerPhotoUrl ?? '',
       reviewerContributorId: post.reviewerContributorId ?? '',
+      reviewerBio: post.reviewerBio ?? '',
     });
     setSendAsNewsletter(false); // never re-trigger a newsletter send just by opening an edit
     setSendPush(false); // never re-trigger a push send just by opening an edit
@@ -337,10 +344,12 @@ export default function AdminBlogPage() {
       authorCredentials: authorFields.authorCredentials || undefined,
       authorPhotoUrl: authorFields.authorPhotoUrl || undefined,
       authorContributorId: authorFields.authorContributorId || undefined,
+      authorBio: authorFields.authorBio || undefined,
       reviewerName: authorFields.reviewerName || undefined,
       reviewerCredentials: authorFields.reviewerCredentials || undefined,
       reviewerPhotoUrl: authorFields.reviewerPhotoUrl || undefined,
       reviewerContributorId: authorFields.reviewerContributorId || undefined,
+      reviewerBio: authorFields.reviewerBio || undefined,
       sendAsNewsletter,
       sendPush,
     };
