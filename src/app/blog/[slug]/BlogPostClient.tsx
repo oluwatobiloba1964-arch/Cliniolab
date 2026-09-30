@@ -242,7 +242,15 @@ function BlogPostBody({ post }: { post: BlogPost }) {
             <ShareButton url={window.location.href} title={post.title} />
           )}
         </div>
-        <p className="mt-2 text-xs text-ink-400">{new Date(post.createdAt).toLocaleDateString()}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
+          {post.authorName && (
+            <span>
+              By <span className="font-medium text-ink-600">{post.authorName}</span>
+            </span>
+          )}
+          {post.authorName && <span aria-hidden="true">&middot;</span>}
+          <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+        </div>
       </div>
 
       {/* Post body: full raw HTML documents render edge-to-edge (up to a
