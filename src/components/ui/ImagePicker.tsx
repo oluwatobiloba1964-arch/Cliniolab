@@ -1,3 +1,4 @@
+// src/components/ui/ImagePicker.tsx
 'use client';
 
 import { useRef, useState } from 'react';
@@ -8,9 +9,11 @@ interface ImagePickerProps {
   onChange: (url: string) => void;
   purpose: 'blog' | 'resources' | 'banners' | 'scholars';
   label?: string;
+  /** Preview as a circle instead of a wide rectangle, for avatar-style photos (contributors, scholars, reviewers) that get displayed in a circular frame elsewhere. Also shows sizing guidance so the upload isn't cropped awkwardly. */
+  circularPreview?: boolean;
 }
 
-export function ImagePicker({ value, onChange, purpose, label }: ImagePickerProps) {
+export function ImagePicker({ value, onChange, purpose, label, circularPreview }: ImagePickerProps) {
   const [mode, setMode] = useState<'url' | 'upload'>('url');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +55,11 @@ export function ImagePicker({ value, onChange, purpose, label }: ImagePickerProp
   return (
     <div>
       {label && <label className="text-sm font-medium text-ink-700">{label}</label>}
+      {circularPreview && (
+        <p className="mt-0.5 text-xs text-ink-400">
+          Square photo works best (about 400×400px), with the face centered — it's shown cropped into a circle.
+        </p>
+      )}
       <div className="mt-1 flex gap-2">
         <button
           type="button"
@@ -110,7 +118,15 @@ export function ImagePicker({ value, onChange, purpose, label }: ImagePickerProp
 
       {value && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={value} alt="" className="mt-3 h-32 w-full rounded-md object-cover" />
+        <img
+          src={value}
+          alt=""
+          className={
+            circularPreview
+              ? 'mx-auto mt-3 h-24 w-24 rounded-full object-cover'
+              : 'mt-3 h-32 w-full rounded-md object-cover'
+          }
+        />
       )}
     </div>
   );
