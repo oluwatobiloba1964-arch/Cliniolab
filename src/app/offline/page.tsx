@@ -1,3 +1,4 @@
+// src/app/offline/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -96,7 +97,7 @@ export default function OfflinePage() {
     <div className="mx-auto max-w-3xl px-6 py-14">
       <h1 className="font-display text-3xl font-semibold text-ink-800">Offline items</h1>
       <p className="mt-2 text-ink-500">
-        {online ? 'You are online.' : 'You are offline — saved items below still work.'} Results here are graded on
+        {online ? 'You are online.' : 'You are offline. Saved items below still work.'} Results here are graded on
         your device only and are not saved to your account.
       </p>
 
