@@ -1,3 +1,4 @@
+// src/app/api/admin/blog/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
@@ -43,10 +44,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
     authorCredentials: string | null;
     authorPhotoUrl: string | null;
     authorContributorId: string | null;
+    authorBio: string | null;
     reviewerName: string | null;
     reviewerCredentials: string | null;
     reviewerPhotoUrl: string | null;
     reviewerContributorId: string | null;
+    reviewerBio: string | null;
   }>;
   try {
     body = await request.json();
