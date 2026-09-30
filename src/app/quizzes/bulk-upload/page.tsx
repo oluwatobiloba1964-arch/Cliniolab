@@ -50,6 +50,7 @@ const CSV_HEADERS = [
   'option_4',
   'correct_answer',
   'explanation',
+  'incorrect_rationale',
 ];
 
 const CSV_TEMPLATE = [
@@ -59,18 +60,21 @@ const CSV_TEMPLATE = [
     'mcq', 'Which chamber pumps blood to the lungs?',
     'Right atrium', 'Right ventricle', 'Left atrium', 'Left ventricle',
     'Right ventricle', 'The right ventricle pumps deoxygenated blood to the lungs.',
+    'Right atrium receives blood from the body. Left atrium receives oxygenated blood. Left ventricle pumps to the body.',
   ].map(csvEscape).join(','),
   [
     'Cardiac Basics', 'Medicine', 'Cardiology', 'quiz', 'medium', '10',
     'true_false', 'The mitral valve is on the right side of the heart.',
     '', '', '', '',
     'False', 'The mitral valve is on the left side, between atrium and ventricle.',
+    '',
   ].map(csvEscape).join(','),
   [
     'NCLEX Mock Exam A', 'Nursing', 'Exam Prep', 'exam', 'hard', '30',
     'fill_blank', 'The normal adult resting heart rate range is ___ to ___ bpm.',
     '', '', '', '',
     '60-100', 'Normal sinus rhythm for adults is generally 60-100 beats per minute.',
+    '',
   ].map(csvEscape).join(','),
 ].join('\n');
 
@@ -98,6 +102,7 @@ const JSON_TEMPLATE = {
           options: ['Right atrium', 'Right ventricle', 'Left atrium', 'Left ventricle'],
           correctAnswer: 'Right ventricle',
           explanation: 'The right ventricle pumps deoxygenated blood to the lungs.',
+          incorrectRationale: 'Right atrium receives blood from the body. Left atrium receives oxygenated blood. Left ventricle pumps to the body.',
         },
         {
           type: 'true_false',
@@ -202,11 +207,13 @@ function buildQuestionInput(cols: Record<string, string>): {
   options?: QuestionOption[];
   correctAnswer: string;
   explanation?: string;
+  incorrectRationale?: string;
 } {
   const type = (cols.question_type || 'mcq').trim() as QuestionType;
   const prompt = (cols.prompt || '').trim();
   const correctAnswer = (cols.correct_answer || '').trim();
   const explanation = cols.explanation?.trim() || undefined;
+  const incorrectRationale = cols.incorrect_rationale?.trim() || undefined;
 
   if (type === 'mcq') {
     const options: QuestionOption[] = ['option_1', 'option_2', 'option_3', 'option_4']
@@ -221,10 +228,11 @@ function buildQuestionInput(cols: Record<string, string>): {
       options,
       correctAnswer: matched ? matched.id : correctAnswer,
       explanation,
+      incorrectRationale,
     };
   }
 
-  return { type, prompt, correctAnswer, explanation };
+  return { type, prompt, correctAnswer, explanation, incorrectRationale };
 }
 
 /**
@@ -591,7 +599,7 @@ export default function BulkUploadPage() {
     const rows = CSV_TEMPLATE.split('\n').map((line) => parseTemplateLine(line));
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     worksheet['!cols'] = CSV_HEADERS.map((h) =>
-      h === 'prompt' || h === 'explanation' ? { wch: 40 } : { wch: 16 }
+      h === 'prompt' || h === 'explanation' || h === 'incorrect_rationale' ? { wch: 40 } : { wch: 16 }
     );
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Quiz Upload');

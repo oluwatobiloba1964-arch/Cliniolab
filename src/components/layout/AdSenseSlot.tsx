@@ -28,6 +28,11 @@ function isBlockedPath(pathname: string | null): boolean {
   // /quizzes/[quizId] and /quizzes/[quizId]/edit — anything directly
   // under /quizzes/ that isn't the bare listing page or purchase-success.
   if (/^\/quizzes\/[^/]+/.test(pathname) && pathname !== '/quizzes/purchase-success') return true;
+  // Guest Practice: quiz/study/flashcard runners, same reasoning as the
+  // logged-in quiz runner above. The /guest hub listing page is fine.
+  if (/^\/guest\/(quiz|flashcards)\//.test(pathname)) return true;
+  // Offline runner: takes over the whole page like a quiz runner does.
+  if (pathname === '/offline') return true;
   return false;
 }
 

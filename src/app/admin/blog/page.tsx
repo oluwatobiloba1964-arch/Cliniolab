@@ -9,6 +9,7 @@ import { InlineImageManager } from '@/components/ui/InlineImageManager';
 import { TiptapEditor, type TiptapEditorHandle } from '@/components/ui/TiptapEditor';
 import { RawHtmlFrame } from '@/components/ui/RawHtmlFrame';
 import type { BlogContentFormat, BlogPost, BlogStatus } from '@/types';
+import { AuthorFields, type AuthorFieldsValue } from '@/components/blog/AuthorFields';
 
 interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
 interface BlogSubcategoryOption { id: string; blogCategoryId: string; name: string; slug: string; sortOrder: number }
@@ -68,6 +69,16 @@ export default function AdminBlogPage() {
   const [isSponsored, setIsSponsored] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const [fullWidth, setFullWidth] = useState(false);
+  const [authorFields, setAuthorFields] = useState<AuthorFieldsValue>({
+    authorName: '',
+    authorCredentials: '',
+    authorPhotoUrl: '',
+    authorContributorId: '',
+    reviewerName: '',
+    reviewerCredentials: '',
+    reviewerPhotoUrl: '',
+    reviewerContributorId: '',
+  });
   const [sendAsNewsletter, setSendAsNewsletter] = useState(false);
   const [sendPush, setSendPush] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,6 +227,16 @@ export default function AdminBlogPage() {
     setFullWidth(false);
     setSendAsNewsletter(false);
     setSendPush(false);
+    setAuthorFields({
+      authorName: '',
+      authorCredentials: '',
+      authorPhotoUrl: '',
+      authorContributorId: '',
+      reviewerName: '',
+      reviewerCredentials: '',
+      reviewerPhotoUrl: '',
+      reviewerContributorId: '',
+    });
     setError(null);
     window.localStorage.removeItem('cliniolab-blog-draft');
   }
@@ -241,6 +262,16 @@ export default function AdminBlogPage() {
     setIsSponsored(post.isSponsored);
     setIsPinned(post.isPinned);
     setFullWidth(post.fullWidth);
+    setAuthorFields({
+      authorName: post.authorName ?? '',
+      authorCredentials: post.authorCredentials ?? '',
+      authorPhotoUrl: post.authorPhotoUrl ?? '',
+      authorContributorId: post.authorContributorId ?? '',
+      reviewerName: post.reviewerName ?? '',
+      reviewerCredentials: post.reviewerCredentials ?? '',
+      reviewerPhotoUrl: post.reviewerPhotoUrl ?? '',
+      reviewerContributorId: post.reviewerContributorId ?? '',
+    });
     setSendAsNewsletter(false); // never re-trigger a newsletter send just by opening an edit
     setSendPush(false); // never re-trigger a push send just by opening an edit
     setError(null);
@@ -302,6 +333,14 @@ export default function AdminBlogPage() {
       isSponsored,
       isPinned,
       fullWidth,
+      authorName: authorFields.authorName || undefined,
+      authorCredentials: authorFields.authorCredentials || undefined,
+      authorPhotoUrl: authorFields.authorPhotoUrl || undefined,
+      authorContributorId: authorFields.authorContributorId || undefined,
+      reviewerName: authorFields.reviewerName || undefined,
+      reviewerCredentials: authorFields.reviewerCredentials || undefined,
+      reviewerPhotoUrl: authorFields.reviewerPhotoUrl || undefined,
+      reviewerContributorId: authorFields.reviewerContributorId || undefined,
       sendAsNewsletter,
       sendPush,
     };
@@ -377,6 +416,8 @@ export default function AdminBlogPage() {
         </div>
 
         <ImagePicker value={featuredImageUrl} onChange={setFeaturedImageUrl} purpose="blog" label="Featured image" />
+
+        <AuthorFields value={authorFields} onChange={setAuthorFields} />
 
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2">

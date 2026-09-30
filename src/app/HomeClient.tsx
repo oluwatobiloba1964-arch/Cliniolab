@@ -11,6 +11,7 @@ import { CategoryQuizSection } from '@/components/quiz/CategoryQuizSection';
 import { CategoryFlashcardSection } from '@/components/flashcards/CategoryFlashcardSection';
 import { FlashcardSetCard, FeaturedFlashcardSetCard, CompactFlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import { DailyQuizBanner } from '@/components/layout/DailyQuizBanner';
+import { GuestPracticeSection } from '@/components/guest/GuestPracticeSection';
 import { BannerSlot } from '@/components/layout/BannerSlot';
 import { ScholarOfTheDayCard } from '@/components/layout/ScholarOfTheDayCard';
 import { AbbreviationsTeaser } from '@/components/layout/AbbreviationsTeaser';
@@ -164,6 +165,8 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       <BannerSlot placement="header" />
 
       <DailyQuizBanner />
+
+      <GuestPracticeSection />
 
       {/* Blog / education content, one section per fixed category (excluding Job/Scholarship) */}
       {homepageBlogCategories.length > 0 && (

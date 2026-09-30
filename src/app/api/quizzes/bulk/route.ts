@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
 import { quizService } from '@/lib/db';
 import type { QuizInput } from '@/types';
+import { checkGuestVisibilityAllowed } from '@/lib/guest/guestAccess';
 
 /**
  * Accepts { quizzes: QuizInput[] } and creates them all, allowing a user
@@ -43,6 +44,15 @@ export async function POST(request: Request) {
         { error: `Quiz at index ${index} is missing title, subcategoryId, or questions` },
         { status: 400 }
       );
+    }
+  }
+
+  for (const [index, quiz] of body.quizzes.entries()) {
+    if (quiz.visibility === 'guest') {
+      const guestError = await checkGuestVisibilityAllowed({ role: user.role, pricing: quiz.pricing });
+      if (guestError) {
+        return NextResponse.json({ error: `Quiz at index ${index}: ${guestError}` }, { status: 403 });
+      }
     }
   }
 

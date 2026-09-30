@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
 import { quizService } from '@/lib/db';
+import { checkGuestVisibilityAllowed } from '@/lib/guest/guestAccess';
 import type { QuizInput } from '@/types';
 
 export async function GET(request: Request) {
@@ -79,6 +80,11 @@ export async function POST(request: Request) {
       { error: 'customExpiryDate is required when linkExpiry is "custom"' },
       { status: 400 }
     );
+  }
+
+  if (input.visibility === 'guest') {
+    const guestError = await checkGuestVisibilityAllowed({ role: user.role, pricing: input.pricing });
+    if (guestError) return NextResponse.json({ error: guestError }, { status: 403 });
   }
 
   try {

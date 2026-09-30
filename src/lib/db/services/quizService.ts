@@ -37,6 +37,7 @@ interface QuizRow {
   default_mark: number;
   show_marks: number;
   leaderboard_enabled: number;
+  guest_attempt_count?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +50,7 @@ interface QuestionRow {
   options: string | null;
   correct_answer: string;
   explanation: string | null;
+  incorrect_rationale?: string | null;
   sort_order: number;
   mark: number | null;
 }
@@ -80,6 +82,7 @@ function mapQuiz(row: QuizRow): Quiz {
     defaultMark: row.default_mark,
     showMarks: row.show_marks === 1,
     leaderboardEnabled: row.leaderboard_enabled === 1,
+    guestAttemptCount: row.guest_attempt_count ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -94,6 +97,7 @@ function mapQuestion(row: QuestionRow): QuizQuestion {
     options: row.options ? JSON.parse(row.options) : null,
     correctAnswer: row.correct_answer,
     explanation: row.explanation,
+    incorrectRationale: row.incorrect_rationale ?? null,
     sortOrder: row.sort_order,
     mark: row.mark,
   };
@@ -248,8 +252,8 @@ export async function createQuiz(creatorId: string, input: QuizInput): Promise<Q
   const questionStatements = input.questions.map((q, index) =>
     db
       .prepare(
-        `INSERT INTO questions (id, quiz_id, type, prompt, options, correct_answer, explanation, sort_order, mark)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO questions (id, quiz_id, type, prompt, options, correct_answer, explanation, incorrect_rationale, sort_order, mark)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         generateId('q'),
@@ -259,6 +263,7 @@ export async function createQuiz(creatorId: string, input: QuizInput): Promise<Q
         q.options ? JSON.stringify(q.options) : null,
         q.correctAnswer,
         q.explanation ?? null,
+        q.incorrectRationale?.trim() || null,
         index,
         q.mark ?? null
       )
@@ -389,7 +394,7 @@ export async function updateQuiz(quizId: string, input: QuizInput): Promise<Quiz
       return db
         .prepare(
           `UPDATE questions SET
-            type = ?, prompt = ?, options = ?, correct_answer = ?, explanation = ?, sort_order = ?, mark = ?
+            type = ?, prompt = ?, options = ?, correct_answer = ?, explanation = ?, incorrect_rationale = ?, sort_order = ?, mark = ?
           WHERE id = ?`
         )
         .bind(
@@ -398,6 +403,7 @@ export async function updateQuiz(quizId: string, input: QuizInput): Promise<Quiz
           q.options ? JSON.stringify(q.options) : null,
           q.correctAnswer,
           q.explanation ?? null,
+          q.incorrectRationale?.trim() || null,
           index,
           q.mark ?? null,
           q.id
@@ -405,8 +411,8 @@ export async function updateQuiz(quizId: string, input: QuizInput): Promise<Quiz
     }
     return db
       .prepare(
-        `INSERT INTO questions (id, quiz_id, type, prompt, options, correct_answer, explanation, sort_order, mark)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO questions (id, quiz_id, type, prompt, options, correct_answer, explanation, incorrect_rationale, sort_order, mark)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         generateId('q'),
@@ -416,6 +422,7 @@ export async function updateQuiz(quizId: string, input: QuizInput): Promise<Quiz
         q.options ? JSON.stringify(q.options) : null,
         q.correctAnswer,
         q.explanation ?? null,
+        q.incorrectRationale?.trim() || null,
         index,
         q.mark ?? null
       );
@@ -605,6 +612,18 @@ export async function setQuizVisibility(
   password?: string
 ): Promise<void> {
   const db = getDb();
+  if (visibility === 'guest') {
+    // Guest Practice: open to visitors without an account, no share link.
+    await db
+      .prepare(
+        `UPDATE quizzes SET visibility = 'guest', share_slug = NULL, link_expires_at = NULL,
+          access_mode = 'link', password_hash = NULL, password_salt = NULL, updated_at = ?
+        WHERE id = ?`
+      )
+      .bind(nowIso(), quizId)
+      .run();
+    return;
+  }
   if (visibility === 'public') {
     await db
       .prepare(

@@ -55,5 +55,39 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
-  return <BlogPostClient slug={slug} />;
+  const post = await cmsService.getPostBySlug(slug).catch(() => null);
+
+  const jsonLd = post
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: post.title,
+        datePublished: post.createdAt,
+        dateModified: post.updatedAt,
+        image: post.featuredImageUrl || undefined,
+        author: post.authorName
+          ? { '@type': 'Person', name: post.authorName, ...(post.authorCredentials ? { honorificSuffix: post.authorCredentials } : {}) }
+          : { '@type': 'Organization', name: 'Cliniolab' },
+        ...(post.reviewerName
+          ? {
+              reviewedBy: {
+                '@type': 'Person',
+                name: post.reviewerName,
+                ...(post.reviewerCredentials ? { honorificSuffix: post.reviewerCredentials } : {}),
+              },
+            }
+          : {}),
+        publisher: { '@type': 'Organization', name: 'Cliniolab', url: BASE_URL },
+        mainEntityOfPage: `${BASE_URL}/blog/${slug}`,
+      }
+    : null;
+
+  return (
+    <>
+      {jsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      )}
+      <BlogPostClient slug={slug} />
+    </>
+  );
 }

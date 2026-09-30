@@ -39,6 +39,14 @@ export async function PUT(request: Request, { params }: RouteParams) {
     fullWidth: boolean;
     sendAsNewsletter: boolean;
     sendPush: boolean;
+    authorName: string | null;
+    authorCredentials: string | null;
+    authorPhotoUrl: string | null;
+    authorContributorId: string | null;
+    reviewerName: string | null;
+    reviewerCredentials: string | null;
+    reviewerPhotoUrl: string | null;
+    reviewerContributorId: string | null;
   }>;
   try {
     body = await request.json();

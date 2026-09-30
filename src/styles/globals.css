@@ -47,3 +47,47 @@ h1, h2, h3, h4 {
 ::selection {
   background-color: theme('colors.pulse.200');
 }
+
+/* ------------------------------------------------------------------ */
+/* Dark mode                                                           */
+/* ------------------------------------------------------------------ */
+/* Toggled via a `dark` class on <html> (see ThemeProvider). Rather than
+   rewriting every className in the app, the highest-frequency neutral
+   utility classes are re-pointed to dark-friendly colors here. Deliberately
+   dark surfaces (hero, footer: bg-ink-700/800/900) are left alone since
+   they already read correctly in both themes. Brand accents (pulse, flag,
+   critical) are also left alone; they have enough contrast on a dark
+   background already. */
+
+.dark body { @apply bg-[#0B1420] text-[#E8EEF1]; }
+
+.dark .bg-white { background-color: #101C27; }
+.dark .bg-paper { background-color: #0B1420; }
+.dark .bg-ink-50 { background-color: #16232E; }
+.dark .bg-ink-100 { background-color: #1C2C38; }
+
+.dark .text-ink-800 { color: #E8EEF1; }
+.dark .text-ink-700 { color: #D3DEE3; }
+.dark .text-ink-600 { color: #B9C7CE; }
+.dark .text-ink-500 { color: #93A6B0; }
+.dark .text-ink-400 { color: #6E8494; }
+.dark .text-ink-300 { color: #556873; }
+
+.dark .border-ink-50 { border-color: #1A2733; }
+.dark .border-ink-100 { border-color: #223140; }
+.dark .border-ink-200 { border-color: #2A3B4A; }
+.dark .divide-ink-100 > :not([hidden]) ~ :not([hidden]) { border-color: #223140; }
+
+.dark ::selection { background-color: theme('colors.pulse.700'); }
+
+/* Inputs and other form controls that inherit white backgrounds via
+   browser defaults rather than an explicit bg-white class. */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #101C27;
+  color: #E8EEF1;
+}
+
+/* Prevents a light flash while the theme script runs on first paint. */
+html.theme-pending body { visibility: hidden; }

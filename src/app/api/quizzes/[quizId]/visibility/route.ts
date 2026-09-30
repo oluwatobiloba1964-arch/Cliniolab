@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { isOwnerOrStaff } from '@/lib/auth/permissions';
 import { quizService } from '@/lib/db';
+import { checkGuestVisibilityAllowed } from '@/lib/guest/guestAccess';
 import type { LinkExpiryOption, QuizVisibility, QuizAccessMode } from '@/types';
 
 interface RouteParams {
@@ -46,6 +47,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       { error: 'customExpiryDate is required when linkExpiry is "custom"' },
       { status: 400 }
     );
+  }
+
+  if (body.visibility === 'guest') {
+    const guestError = await checkGuestVisibilityAllowed({ role: user.role, pricing: quiz.pricing });
+    if (guestError) return NextResponse.json({ error: guestError }, { status: 403 });
   }
 
   try {

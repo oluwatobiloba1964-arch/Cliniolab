@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
 import { featureFlagService, flashcardService } from '@/lib/db';
 import type { FlashcardInput } from '@/types';
+import { checkGuestVisibilityAllowed } from '@/lib/guest/guestAccess';
 
 export async function GET(request: Request) {
   const enabled = await featureFlagService.isFeatureEnabled('flashcards');
@@ -80,6 +81,11 @@ export async function POST(request: Request) {
   }
   if (input.pricing === 'paid' && (!input.priceKobo || input.priceKobo <= 0)) {
     return NextResponse.json({ error: 'priceKobo is required for a paid flashcard set' }, { status: 400 });
+  }
+
+  if (input.visibility === 'guest') {
+    const guestError = await checkGuestVisibilityAllowed({ role: user.role, pricing: input.pricing });
+    if (guestError) return NextResponse.json({ error: guestError }, { status: 403 });
   }
 
   try {

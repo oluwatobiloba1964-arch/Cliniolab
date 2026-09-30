@@ -7,6 +7,7 @@ import type { Config } from 'tailwindcss';
  * templated cream+terracotta.
  */
 const config: Config = {
+  darkMode: 'class',
   content: [
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',

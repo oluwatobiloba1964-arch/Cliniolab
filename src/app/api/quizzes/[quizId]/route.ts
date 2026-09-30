@@ -108,6 +108,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
+  // A Guest Practice quiz must stay free.
+  if (quiz.visibility === 'guest' && input.pricing === 'paid') {
+    return NextResponse.json(
+      { error: 'Guest Practice quizzes must be free. Change visibility first to make it paid.' },
+      { status: 400 }
+    );
+  }
+
   try {
     const updated = await quizService.updateQuiz(quizId, input);
     return NextResponse.json({ quiz: updated });

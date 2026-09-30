@@ -158,6 +158,7 @@ export async function submitAttempt(
       correctAnswer: effectiveCorrectAnswer,
       isCorrect,
       explanation: q.explanation,
+      incorrectRationale: q.incorrectRationale ?? null,
       options: q.options ?? [],
       mark,
     };
@@ -238,6 +239,67 @@ export async function submitAttempt(
     showMarks: quiz.showMarks,
     percentage,
     countedForLeaderboard: true,
+    perQuestion,
+  };
+}
+
+/**
+ * Grades a Guest Practice attempt WITHOUT writing anything to the database.
+ * Same grading rules as submitAttempt (marks, effective correct answer),
+ * but no quiz_attempts / attempt_answers rows, no leaderboard, no
+ * certificate. The caller may add an anonymous completion count separately.
+ */
+export async function gradeWithoutSaving(submission: AttemptSubmission): Promise<AttemptResult> {
+  const quiz = await getQuizById(submission.quizId);
+  if (!quiz) throw new Error('Quiz not found');
+
+  const allQuestions = await getQuizQuestions(submission.quizId);
+  if (allQuestions.length === 0) throw new Error('Quiz has no questions');
+
+  const questions = submission.questionIds
+    ? allQuestions.filter((q) => submission.questionIds!.includes(q.id))
+    : allQuestions;
+  if (questions.length === 0) throw new Error('No matching questions for this attempt');
+
+  const answerMap = new Map(submission.answers.map((a) => [a.questionId, a.submittedAnswer]));
+
+  let marksEarned = 0;
+  let totalMarks = 0;
+  let correctCount = 0;
+  const perQuestion = questions.map((q) => {
+    const submittedAnswer = answerMap.get(q.id) ?? null;
+    const effectiveCorrectAnswer = resolveEffectiveCorrectAnswer(q.correctAnswer, q.options);
+    const isCorrect =
+      submittedAnswer !== null &&
+      submittedAnswer.trim().toLowerCase() === effectiveCorrectAnswer.trim().toLowerCase();
+    const mark = q.mark ?? quiz.defaultMark;
+    totalMarks += mark;
+    if (isCorrect) {
+      marksEarned += mark;
+      correctCount++;
+    }
+    return {
+      questionId: q.id,
+      prompt: q.prompt,
+      submittedAnswer,
+      correctAnswer: effectiveCorrectAnswer,
+      isCorrect,
+      explanation: q.explanation,
+      incorrectRationale: q.incorrectRationale ?? null,
+      options: q.options ?? [],
+      mark,
+    };
+  });
+
+  return {
+    attemptId: generateId('guest'), // never persisted; only a client-side key
+    score: marksEarned,
+    totalQuestions: questions.length,
+    marksEarned,
+    totalMarks,
+    showMarks: quiz.showMarks,
+    percentage: totalMarks > 0 ? (marksEarned / totalMarks) * 100 : 0,
+    countedForLeaderboard: false,
     perQuestion,
   };
 }

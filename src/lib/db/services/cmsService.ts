@@ -23,6 +23,14 @@ interface BlogRow {
   newsletter_sent_at: string | null;
   send_push: number;
   push_sent_at: string | null;
+  author_name?: string | null;
+  author_credentials?: string | null;
+  author_photo_url?: string | null;
+  author_contributor_id?: string | null;
+  reviewer_name?: string | null;
+  reviewer_credentials?: string | null;
+  reviewer_photo_url?: string | null;
+  reviewer_contributor_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +65,14 @@ function mapBlog(row: BlogRow): BlogPost {
     newsletterSentAt: row.newsletter_sent_at,
     sendPush: row.send_push === 1,
     pushSentAt: row.push_sent_at,
+    authorName: row.author_name ?? null,
+    authorCredentials: row.author_credentials ?? null,
+    authorPhotoUrl: row.author_photo_url ?? null,
+    authorContributorId: row.author_contributor_id ?? null,
+    reviewerName: row.reviewer_name ?? null,
+    reviewerCredentials: row.reviewer_credentials ?? null,
+    reviewerPhotoUrl: row.reviewer_photo_url ?? null,
+    reviewerContributorId: row.reviewer_contributor_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -188,6 +204,14 @@ export async function createPost(
     fullWidth?: boolean;
     sendAsNewsletter?: boolean;
     sendPush?: boolean;
+    authorName?: string;
+    authorCredentials?: string;
+    authorPhotoUrl?: string;
+    authorContributorId?: string;
+    reviewerName?: string;
+    reviewerCredentials?: string;
+    reviewerPhotoUrl?: string;
+    reviewerContributorId?: string;
   }
 ): Promise<BlogPost> {
   const db = getDb();
@@ -196,8 +220,10 @@ export async function createPost(
   await db
     .prepare(
       `INSERT INTO blog_posts
-        (id, author_id, title, slug, content, content_format, excerpt, blog_category_id, blog_subcategory_id, featured_image_url, seo_title, seo_description, status, is_sponsored, is_pinned, full_width, send_as_newsletter, send_push, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, author_id, title, slug, content, content_format, excerpt, blog_category_id, blog_subcategory_id, featured_image_url, seo_title, seo_description, status, is_sponsored, is_pinned, full_width, send_as_newsletter, send_push,
+         author_name, author_credentials, author_photo_url, author_contributor_id,
+         reviewer_name, reviewer_credentials, reviewer_photo_url, reviewer_contributor_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       id,
@@ -218,6 +244,14 @@ export async function createPost(
       input.fullWidth ? 1 : 0,
       input.sendAsNewsletter ? 1 : 0,
       input.sendPush ? 1 : 0,
+      input.authorName?.trim() || null,
+      input.authorCredentials?.trim() || null,
+      input.authorPhotoUrl?.trim() || null,
+      input.authorContributorId || null,
+      input.reviewerName?.trim() || null,
+      input.reviewerCredentials?.trim() || null,
+      input.reviewerPhotoUrl?.trim() || null,
+      input.reviewerContributorId || null,
       createdAt,
       createdAt
     )
@@ -244,6 +278,14 @@ export async function createPost(
     newsletterSentAt: null,
     sendPush: input.sendPush ?? false,
     pushSentAt: null,
+    authorName: input.authorName?.trim() || null,
+    authorCredentials: input.authorCredentials?.trim() || null,
+    authorPhotoUrl: input.authorPhotoUrl?.trim() || null,
+    authorContributorId: input.authorContributorId || null,
+    reviewerName: input.reviewerName?.trim() || null,
+    reviewerCredentials: input.reviewerCredentials?.trim() || null,
+    reviewerPhotoUrl: input.reviewerPhotoUrl?.trim() || null,
+    reviewerContributorId: input.reviewerContributorId || null,
     createdAt,
     updatedAt: createdAt,
   };
@@ -268,6 +310,14 @@ export async function updatePost(
     fullWidth: boolean;
     sendAsNewsletter: boolean;
     sendPush: boolean;
+    authorName: string | null;
+    authorCredentials: string | null;
+    authorPhotoUrl: string | null;
+    authorContributorId: string | null;
+    reviewerName: string | null;
+    reviewerCredentials: string | null;
+    reviewerPhotoUrl: string | null;
+    reviewerContributorId: string | null;
   }>
 ): Promise<void> {
   const db = getDb();
@@ -289,6 +339,15 @@ export async function updatePost(
   if (input.fullWidth !== undefined) { fields.push('full_width = ?'); values.push(input.fullWidth ? 1 : 0); }
   if (input.sendAsNewsletter !== undefined) { fields.push('send_as_newsletter = ?'); values.push(input.sendAsNewsletter ? 1 : 0); }
   if (input.sendPush !== undefined) { fields.push('send_push = ?'); values.push(input.sendPush ? 1 : 0); }
+  const nullable = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+  if (input.authorName !== undefined) { fields.push('author_name = ?'); values.push(nullable(input.authorName)); }
+  if (input.authorCredentials !== undefined) { fields.push('author_credentials = ?'); values.push(nullable(input.authorCredentials)); }
+  if (input.authorPhotoUrl !== undefined) { fields.push('author_photo_url = ?'); values.push(nullable(input.authorPhotoUrl)); }
+  if (input.authorContributorId !== undefined) { fields.push('author_contributor_id = ?'); values.push(input.authorContributorId || null); }
+  if (input.reviewerName !== undefined) { fields.push('reviewer_name = ?'); values.push(nullable(input.reviewerName)); }
+  if (input.reviewerCredentials !== undefined) { fields.push('reviewer_credentials = ?'); values.push(nullable(input.reviewerCredentials)); }
+  if (input.reviewerPhotoUrl !== undefined) { fields.push('reviewer_photo_url = ?'); values.push(nullable(input.reviewerPhotoUrl)); }
+  if (input.reviewerContributorId !== undefined) { fields.push('reviewer_contributor_id = ?'); values.push(input.reviewerContributorId || null); }
   if (fields.length === 0) return;
   fields.push('updated_at = ?');
   values.push(nowIso());
@@ -348,4 +407,18 @@ export async function upsertStaticPage(id: string, title: string, content: strin
     )
     .bind(id, title, content, updatedAt)
     .run();
+}
+
+/** Published posts credited to a contributor as author or reviewer (author page). */
+export async function listPublishedPostsByContributor(contributorId: string, limit = 50): Promise<BlogPost[]> {
+  const db = getDb();
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM blog_posts
+       WHERE status = 'published' AND (author_contributor_id = ? OR reviewer_contributor_id = ?)
+       ORDER BY created_at DESC LIMIT ?`
+    )
+    .bind(contributorId, contributorId, limit)
+    .all<BlogRow>();
+  return results.map(mapBlog);
 }

@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { FlashcardRunner, FLASHCARD_DRAFT_NAMESPACE } from '@/components/flashcards/FlashcardRunner';
+import { FLASHCARD_DRAFT_NAMESPACE } from '@/components/flashcards/FlashcardRunner';
+import { FlashcardStudyHub } from '@/components/flashcards/FlashcardStudyHub';
+import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
 import { loadDraft } from '@/lib/localDraft';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
@@ -112,7 +114,7 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
 
   if (started && cards.length > 0) {
     return (
-      <FlashcardRunner
+      <FlashcardStudyHub
         title={set.title}
         cards={cards.map((c) => ({ id: c.id, front: c.front, back: c.back, explanation: c.explanation }))}
         draftId={setId}
@@ -132,6 +134,17 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
           <div>
             <span className="rounded bg-pulse-50 px-2 py-0.5 text-xs font-semibold text-pulse-600">Flashcard</span>
             <h1 className="mt-2 font-display text-3xl font-semibold text-ink-800">{set.title}</h1>
+            {!requiresPurchase && (
+              <div className="mt-2">
+                <OfflineSaveButton
+                  kind="flashcards"
+                  sourceId={set.id}
+                  title={set.title}
+                  pricing={set.pricing}
+                  loadPayload={async () => ({ set, cards })}
+                />
+              </div>
+            )}
           </div>
           <BookmarkButton kind="flashcard" targetId={set.id} />
         </div>

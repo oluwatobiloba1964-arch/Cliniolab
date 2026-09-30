@@ -6,6 +6,8 @@ import { sanitizeHtml, wrapWithScopeClass } from '@/lib/utils/sanitizeHtml';
 import { RawHtmlFrame, isFullRawDocument } from '@/components/ui/RawHtmlFrame';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { RelatedQuizzes } from '@/components/quiz/RelatedQuizzes';
+import { AuthorBox } from '@/components/blog/AuthorBox';
+import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import { RelatedPosts } from '@/components/cms/RelatedPosts';
 import { CommentThread } from '@/components/quiz/CommentThread';
 import { useBlogSubcategoryName } from '@/lib/hooks/useBlogSubcategoryName';
@@ -115,6 +117,7 @@ const FLATTEN_BOXED_CONTENT_CSS = `
 `;
 
 export function BlogPostClient({ slug }: { slug: string }) {
+  const { authorBox } = usePublicConfig();
   const [post, setPost] = useState<BlogPost | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -270,6 +273,15 @@ function BlogPostBody({ post }: { post: BlogPost }) {
       )}
 
       <div className="mx-auto max-w-2xl px-6">
+        <AuthorBox
+          authorName={post.authorName}
+          authorCredentials={post.authorCredentials}
+          authorPhotoUrl={post.authorPhotoUrl}
+          reviewerName={post.reviewerName}
+          reviewerCredentials={post.reviewerCredentials}
+          reviewerPhotoUrl={post.reviewerPhotoUrl}
+          setting={authorBox}
+        />
         <CommentThread
           endpoint={`/api/blog/${post.id}/comments`}
           placeholder="Share your thoughts on this post…"

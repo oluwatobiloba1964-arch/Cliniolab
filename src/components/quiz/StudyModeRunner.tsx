@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
+import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { resolveEffectiveCorrectAnswer } from '@/lib/quizAnswers';
 import type { Quiz, QuizQuestion } from '@/types';
@@ -400,6 +401,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
                       {q.explanation}
                     </p>
                   )}
+                  <IncorrectRationale text={q.incorrectRationale} />
                 </div>
               );
             })}
@@ -548,6 +550,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
                 {question.explanation}
               </p>
             )}
+            <IncorrectRationale text={question.incorrectRationale} />
           </div>
         )}
       </Card>

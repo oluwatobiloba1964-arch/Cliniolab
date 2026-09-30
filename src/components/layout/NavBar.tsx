@@ -5,11 +5,13 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 
 const navLinks = [
   { href: '/categories', label: 'Categories' },
   { href: '/quizzes', label: 'Latest Quizzes' },
   { href: '/flashcards', label: 'Flashcards' },
+  { href: '/guest', label: 'Guest Practice' },
   { href: '/resources', label: 'Resources' },
   { href: '/leaderboard', label: 'Leaderboard' },
   { href: '/blog', label: 'Blog' },
@@ -56,6 +58,7 @@ export function NavBar() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
+          <ThemeToggle />
           <button
             onClick={() => setSearchOpen((v) => !v)}
             className="text-ink-500 hover:text-ink-800"

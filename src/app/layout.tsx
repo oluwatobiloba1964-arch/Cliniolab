@@ -4,6 +4,8 @@ import '@/styles/globals.css';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AdSenseLoader } from '@/components/layout/AdSenseLoader';
 import { Providers } from './providers';
+import { ThemeScript } from '@/components/theme/ThemeScript';
+import { platformSettingsService } from '@/lib/db';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
 
@@ -113,7 +115,8 @@ const jsonLd = {
   audience: { '@type': 'Audience', audienceType: 'Nursing and Clinical Students' },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const themeSetting = await platformSettingsService.getThemeSetting().catch(() => platformSettingsService.DEFAULT_THEME);
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable} ${plexMono.variable}`}>
       <head>
@@ -121,6 +124,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        <ThemeScript serverDefault={themeSetting.defaultTheme} />
         <AdSenseLoader />
       </head>
       <body>

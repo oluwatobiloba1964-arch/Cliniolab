@@ -54,7 +54,7 @@ export interface Subcategory {
 
 export type QuizMode = 'study' | 'quiz' | 'exam';
 export type QuizDifficulty = 'easy' | 'medium' | 'hard';
-export type QuizVisibility = 'public' | 'private';
+export type QuizVisibility = 'public' | 'private' | 'guest';
 export type QuizStatus = 'draft' | 'published' | 'archived';
 export type RetakePolicy = 'unlimited' | 'single' | 'daily_limit' | 'cooldown';
 export type QuestionType = 'mcq' | 'true_false' | 'fill_blank';
@@ -96,6 +96,8 @@ export interface Quiz {
   showMarks: boolean;
   /** Only meaningful when visibility === 'private'; ignored for public quizzes, which are governed solely by the global leaderboard_per_quiz admin flag. Lets the creator hide this quiz's own leaderboard from anyone with the link. */
   leaderboardEnabled: boolean;
+  /** Anonymous count of guest completions (Guest Practice). No user ids are stored. */
+  guestAttemptCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -127,6 +129,8 @@ export interface QuizQuestion {
   options: QuestionOption[] | null;
   correctAnswer: string;
   explanation: string | null;
+  /** Optional note on why the other (incorrect) options are wrong. */
+  incorrectRationale?: string | null;
   sortOrder: number;
   /** Marks this question is worth. Null means "use the quiz's defaultMark". */
   mark: number | null;
@@ -171,6 +175,8 @@ export interface QuizQuestionInput {
   options?: QuestionOption[];
   correctAnswer: string;
   explanation?: string;
+  /** Optional note on why the other (incorrect) options are wrong. */
+  incorrectRationale?: string;
   /** Marks this question is worth. Leave undefined/null to use the quiz's defaultMark. */
   mark?: number | null;
 }
@@ -234,6 +240,7 @@ export interface AttemptResult {
     correctAnswer: string;
     isCorrect: boolean;
     explanation: string | null;
+    incorrectRationale?: string | null;
     options: QuestionOption[];
     mark: number;
   }[];
@@ -323,8 +330,41 @@ export interface BlogPost {
   newsletterSentAt: string | null;
   sendPush: boolean;
   pushSentAt: string | null;
+  /** Public byline shown on the post (E-E-A-T). Editable per post; falls back to the account display name. */
+  authorName?: string | null;
+  authorCredentials?: string | null;
+  authorPhotoUrl?: string | null;
+  authorContributorId?: string | null;
+  /** Optional "Medically reviewed by" line. */
+  reviewerName?: string | null;
+  reviewerCredentials?: string | null;
+  reviewerPhotoUrl?: string | null;
+  reviewerContributorId?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Outside writers/reviewers managed by admins. No login account needed. */
+export interface Contributor {
+  id: string;
+  slug: string;
+  name: string;
+  credentials: string | null;
+  title: string | null;
+  bio: string | null;
+  photoUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContributorInput {
+  name: string;
+  credentials?: string;
+  title?: string;
+  bio?: string;
+  photoUrl?: string;
+  isActive?: boolean;
 }
 
 export interface StaticPage {
@@ -369,7 +409,14 @@ export type FeatureFlagKey =
   | 'push_inactivity_nudge'
   | 'push_comment_reply'
   | 'push_daily_quiz'
-  | 'push_blog_new_post';
+  | 'push_blog_new_post'
+  | 'guest_practice'
+  | 'dark_mode'
+  | 'offline_mode'
+  | 'author_box'
+  | 'flashcard_learn_mode'
+  | 'flashcard_match_mode'
+  | 'flashcard_test_mode';
 
 export interface FeatureFlag {
   key: FeatureFlagKey;
@@ -419,6 +466,58 @@ export interface RelatedQuizzesSetting {
   enabled: boolean;
   count: number;
   disabledCategoryIds?: string[];
+}
+
+/** Guest Practice: open access without an account. Nothing is saved to the database except an anonymous completion count. */
+export type GuestCreatorAccess = 'admin_only' | 'admin_moderator' | 'all';
+
+export interface GuestPracticeSetting {
+  /** Max items in the homepage carousel. */
+  homepageCount: number;
+  autoplay: boolean;
+  /** Seconds between automatic slides. */
+  intervalSeconds: number;
+  /** Who may set an item's visibility to Guest. */
+  creatorAccess: GuestCreatorAccess;
+  /** Section heading on the homepage. */
+  sectionTitle: string;
+  sectionSubtitle: string;
+  /** Include guest items in the sitemap. */
+  includeInSitemap: boolean;
+}
+
+export type ThemeDefault = 'system' | 'light' | 'dark';
+
+export interface ThemeSetting {
+  defaultTheme: ThemeDefault;
+}
+
+export interface OfflineSetting {
+  /** Max items one device may keep offline. */
+  maxItems: number;
+  /** Allow offline copies of paid content the user owns. */
+  allowPaid: boolean;
+  /** Days before an offline copy is refreshed from the server when online. */
+  refreshDays: number;
+}
+
+export interface AuthorBoxSetting {
+  showAuthorBox: boolean;
+  showReviewer: boolean;
+  /** Text shown next to reviewer, e.g. "Medically reviewed by". */
+  reviewerLabel: string;
+  editorialPolicyUrl: string;
+  medicalReviewPolicyUrl: string;
+}
+
+/** Admin "Data Clean" row: what it is, how much is stored, and how old data must be to be cleaned. */
+export interface DataCleanTarget {
+  key: string;
+  label: string;
+  description: string;
+  rowCount: number;
+  cleanableCount: number;
+  defaultOlderThanDays: number;
 }
 
 /** How many related posts to show below a blog post, and whether the
@@ -552,6 +651,7 @@ export interface FlashcardSet {
   pricing: 'free' | 'paid';
   priceKobo: number | null;
   shuffleCards: boolean;
+  guestAttemptCount?: number;
   createdAt: string;
   updatedAt: string;
 }

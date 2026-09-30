@@ -43,3 +43,7 @@ export * as retentionService from './services/retentionService';
 export { RetakeNotAllowedError } from './services/attemptService';
 export * as blogCategoryService from './services/blogCategoryService';
 export * as rateLimitService from './services/rateLimitService';
+export * as platformSettingsService from './services/platformSettingsService';
+export * as contributorService from './services/contributorService';
+export * as guestService from './services/guestService';
+export * as dataCleanService from './services/dataCleanService';

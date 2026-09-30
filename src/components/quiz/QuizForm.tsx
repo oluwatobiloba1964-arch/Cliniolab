@@ -42,6 +42,7 @@ function toQuestionInput(q: QuizQuestion): QuizQuestionInput {
     options: q.options ?? undefined,
     correctAnswer: q.correctAnswer,
     explanation: q.explanation ?? undefined,
+    incorrectRationale: q.incorrectRationale ?? undefined,
     mark: q.mark,
   };
 }
@@ -157,6 +158,10 @@ export function QuizForm({
     }
     if (visibility === 'private' && linkExpiry === 'custom' && !customExpiryDate) {
       setError('Please pick a custom expiry date for the private link.');
+      return;
+    }
+    if (visibility === 'guest' && pricing === 'paid') {
+      setError('Guest quizzes must be free. Switch pricing to Free or change visibility.');
       return;
     }
     if (pricing === 'paid' && priceNaira <= 0) {
@@ -339,7 +344,24 @@ export function QuizForm({
             >
               Private (share link only)
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setVisibility('guest');
+                setPricing('free');
+              }}
+              className={`rounded-md border px-4 py-2 text-sm ${visibility === 'guest' ? 'border-pulse-400 bg-pulse-50 text-pulse-700' : 'border-ink-100 text-ink-600'}`}
+            >
+              Guest (open to everyone, no login)
+            </button>
           </div>
+          {visibility === 'guest' && (
+            <p className="mt-2 text-xs text-ink-500">
+              Guest Practice quizzes are free and shown in the Guest Practice section on the homepage.
+              Visitors can take them without an account, and results are not saved.
+              Leaderboard and certificates do not apply.
+            </p>
+          )}
           {initialQuiz && (
             <p className="mt-1 text-xs text-ink-400">
               Changing visibility here updates the field only — use the dashboard&apos;s
@@ -630,6 +652,13 @@ export function QuizForm({
               placeholder="Explanation (optional, shown after grading) — write a full rationale, not just a fragment"
               rows={3}
               className="mt-3 w-full rounded-md border border-ink-100 px-4 py-2 text-sm text-ink-600 focus:border-pulse-400 focus:outline-none"
+            />
+            <textarea
+              value={q.incorrectRationale ?? ''}
+              onChange={(e) => updateQuestion(qIndex, { incorrectRationale: e.target.value })}
+              placeholder="Why the other options are wrong (optional) — one short line per wrong option works well"
+              rows={2}
+              className="mt-2 w-full rounded-md border border-ink-100 px-4 py-2 text-sm text-ink-600 focus:border-pulse-400 focus:outline-none"
             />
           </Card>
         ))}

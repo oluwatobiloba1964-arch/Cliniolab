@@ -83,7 +83,23 @@ export default function DashboardPage() {
     }
   }
 
-  async function toggleVisibility(quizId: string, current: 'public' | 'private') {
+  async function moveToGuest(quizId: string) {
+    const res = await fetch(`/api/quizzes/${quizId}/visibility`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visibility: 'guest' }),
+    });
+    if (res.ok) {
+      const res2 = await fetch('/api/quizzes?mine=true');
+      const data = await res2.json();
+      setMyQuizzes(data.quizzes ?? []);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      window.alert(data.error ?? 'Could not move this quiz to Guest Practice.');
+    }
+  }
+
+  async function toggleVisibility(quizId: string, current: 'public' | 'private' | 'guest') {
     if (current === 'public') {
       // Going private: open the access-mode picker instead of flipping
       // straight to link-mode, so the creator can choose link vs password.
@@ -321,7 +337,7 @@ export default function DashboardPage() {
               <div className="min-w-0">
                 <p className="font-medium text-ink-800">{quiz.title}</p>
                 <p className="text-xs text-ink-400">
-                  {quiz.visibility === 'public' ? 'Public' : 'Private'} · {quiz.questionCount} questions ·{' '}
+                  {quiz.visibility === 'public' ? 'Public' : quiz.visibility === 'guest' ? 'Guest' : 'Private'} · {quiz.questionCount} questions ·{' '}
                   {quiz.attemptCount} attempts
                 </p>
                 {quiz.visibility === 'private' && quiz.accessMode === 'password' && (
@@ -469,6 +485,11 @@ export default function DashboardPage() {
                 <Button size="sm" variant="secondary" onClick={() => toggleVisibility(quiz.id, quiz.visibility)}>
                   Make {quiz.visibility === 'public' ? 'private' : 'public'}
                 </Button>
+                {quiz.visibility !== 'guest' && quiz.pricing !== 'paid' && (
+                  <Button size="sm" variant="secondary" onClick={() => moveToGuest(quiz.id)}>
+                    Move to Guest
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="danger"

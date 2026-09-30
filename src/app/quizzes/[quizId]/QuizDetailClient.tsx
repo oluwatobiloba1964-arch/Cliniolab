@@ -10,6 +10,7 @@ import { ShareButton } from '@/components/quiz/ShareButton';
 import { QuizLeaderboardSection } from '@/components/quiz/QuizLeaderboardSection';
 import { CreatorProfileCard } from '@/components/creator/CreatorProfileCard';
 import { RelatedQuizzes } from '@/components/quiz/RelatedQuizzes';
+import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
 import { Button } from '@/components/ui/Button';
 import { Card, DifficultyBadge } from '@/components/ui/Card';
 import { clearDraft } from '@/lib/localDraft';
@@ -324,6 +325,17 @@ export function QuizDetailClient({
               <span className="mt-1 inline-block font-mono text-xs uppercase tracking-wide text-pulse-600">
                 {MODE_LABELS[quiz.mode]}
               </span>
+            )}
+            {quiz && quiz.mode === 'study' && quiz.pricing !== 'paid' && (
+              <div className="mt-2">
+                <OfflineSaveButton
+                  kind="quiz"
+                  sourceId={quiz.id}
+                  title={quiz.title}
+                  pricing={quiz.pricing}
+                  loadPayload={async () => ({ quiz, questions: studyQuestions })}
+                />
+              </div>
             )}
           </div>
           {previewStats && previewStats.visibility === 'public' && typeof window !== 'undefined' && (

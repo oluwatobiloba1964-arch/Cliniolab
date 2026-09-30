@@ -55,6 +55,14 @@ export async function POST(request: Request) {
     fullWidth?: boolean;
     sendAsNewsletter?: boolean;
     sendPush?: boolean;
+    authorName?: string;
+    authorCredentials?: string;
+    authorPhotoUrl?: string;
+    authorContributorId?: string;
+    reviewerName?: string;
+    reviewerCredentials?: string;
+    reviewerPhotoUrl?: string;
+    reviewerContributorId?: string;
   };
   try {
     body = await request.json();
@@ -86,6 +94,14 @@ export async function POST(request: Request) {
     fullWidth: body.fullWidth,
     sendAsNewsletter: body.sendAsNewsletter,
     sendPush: body.sendPush,
+    authorName: body.authorName,
+    authorCredentials: body.authorCredentials,
+    authorPhotoUrl: body.authorPhotoUrl,
+    authorContributorId: body.authorContributorId,
+    reviewerName: body.reviewerName,
+    reviewerCredentials: body.reviewerCredentials,
+    reviewerPhotoUrl: body.reviewerPhotoUrl,
+    reviewerContributorId: body.reviewerContributorId,
   });
 
   // Only ever send once, and only for posts actually published (not drafts).

@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth/currentUser';
 import { isOwnerOrStaff } from '@/lib/auth/permissions';
 import { featureFlagService, flashcardPurchaseService, flashcardService } from '@/lib/db';
 import type { FlashcardInput } from '@/types';
+import { checkGuestVisibilityAllowed } from '@/lib/guest/guestAccess';
 
 interface RouteParams {
   params: Promise<{ setId: string }>;
@@ -69,6 +70,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       { error: 'Title, subcategory, and at least one card are required' },
       { status: 400 }
     );
+  }
+
+  // Only re-check when the visibility is actually changing to Guest, so an
+  // already-Guest set stays editable even if creator access is tightened.
+  if (input.visibility === 'guest' && set.visibility !== 'guest') {
+    const guestError = await checkGuestVisibilityAllowed({ role: user.role, pricing: input.pricing });
+    if (guestError) return NextResponse.json({ error: guestError }, { status: 403 });
+  }
+  if (input.visibility === 'guest' && input.pricing === 'paid') {
+    return NextResponse.json({ error: 'Paid items cannot be set to Guest. Guest items must be free.' }, { status: 403 });
   }
 
   try {

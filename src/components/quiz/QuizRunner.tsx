@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
+import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import type { AttemptResult, Quiz, QuizQuestion } from '@/types';
 
@@ -32,6 +33,19 @@ interface QuizRunnerProps {
    * only meant for people who've actually taken it.
    */
   onSubmitted?: () => void;
+  /**
+   * Guest Practice: results are graded by a no-save endpoint, nothing goes
+   * to the account dashboard or leaderboard, flagging (needs login) is
+   * hidden, and the results screen points to sign-up instead of the
+   * dashboard. Missed question ids are kept in localStorage only.
+   */
+  guest?: boolean;
+  /** Offline mode: grades entirely on-device instead of calling submitEndpoint. */
+  gradeLocally?: (payload: {
+    questionIds: string[];
+    answers: { questionId: string; submittedAnswer: string | null }[];
+    timeTakenSeconds: number;
+  }) => AttemptResult;
 }
 
 /**
@@ -74,7 +88,7 @@ function shuffleArray<T>(arr: T[]): T[] {
   return copy;
 }
 
-export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFirstAttempt, onSubmitted }: QuizRunnerProps) {
+export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFirstAttempt, onSubmitted, guest = false, gradeLocally }: QuizRunnerProps) {
   const router = useRouter();
 
   // Anti-cheat exams intentionally never read or write a draft: no resume
@@ -354,32 +368,48 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     setError(null);
     try {
       const timeTakenSeconds = Math.round((Date.now() - startedAt) / 1000);
-      const res = await fetch(submitEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionIds: questions.map((q) => q.id),
-          answers: Object.entries(answersRef.current).map(([questionId, submittedAnswer]) => ({
-            questionId,
-            submittedAnswer,
-          })),
-          timeTakenSeconds,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? 'Failed to submit attempt');
-        setSubmitting(false);
-        return;
+      const submission = {
+        questionIds: questions.map((q) => q.id),
+        answers: Object.entries(answersRef.current).map(([questionId, submittedAnswer]) => ({
+          questionId,
+          submittedAnswer,
+        })),
+        timeTakenSeconds,
+      };
+      let resultData: AttemptResult;
+      if (gradeLocally) {
+        resultData = gradeLocally(submission);
+      } else {
+        const res = await fetch(submitEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(submission),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error ?? 'Failed to submit attempt');
+          setSubmitting(false);
+          return;
+        }
+        resultData = data.result;
       }
-      setResult(data.result);
+      setResult(resultData);
+      if (guest) {
+        // Device-local only: lets "Retake missed only" work without any account or database row.
+        try {
+          const missedIds = resultData.perQuestion.filter((pq) => !pq.isCorrect).map((pq) => pq.questionId);
+          window.localStorage.setItem(`cl-guest-missed:${quiz.id}`, JSON.stringify(missedIds));
+        } catch {
+          // Storage may be unavailable (private mode); retake-missed simply falls back to all questions.
+        }
+      }
       onSubmitted?.();
       if (draftsEnabled) {
         clearDraft(DRAFT_NAMESPACE, quiz.id);
         // Cache the result itself now, so a reload of this results screen
         // restores it instead of starting a fresh attempt. Cleared only
         // once the user actually navigates away (see leaveResults below).
-        saveDraft(RESULT_NAMESPACE, quiz.id, data.result);
+        saveDraft(RESULT_NAMESPACE, quiz.id, resultData);
       }
     } catch {
       setError('Network error while submitting. Please try again.');
@@ -461,7 +491,13 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
             {result.score} / {result.totalQuestions} correct
             {result.showMarks && ` · ${result.marksEarned} / ${result.totalMarks} marks`}
           </p>
-          {!result.countedForLeaderboard && (
+          {guest && (
+            <p className="mt-3 text-xs text-ink-500">
+              Guest Practice: this result is not saved. Create a free account to keep your history,
+              streaks and certificates.
+            </p>
+          )}
+          {!guest && !result.countedForLeaderboard && (
             <p className="mt-3 text-xs text-flag-600">
               This quiz allows unlimited retakes, so only your first attempt is saved to your
               dashboard and the leaderboard. This attempt&apos;s score is shown here but wasn&apos;t recorded.
@@ -552,7 +588,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                     {pq.explanation}
                   </p>
                 )}
-                {quiz.allowFlagging && (
+                <IncorrectRationale text={pq.incorrectRationale} />
+                {quiz.allowFlagging && !guest && (
                   <div className="mt-2">
                     {flaggedQuestionIds.has(pq.questionId) ? (
                       <p className="text-xs font-medium text-pulse-600">
@@ -619,14 +656,36 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                 Flashcards: missed only
               </Button>
             )}
-            <Button
-              onClick={() => {
-                leaveResults();
-                router.push('/dashboard');
-              }}
-            >
-              Go to dashboard
-            </Button>
+            {guest ? (
+              <>
+                <Button
+                  onClick={() => {
+                    leaveResults();
+                    router.push('/register');
+                  }}
+                >
+                  Create free account
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    leaveResults();
+                    router.push('/guest');
+                  }}
+                >
+                  More guest practice
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => {
+                  leaveResults();
+                  router.push('/dashboard');
+                }}
+              >
+                Go to dashboard
+              </Button>
+            )}
           </div>
         </Card>
       </div>

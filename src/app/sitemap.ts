@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { categoryService, cmsService, quizService } from '@/lib/db';
+import { categoryService, cmsService, guestService, platformSettingsService, quizService } from '@/lib/db';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
 
@@ -40,18 +40,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/disclaimer`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${BASE_URL}/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${BASE_URL}/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${BASE_URL}/guest`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
+    { url: `${BASE_URL}/editorial-policy`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${BASE_URL}/medical-review-policy`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
   ];
 
   // Fail-soft on each dynamic section independently: if one query fails
   // (e.g. D1 binding briefly unavailable), the sitemap still returns the
   // static routes and whatever dynamic sections did succeed, rather than
   // the whole sitemap erroring out to nothing.
-  const [categories, subcategories, quizzes, posts] = await Promise.all([
+  const [categories, subcategories, quizzes, posts, guestSetting, guestItems] = await Promise.all([
     categoryService.listCategories().catch(() => []),
     categoryService.listSubcategories().catch(() => []),
     quizService.listLatestPublicQuizzes(500).catch(() => []),
     cmsService.listPublishedPosts(500).catch(() => []),
+    platformSettingsService.getGuestPracticeSetting().catch(() => platformSettingsService.DEFAULT_GUEST_PRACTICE),
+    guestService.listGuestItems({ limit: 500 }).catch(() => []),
   ]);
+
+  const guestRoutes: MetadataRoute.Sitemap = guestSetting.includeInSitemap
+    ? guestItems.map((item) => ({
+        url: `${BASE_URL}${item.href}`,
+        lastModified: new Date(item.updatedAt),
+        changeFrequency: 'weekly',
+        priority: 0.5,
+      }))
+    : [];
 
   const categoryRoutes: MetadataRoute.Sitemap = categories.map((category) => ({
     url: `${BASE_URL}/categories/group/${category.slug}`,
@@ -103,5 +117,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...quizRoutes,
     ...postRoutes,
     ...blogCategoryRoutes,
+    ...guestRoutes,
   ];
 }
