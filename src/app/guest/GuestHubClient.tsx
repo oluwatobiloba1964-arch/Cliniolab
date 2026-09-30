@@ -1,3 +1,4 @@
+// src/app/guest/GuestHubClient.tsx
 'use client';
 
 import Link from 'next/link';
@@ -112,7 +113,7 @@ export function GuestHubClient() {
       )}
 
       <p className="mt-12 text-center text-sm text-ink-400">
-        Want to save your progress, earn certificates and join the leaderboard?{' '}
+        Want to save your progress, earn certificates, join the leaderboard and create your own quizzes?{' '}
         <Link href="/register" className="text-pulse-600 underline">Create a free account</Link>
       </p>
     </div>
