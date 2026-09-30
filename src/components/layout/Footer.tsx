@@ -1,3 +1,4 @@
+// src/components/layout/Footer.tsx
 'use client';
 
 import Link from 'next/link';
@@ -33,7 +34,7 @@ export function Footer() {
             <div className="col-span-2 sm:col-span-1">
               <span className="font-display text-lg font-semibold text-white">Cliniolab</span>
               <p className="mt-2 text-sm text-ink-300">
-                Quizzes and exams for nursing and clinical students.
+                Cliniolab helps clinical and nursing students prepare for exams with quizzes, flashcards, and reviewed study content, plus jobs and scholarships to support your career.
               </p>
             </div>
             <div>
@@ -75,6 +76,8 @@ export function Footer() {
                 <li><Link href="/about" className="hover:text-white">About</Link></li>
                 <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
                 <li><Link href="/faq" className="hover:text-white">FAQ</Link></li>
+                <li><Link href="/editorial-policy" className="hover:text-white">Editorial Policy</Link></li>
+                <li><Link href="/medical-review-policy" className="hover:text-white">Medical Review Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-white">Terms</Link></li>
                 <li><Link href="/privacy" className="hover:text-white">Privacy</Link></li>
               </ul>
