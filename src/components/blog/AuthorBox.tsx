@@ -54,7 +54,17 @@ function ProfileCard({
   );
 }
 
-/** Full author/reviewer profile card(s), shown under a blog post for trust (E-E-A-T). */
+/** True when the reviewer is the same person as the author — same name,
+ * case/whitespace-insensitive. When they match, we show one combined
+ * card instead of two identical ones. */
+function sameContributor(authorName?: string | null, reviewerName?: string | null): boolean {
+  if (!authorName || !reviewerName) return false;
+  return authorName.trim().toLowerCase() === reviewerName.trim().toLowerCase();
+}
+
+/** Full author/reviewer profile card(s), shown under a blog post for trust (E-E-A-T).
+ * If the author and reviewer are the same person, they're combined into a
+ * single "Written / Medically reviewed by" card instead of two. */
 export function AuthorBox({
   authorName,
   authorCredentials,
@@ -68,16 +78,27 @@ export function AuthorBox({
 }: Props) {
   if (!setting.showAuthorBox || !authorName) return null;
 
-  const showReviewer = setting.showReviewer && reviewerName;
+  const hasReviewer = setting.showReviewer && !!reviewerName;
+  const isSamePerson = hasReviewer && sameContributor(authorName, reviewerName);
+  const showSeparateReviewer = hasReviewer && !isSamePerson;
+
+  const reviewerLabel = setting.reviewerLabel || 'Medically reviewed by';
+  const authorEyebrow = isSamePerson ? `Written / ${reviewerLabel}` : 'Written by';
 
   return (
     <div className="mt-10 space-y-6 rounded-md border border-ink-100 p-4">
-      <ProfileCard eyebrow="Written by" name={authorName} credentials={authorCredentials} photoUrl={authorPhotoUrl} bio={authorBio} />
+      <ProfileCard
+        eyebrow={authorEyebrow}
+        name={authorName}
+        credentials={authorCredentials}
+        photoUrl={authorPhotoUrl}
+        bio={authorBio || (isSamePerson ? reviewerBio : null)}
+      />
 
-      {showReviewer && (
+      {showSeparateReviewer && (
         <div className="border-t border-ink-100 pt-4">
           <ProfileCard
-            eyebrow={setting.reviewerLabel || 'Medically reviewed by'}
+            eyebrow={reviewerLabel}
             name={reviewerName as string}
             credentials={reviewerCredentials}
             photoUrl={reviewerPhotoUrl}
@@ -89,7 +110,7 @@ export function AuthorBox({
       <p className="text-xs text-ink-400">
         See our{' '}
         <a href={setting.editorialPolicyUrl} className="underline hover:text-ink-600">editorial policy</a>
-        {setting.showReviewer && (
+        {hasReviewer && (
           <>
             {' '}and{' '}
             <a href={setting.medicalReviewPolicyUrl} className="underline hover:text-ink-600">medical review policy</a>
