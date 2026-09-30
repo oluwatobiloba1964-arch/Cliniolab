@@ -1,3 +1,4 @@
+// src/app/api/blog/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
@@ -59,10 +60,12 @@ export async function POST(request: Request) {
     authorCredentials?: string;
     authorPhotoUrl?: string;
     authorContributorId?: string;
+    authorBio?: string;
     reviewerName?: string;
     reviewerCredentials?: string;
     reviewerPhotoUrl?: string;
     reviewerContributorId?: string;
+    reviewerBio?: string;
   };
   try {
     body = await request.json();
@@ -98,10 +101,12 @@ export async function POST(request: Request) {
     authorCredentials: body.authorCredentials,
     authorPhotoUrl: body.authorPhotoUrl,
     authorContributorId: body.authorContributorId,
+    authorBio: body.authorBio,
     reviewerName: body.reviewerName,
     reviewerCredentials: body.reviewerCredentials,
     reviewerPhotoUrl: body.reviewerPhotoUrl,
     reviewerContributorId: body.reviewerContributorId,
+    reviewerBio: body.reviewerBio,
   });
 
   // Only ever send once, and only for posts actually published (not drafts).
