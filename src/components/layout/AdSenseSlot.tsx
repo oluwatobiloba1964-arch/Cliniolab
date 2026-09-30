@@ -1,3 +1,4 @@
+// src/components/layout/AdSenseSlot.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -6,6 +7,8 @@ import { usePathname } from 'next/navigation';
 /**
  * Routes where ads must never show:
  * - /admin/*                    admin panel
+ * - /dashboard/*                logged-in user's own account area
+ * - /login, /register           auth forms — avoid distracting/low-value ads here
  * - /quizzes/new                quiz creation
  * - /quizzes/bulk-upload        quiz creation (bulk)
  * - /quizzes/[quizId]/edit      quiz editing
@@ -21,6 +24,8 @@ import { usePathname } from 'next/navigation';
 function isBlockedPath(pathname: string | null): boolean {
   if (!pathname) return true;
   if (pathname.startsWith('/admin')) return true;
+  if (pathname.startsWith('/dashboard')) return true;
+  if (pathname === '/login' || pathname === '/register') return true;
   if (pathname === '/quizzes/new') return true;
   if (pathname === '/quizzes/bulk-upload') return true;
   if (pathname.startsWith('/quizzes/shared/')) return true;
