@@ -91,3 +91,17 @@ h1, h2, h3, h4 {
 
 /* Prevents a light flash while the theme script runs on first paint. */
 html.theme-pending body { visibility: hidden; }
+
+/* Opacity-modifier variants (bg-paper/95 etc.) are distinct Tailwind
+   classes from their base (bg-paper), so the plain-class dark overrides
+   above do not match them. Cover every variant actually used in the app. */
+.dark .bg-paper\/95 { background-color: rgb(11 20 32 / 0.95); }
+.dark .bg-white\/95 { background-color: rgb(16 28 39 / 0.95); }
+.dark .bg-white\/60 { background-color: rgb(16 28 39 / 0.6); }
+.dark .bg-white\/50 { background-color: rgb(16 28 39 / 0.5); }
+.dark .bg-ink-50\/60 { background-color: rgb(22 35 46 / 0.6); }
+.dark .bg-ink-50\/50 { background-color: rgb(22 35 46 / 0.5); }
+.dark .bg-ink-50\/40 { background-color: rgb(22 35 46 / 0.4); }
+.dark .bg-ink-50\/30 { background-color: rgb(22 35 46 / 0.3); }
+.dark .bg-ink-900\/60 { background-color: rgb(11 20 32 / 0.6); }
+.dark .bg-ink-900\/40 { background-color: rgb(11 20 32 / 0.4); }
