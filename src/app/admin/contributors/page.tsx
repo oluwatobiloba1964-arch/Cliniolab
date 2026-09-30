@@ -1,3 +1,4 @@
+// src/app/admin/contributors/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -108,7 +109,7 @@ export default function ContributorsPage() {
           rows={3}
           className="w-full rounded-md border border-ink-100 px-3 py-2 text-sm"
         />
-        <ImagePicker value={form.photoUrl} onChange={(v) => setForm({ ...form, photoUrl: v })} purpose="blog" label="Photo" />
+        <ImagePicker value={form.photoUrl} onChange={(v) => setForm({ ...form, photoUrl: v })} purpose="blog" label="Photo" circularPreview />
         <Toggle checked={form.isActive} onChange={(v) => setForm({ ...form, isActive: v })} label="Active" />
         <div className="flex gap-2">
           <Button onClick={save} disabled={saving || !form.name.trim()}>
