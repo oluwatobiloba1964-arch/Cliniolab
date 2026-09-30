@@ -1,30 +1,18 @@
-'use client';
-
+// src/app/blog/page.tsx
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { BlogPostCard } from '@/components/cms/BlogPostCard';
-import type { BlogPost } from '@/types';
+import { cmsService, blogCategoryService } from '@/lib/db';
 
-interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
+// Revalidate periodically so new posts show up without a full redeploy,
+// while still shipping pre-rendered HTML (fast first load, crawlable by
+// Googlebot/AdSense without waiting on client-side JS).
+export const revalidate = 300; // 5 minutes
 
-export default function BlogPage() {
-  const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [blogCategories, setBlogCategories] = useState<BlogCategoryOption[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/blog-categories')
-      .then((res) => res.json())
-      .then((data) => setBlogCategories(data.categories ?? []));
-  }, []);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch('/api/blog')
-      .then((res) => res.json())
-      .then((data) => setPosts(data.posts ?? []))
-      .finally(() => setLoading(false));
-  }, []);
+export default async function BlogPage() {
+  const [posts, blogCategories] = await Promise.all([
+    cmsService.listPublishedPosts(),
+    blogCategoryService.listBlogCategories(),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-16">
@@ -50,7 +38,7 @@ export default function BlogPage() {
         {posts.map((post) => (
           <BlogPostCard key={post.id} post={post} />
         ))}
-        {!loading && posts.length === 0 && (
+        {posts.length === 0 && (
           <p className="col-span-full text-sm text-ink-400">No posts yet.</p>
         )}
       </div>
