@@ -28,7 +28,7 @@ export function AuthorBox({
     <div className="mt-10 rounded-md border border-ink-100 p-4">
       <div className="flex items-center gap-3">
         {authorPhotoUrl ? (
-          <Image src={authorPhotoUrl} alt={authorName} width={56} height={56} className="rounded-full object-cover" />
+          <Image src={authorPhotoUrl} alt={authorName} width={56} height={56} className="rounded-full bg-ink-50 object-contain" />
         ) : (
           <div className="grid h-14 w-14 place-items-center rounded-full bg-pulse-50 font-display text-base font-semibold text-pulse-600">
             {authorName.charAt(0)}
@@ -42,7 +42,7 @@ export function AuthorBox({
           {setting.showReviewer && reviewerName && (
             <p className="mt-0.5 flex items-center gap-2 text-xs text-ink-500">
               {reviewerPhotoUrl && (
-                <Image src={reviewerPhotoUrl} alt={reviewerName} width={28} height={28} className="rounded-full object-cover" />
+                <Image src={reviewerPhotoUrl} alt={reviewerName} width={28} height={28} className="rounded-full bg-ink-50 object-contain" />
               )}
               {setting.reviewerLabel} {reviewerName}
               {reviewerCredentials && `, ${reviewerCredentials}`}
