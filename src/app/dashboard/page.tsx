@@ -1,3 +1,4 @@
+// src/app/dashboard/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -99,17 +100,18 @@ export default function DashboardPage() {
     }
   }
 
-  async function toggleVisibility(quizId: string, current: 'public' | 'private' | 'guest') {
-    if (current === 'public') {
-      // Going private: open the access-mode picker instead of flipping
-      // straight to link-mode, so the creator can choose link vs password.
-      setAccessPickerQuizId(quizId);
-      setAccessModeChoice('link');
-      setPasswordDraft('');
-      setAccessError(null);
-      return;
-    }
-    // Going back to public needs no picker.
+  function requestGoPrivate(quizId: string) {
+    // Going private (from public OR guest): open the access-mode picker
+    // instead of flipping straight to link-mode, so the creator can choose
+    // link vs password.
+    setAccessPickerQuizId(quizId);
+    setAccessModeChoice('link');
+    setPasswordDraft('');
+    setAccessError(null);
+  }
+
+  async function goPublic(quizId: string) {
+    // Going to public (from private OR guest) needs no picker.
     const res = await fetch(`/api/quizzes/${quizId}/visibility`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -482,9 +484,16 @@ export default function DashboardPage() {
                     Change password
                   </Button>
                 )}
-                <Button size="sm" variant="secondary" onClick={() => toggleVisibility(quiz.id, quiz.visibility)}>
-                  Make {quiz.visibility === 'public' ? 'private' : 'public'}
-                </Button>
+                {quiz.visibility !== 'public' && (
+                  <Button size="sm" variant="secondary" onClick={() => goPublic(quiz.id)}>
+                    Make public
+                  </Button>
+                )}
+                {quiz.visibility !== 'private' && (
+                  <Button size="sm" variant="secondary" onClick={() => requestGoPrivate(quiz.id)}>
+                    Make private
+                  </Button>
+                )}
                 {quiz.visibility !== 'guest' && quiz.pricing !== 'paid' && (
                   <Button size="sm" variant="secondary" onClick={() => moveToGuest(quiz.id)}>
                     Move to Guest
