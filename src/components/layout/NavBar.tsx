@@ -125,6 +125,10 @@ export function NavBar() {
         </button>
       </div>
 
+      <div className="flex items-center justify-end gap-2 px-4 pb-2 md:hidden">
+        <ThemeToggle />
+      </div>
+
       {searchOpen && (
         <div className="border-t border-ink-100 bg-paper px-4 py-3">
           <form onSubmit={submitSearch} className="mx-auto max-w-7xl">
