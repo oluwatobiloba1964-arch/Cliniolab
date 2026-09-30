@@ -117,7 +117,6 @@ const FLATTEN_BOXED_CONTENT_CSS = `
 `;
 
 export function BlogPostClient({ slug }: { slug: string }) {
-  const { authorBox } = usePublicConfig();
   const [post, setPost] = useState<BlogPost | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -188,6 +187,7 @@ export function BlogPostClient({ slug }: { slug: string }) {
 }
 
 function BlogPostBody({ post }: { post: BlogPost }) {
+  const { authorBox } = usePublicConfig();
   const subcategoryName = useBlogSubcategoryName(post.blogCategoryId, post.blogSubcategoryId);
   const categorySlug = useBlogCategorySlug(post.blogCategoryId);
   const isRaw = isFullRawDocument(post.content);
