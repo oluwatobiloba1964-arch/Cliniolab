@@ -1,3 +1,4 @@
+// src/app/admin/scholars/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -100,7 +101,7 @@ export default function AdminScholarsPage() {
           placeholder="Name"
           className="w-full rounded-md border border-ink-100 px-4 py-2 text-sm focus:border-pulse-400 focus:outline-none"
         />
-        <ImagePicker value={photoUrl} onChange={setPhotoUrl} purpose="scholars" label="Photo" />
+        <ImagePicker value={photoUrl} onChange={setPhotoUrl} purpose="scholars" label="Photo" circularPreview />
         <input
           value={achievement}
           onChange={(e) => setAchievement(e.target.value)}
