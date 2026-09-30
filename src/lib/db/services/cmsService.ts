@@ -27,10 +27,12 @@ interface BlogRow {
   author_credentials?: string | null;
   author_photo_url?: string | null;
   author_contributor_id?: string | null;
+  author_bio?: string | null;
   reviewer_name?: string | null;
   reviewer_credentials?: string | null;
   reviewer_photo_url?: string | null;
   reviewer_contributor_id?: string | null;
+  reviewer_bio?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,10 +71,12 @@ function mapBlog(row: BlogRow): BlogPost {
     authorCredentials: row.author_credentials ?? null,
     authorPhotoUrl: row.author_photo_url ?? null,
     authorContributorId: row.author_contributor_id ?? null,
+    authorBio: row.author_bio ?? null,
     reviewerName: row.reviewer_name ?? null,
     reviewerCredentials: row.reviewer_credentials ?? null,
     reviewerPhotoUrl: row.reviewer_photo_url ?? null,
     reviewerContributorId: row.reviewer_contributor_id ?? null,
+    reviewerBio: row.reviewer_bio ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -208,10 +212,12 @@ export async function createPost(
     authorCredentials?: string;
     authorPhotoUrl?: string;
     authorContributorId?: string;
+    authorBio?: string;
     reviewerName?: string;
     reviewerCredentials?: string;
     reviewerPhotoUrl?: string;
     reviewerContributorId?: string;
+    reviewerBio?: string;
   }
 ): Promise<BlogPost> {
   const db = getDb();
@@ -221,9 +227,9 @@ export async function createPost(
     .prepare(
       `INSERT INTO blog_posts
         (id, author_id, title, slug, content, content_format, excerpt, blog_category_id, blog_subcategory_id, featured_image_url, seo_title, seo_description, status, is_sponsored, is_pinned, full_width, send_as_newsletter, send_push,
-         author_name, author_credentials, author_photo_url, author_contributor_id,
-         reviewer_name, reviewer_credentials, reviewer_photo_url, reviewer_contributor_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         author_name, author_credentials, author_photo_url, author_contributor_id, author_bio,
+         reviewer_name, reviewer_credentials, reviewer_photo_url, reviewer_contributor_id, reviewer_bio, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       id,
@@ -248,10 +254,12 @@ export async function createPost(
       input.authorCredentials?.trim() || null,
       input.authorPhotoUrl?.trim() || null,
       input.authorContributorId || null,
+      input.authorBio?.trim() || null,
       input.reviewerName?.trim() || null,
       input.reviewerCredentials?.trim() || null,
       input.reviewerPhotoUrl?.trim() || null,
       input.reviewerContributorId || null,
+      input.reviewerBio?.trim() || null,
       createdAt,
       createdAt
     )
@@ -282,10 +290,12 @@ export async function createPost(
     authorCredentials: input.authorCredentials?.trim() || null,
     authorPhotoUrl: input.authorPhotoUrl?.trim() || null,
     authorContributorId: input.authorContributorId || null,
+    authorBio: input.authorBio?.trim() || null,
     reviewerName: input.reviewerName?.trim() || null,
     reviewerCredentials: input.reviewerCredentials?.trim() || null,
     reviewerPhotoUrl: input.reviewerPhotoUrl?.trim() || null,
     reviewerContributorId: input.reviewerContributorId || null,
+    reviewerBio: input.reviewerBio?.trim() || null,
     createdAt,
     updatedAt: createdAt,
   };
@@ -314,10 +324,12 @@ export async function updatePost(
     authorCredentials: string | null;
     authorPhotoUrl: string | null;
     authorContributorId: string | null;
+    authorBio: string | null;
     reviewerName: string | null;
     reviewerCredentials: string | null;
     reviewerPhotoUrl: string | null;
     reviewerContributorId: string | null;
+    reviewerBio: string | null;
   }>
 ): Promise<void> {
   const db = getDb();
@@ -344,10 +356,12 @@ export async function updatePost(
   if (input.authorCredentials !== undefined) { fields.push('author_credentials = ?'); values.push(nullable(input.authorCredentials)); }
   if (input.authorPhotoUrl !== undefined) { fields.push('author_photo_url = ?'); values.push(nullable(input.authorPhotoUrl)); }
   if (input.authorContributorId !== undefined) { fields.push('author_contributor_id = ?'); values.push(input.authorContributorId || null); }
+  if (input.authorBio !== undefined) { fields.push('author_bio = ?'); values.push(nullable(input.authorBio)); }
   if (input.reviewerName !== undefined) { fields.push('reviewer_name = ?'); values.push(nullable(input.reviewerName)); }
   if (input.reviewerCredentials !== undefined) { fields.push('reviewer_credentials = ?'); values.push(nullable(input.reviewerCredentials)); }
   if (input.reviewerPhotoUrl !== undefined) { fields.push('reviewer_photo_url = ?'); values.push(nullable(input.reviewerPhotoUrl)); }
   if (input.reviewerContributorId !== undefined) { fields.push('reviewer_contributor_id = ?'); values.push(input.reviewerContributorId || null); }
+  if (input.reviewerBio !== undefined) { fields.push('reviewer_bio = ?'); values.push(nullable(input.reviewerBio)); }
   if (fields.length === 0) return;
   fields.push('updated_at = ?');
   values.push(nowIso());
