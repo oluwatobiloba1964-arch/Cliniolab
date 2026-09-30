@@ -1,3 +1,4 @@
+// src/app/blog/[slug]/BlogPostClient.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -277,9 +278,11 @@ function BlogPostBody({ post }: { post: BlogPost }) {
           authorName={post.authorName}
           authorCredentials={post.authorCredentials}
           authorPhotoUrl={post.authorPhotoUrl}
+          authorBio={post.authorBio}
           reviewerName={post.reviewerName}
           reviewerCredentials={post.reviewerCredentials}
           reviewerPhotoUrl={post.reviewerPhotoUrl}
+          reviewerBio={post.reviewerBio}
           setting={authorBox}
         />
         <CommentThread
