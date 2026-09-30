@@ -1,3 +1,4 @@
+// src/components/blog/AuthorFields.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -96,7 +97,7 @@ export function AuthorFields({ value, onChange }: Props) {
             placeholder="Credentials, e.g. RN, BNSc"
             className="rounded-md border border-ink-100 px-3 py-2 text-sm text-ink-700"
           />
-          <ImagePicker value={value.authorPhotoUrl} onChange={(v) => set('authorPhotoUrl', v)} purpose="blog" label="Author photo" />
+          <ImagePicker value={value.authorPhotoUrl} onChange={(v) => set('authorPhotoUrl', v)} purpose="blog" label="Author photo" circularPreview />
         </div>
       </div>
 
@@ -126,7 +127,7 @@ export function AuthorFields({ value, onChange }: Props) {
             placeholder="Credentials"
             className="rounded-md border border-ink-100 px-3 py-2 text-sm text-ink-700"
           />
-          <ImagePicker value={value.reviewerPhotoUrl} onChange={(v) => set('reviewerPhotoUrl', v)} purpose="blog" label="Reviewer photo" />
+          <ImagePicker value={value.reviewerPhotoUrl} onChange={(v) => set('reviewerPhotoUrl', v)} purpose="blog" label="Reviewer photo" circularPreview />
         </div>
       </div>
     </div>
