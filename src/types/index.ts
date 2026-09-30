@@ -335,11 +335,15 @@ export interface BlogPost {
   authorCredentials?: string | null;
   authorPhotoUrl?: string | null;
   authorContributorId?: string | null;
+  /** Full bio shown in the author's profile card on the post. */
+  authorBio?: string | null;
   /** Optional "Medically reviewed by" line. */
   reviewerName?: string | null;
   reviewerCredentials?: string | null;
   reviewerPhotoUrl?: string | null;
   reviewerContributorId?: string | null;
+  /** Full bio shown in the reviewer's profile card on the post. */
+  reviewerBio?: string | null;
   createdAt: string;
   updatedAt: string;
 }
