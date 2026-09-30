@@ -1,3 +1,4 @@
+// src/components/layout/ScholarOfTheDayCard.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -29,7 +30,7 @@ export function ScholarOfTheDayCard() {
             <img
               src={scholar.photoUrl}
               alt={scholar.name}
-              className="mx-auto h-24 w-24 rounded-full object-cover"
+              className="mx-auto h-24 w-24 rounded-full bg-ink-50 object-contain"
             />
           ) : (
             <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-pulse-50 text-2xl font-semibold text-pulse-600">
