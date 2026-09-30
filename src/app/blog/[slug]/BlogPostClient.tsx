@@ -245,7 +245,11 @@ function BlogPostBody({ post }: { post: BlogPost }) {
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
           {post.authorName && (
             <span>
-              By <span className="font-medium text-ink-600">{post.authorName}</span>
+              By{' '}
+              <span className="font-medium text-ink-600">
+                {post.authorName}
+                {post.authorCredentials && <span className="font-normal">, {post.authorCredentials}</span>}
+              </span>
             </span>
           )}
           {post.authorName && <span aria-hidden="true">&middot;</span>}
