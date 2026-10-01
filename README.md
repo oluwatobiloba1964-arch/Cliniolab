@@ -1,4 +1,4 @@
-# Cliniolabs
+# Cliniolab
 
 Nursing and clinical exam practice platform — quizzes, timed exams, categories,
 leaderboards, comments, and an admin control panel.
