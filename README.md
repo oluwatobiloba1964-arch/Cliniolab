@@ -36,7 +36,7 @@ npm install
    NEXT_PUBLIC_SUPABASE_ANON_KEY=
    ```
 
-### 3. Create a Cloudflare D1 databas
+### 3. Create a Cloudflare D1 database
 ```bash
 npx wrangler login
 npx wrangler d1 create cliniolab
