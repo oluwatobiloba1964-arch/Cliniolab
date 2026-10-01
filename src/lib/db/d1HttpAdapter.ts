@@ -39,18 +39,39 @@ interface D1ApiQueryResult {
   };
 }
 
+// FIX (Vercel Hobby duration budget): bound every outbound call to the
+// Cloudflare control-plane API so a slow/hung response can't pin a Vercel
+// serverless function for its full max duration, burning GB-hours while
+// stuck waiting. 10s is generous for this endpoint but still well under
+// Hobby's function timeout.
+const D1_HTTP_TIMEOUT_MS = 10_000;
+
 async function runQuery(sql: string, params: unknown[]): Promise<D1ApiQueryResult> {
   const { accountId, databaseId, apiToken } = getConfig();
   const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ sql, params }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), D1_HTTP_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sql, params }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`D1 HTTP API request timed out after ${D1_HTTP_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const body = await res.json();
   if (!res.ok || !body.success) {
@@ -107,14 +128,16 @@ export function createD1HttpAdapter(): D1Database {
     },
     async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
       // The HTTP API doesn't expose a multi-statement transactional batch
-      // endpoint equivalent to the binding's db.batch(), so statements run
-      // sequentially. Fine for testing traffic; production still uses the
-      // real binding's batch() via Cloudflare Pages.
-      const results: D1Result<T>[] = [];
-      for (const stmt of statements) {
-        results.push((await stmt.all<T>()) as D1Result<T>);
-      }
-      return results;
+      // endpoint equivalent to the binding's db.batch(), so there's no
+      // single round trip available. But the statements don't need to run
+      // one-after-another either — each is its own HTTP request, so running
+      // them concurrently with Promise.all turns N sequential round trips
+      // into ~1 round trip's worth of wall-clock time. This is the single
+      // biggest Vercel function-duration win in this adapter: a 5-statement
+      // batch() call used to take 5x the network latency; now it takes ~1x.
+      // Not atomic across statements (same as before — this was never
+      // transactional on the HTTP path), only faster.
+      return Promise.all(statements.map((stmt) => stmt.all<T>())) as Promise<D1Result<T>[]>;
     },
   };
 }
