@@ -376,15 +376,32 @@ export async function updateQuiz(quizId: string, input: QuizInput): Promise<Quiz
   const incomingIds = new Set(input.questions.filter((q) => q.id).map((q) => q.id as string));
   const removedIds = [...existingIds].filter((id) => !incomingIds.has(id));
 
-  // Only drop removed questions that nothing references; leave the rest in
-  // place so we never trip the questions(id) foreign key.
-  const deletableIds: string[] = [];
-  for (const id of removedIds) {
-    const [attemptRef, reportRef] = await Promise.all([
-      db.prepare('SELECT 1 FROM attempt_answers WHERE question_id = ? LIMIT 1').bind(id).first(),
-      db.prepare('SELECT 1 FROM question_reports WHERE question_id = ? LIMIT 1').bind(id).first(),
+  // FIX (Vercel Hobby duration budget) — src/lib/db/services/quizService.ts
+  // Was: a for-loop doing 2 queries per removedId, i.e. 2*N sequential
+  // round trips on the D1-HTTP path (each `await` inside a loop is a real
+  // network request there, not just a local async tick). Admin-only/low
+  // frequency, but still worth collapsing: replaced with 2 total queries
+  // using `WHERE question_id IN (...)` to fetch every referenced id up
+  // front, then filtering in memory — same result, 2 round trips instead
+  // of up to 2*N.
+  let deletableIds: string[] = removedIds;
+  if (removedIds.length > 0) {
+    const placeholders = removedIds.map(() => '?').join(',');
+    const [attemptRefs, reportRefs] = await Promise.all([
+      db
+        .prepare(`SELECT DISTINCT question_id FROM attempt_answers WHERE question_id IN (${placeholders})`)
+        .bind(...removedIds)
+        .all<{ question_id: string }>(),
+      db
+        .prepare(`SELECT DISTINCT question_id FROM question_reports WHERE question_id IN (${placeholders})`)
+        .bind(...removedIds)
+        .all<{ question_id: string }>(),
     ]);
-    if (!attemptRef && !reportRef) deletableIds.push(id);
+    const referencedIds = new Set([
+      ...attemptRefs.results.map((r) => r.question_id),
+      ...reportRefs.results.map((r) => r.question_id),
+    ]);
+    deletableIds = removedIds.filter((id) => !referencedIds.has(id));
   }
 
   const deleteStatements = deletableIds.map((id) => db.prepare('DELETE FROM questions WHERE id = ?').bind(id));
@@ -496,24 +513,32 @@ export async function findBulkQuizDuplicates(inputs: QuizInput[]): Promise<BulkQ
   const db = getDb();
   const subcategoryIds = [...new Set(inputs.map((q) => q.subcategoryId))];
 
+  // FIX (Vercel Hobby duration budget) — src/lib/db/services/quizService.ts
+  // Was: a for-loop doing 2 queries per subcategoryId sequentially, i.e.
+  // 2*N round trips on the D1-HTTP path for an N-subcategory bulk upload.
+  // Now: all subcategories are queried concurrently (still 2*N queries,
+  // but they all fire at once instead of one-after-another), so wall time
+  // is roughly one round trip instead of N round trips.
   const existingTitlesBySubcat = new Map<string, Set<string>>();
   const existingPromptsBySubcat = new Map<string, Set<string>>();
 
-  for (const subcategoryId of subcategoryIds) {
-    const [{ results: titleRows }, { results: promptRows }] = await Promise.all([
-      db.prepare('SELECT title FROM quizzes WHERE subcategory_id = ?').bind(subcategoryId).all<{ title: string }>(),
-      db
-        .prepare(
-          `SELECT q.prompt AS prompt FROM questions q
-           JOIN quizzes qz ON qz.id = q.quiz_id
-           WHERE qz.subcategory_id = ?`
-        )
-        .bind(subcategoryId)
-        .all<{ prompt: string }>(),
-    ]);
-    existingTitlesBySubcat.set(subcategoryId, new Set(titleRows.map((r) => normalizeForDedup(r.title))));
-    existingPromptsBySubcat.set(subcategoryId, new Set(promptRows.map((r) => normalizeForDedup(r.prompt))));
-  }
+  await Promise.all(
+    subcategoryIds.map(async (subcategoryId) => {
+      const [{ results: titleRows }, { results: promptRows }] = await Promise.all([
+        db.prepare('SELECT title FROM quizzes WHERE subcategory_id = ?').bind(subcategoryId).all<{ title: string }>(),
+        db
+          .prepare(
+            `SELECT q.prompt AS prompt FROM questions q
+             JOIN quizzes qz ON qz.id = q.quiz_id
+             WHERE qz.subcategory_id = ?`
+          )
+          .bind(subcategoryId)
+          .all<{ prompt: string }>(),
+      ]);
+      existingTitlesBySubcat.set(subcategoryId, new Set(titleRows.map((r) => normalizeForDedup(r.title))));
+      existingPromptsBySubcat.set(subcategoryId, new Set(promptRows.map((r) => normalizeForDedup(r.prompt))));
+    })
+  );
 
   const duplicateTitleIndexes: number[] = [];
   const duplicateQuestionsByQuizIndex: BulkQuizDuplicateReport['duplicateQuestionsByQuizIndex'] = {};
