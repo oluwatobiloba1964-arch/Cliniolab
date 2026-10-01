@@ -80,18 +80,46 @@ export function CommentThread({ endpoint, placeholder = 'Share your thoughts on 
   useEffect(() => {
     loadComments();
 
-    // Poll for new comments from other users every 8s, and refetch
-    // immediately whenever the tab regains focus/visibility — cheap
-    // "near real-time" without needing a websocket/SSE backend.
-    const interval = setInterval(loadComments, 8000);
-    function onVisible() {
-      if (document.visibilityState === 'visible') loadComments();
+    // FIX (Vercel Hobby invocation/GB-hours budget) — src/components/quiz/CommentThread.tsx
+    // Was: setInterval(loadComments, 8000) running unconditionally, even
+    // with the tab backgrounded/minimized — every open tab was firing an
+    // invocation of /api/comments every 8s forever. On Hobby that eats
+    // through the monthly invocation + function-duration allowance fast
+    // with very little real benefit (nobody reads comments that update
+    // while they're not looking at the tab).
+    // Now: 30s instead of 8s (~3.75x fewer polls), and the interval is only
+    // running while the tab is actually visible — it's torn down on
+    // backgrounding and restarted on refocus, so a backgrounded tab makes
+    // zero polling requests. The refetch-on-focus/visibility behavior is
+    // unchanged, so switching back to the tab still feels instant.
+    const POLL_INTERVAL_MS = 30_000;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    function startPolling() {
+      if (interval) return;
+      interval = setInterval(loadComments, POLL_INTERVAL_MS);
     }
+    function stopPolling() {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    }
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        loadComments();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    }
+
+    if (document.visibilityState === 'visible') startPolling();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
