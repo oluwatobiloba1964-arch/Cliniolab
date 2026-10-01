@@ -396,38 +396,41 @@ export async function deleteUserCompletely(userId: string): Promise<void> {
   await ensurePlaceholderUserRecord();
   const placeholder = DELETED_USER_PLACEHOLDER_ID;
 
+  // FIX (Vercel Hobby duration budget) — src/lib/db/services/userService.ts
+  // This whole deletion flow was ~20 sequential `await db.prepare(...).run()`
+  // calls, one after another, plus two real N+1 loops further down (one
+  // DELETE per quiz_attempts row, one DELETE per comments row). On the
+  // D1-HTTP path every one of those is a separate network round trip, so a
+  // single account deletion could be dozens of round trips end-to-end.
+  // Rare action (account deletion), but still worth fixing properly rather
+  // than leaving the worst-case path in a "fix everything" pass.
+  //
   // --- Reassign content the user created, so other users' activity on it survives ---
-  await db.prepare('UPDATE quizzes SET creator_id = ? WHERE creator_id = ?').bind(placeholder, userId).run();
-  await db.prepare('UPDATE blog_posts SET author_id = ? WHERE author_id = ?').bind(placeholder, userId).run();
-  await db.prepare('UPDATE resources SET uploaded_by = ? WHERE uploaded_by = ?').bind(placeholder, userId).run();
-  await db
-    .prepare('UPDATE medical_abbreviations SET created_by = ? WHERE created_by = ?')
-    .bind(placeholder, userId)
-    .run();
-  await db
-    .prepare('UPDATE scholars_of_the_day SET created_by = ? WHERE created_by = ?')
-    .bind(placeholder, userId)
-    .run();
-  await db
-    .prepare('UPDATE scholars_of_the_day SET student_user_id = NULL WHERE student_user_id = ?')
-    .bind(userId)
-    .run();
-  await db
-    .prepare('UPDATE resource_purchases SET confirmed_by = ? WHERE confirmed_by = ?')
-    .bind(placeholder, userId)
-    .run();
+  // These 7 statements touch different tables and none depend on each
+  // other's result, so they can all run concurrently instead of serially.
+  await Promise.all([
+    db.prepare('UPDATE quizzes SET creator_id = ? WHERE creator_id = ?').bind(placeholder, userId).run(),
+    db.prepare('UPDATE blog_posts SET author_id = ? WHERE author_id = ?').bind(placeholder, userId).run(),
+    db.prepare('UPDATE resources SET uploaded_by = ? WHERE uploaded_by = ?').bind(placeholder, userId).run(),
+    db.prepare('UPDATE medical_abbreviations SET created_by = ? WHERE created_by = ?').bind(placeholder, userId).run(),
+    db.prepare('UPDATE scholars_of_the_day SET created_by = ? WHERE created_by = ?').bind(placeholder, userId).run(),
+    db
+      .prepare('UPDATE scholars_of_the_day SET student_user_id = NULL WHERE student_user_id = ?')
+      .bind(userId)
+      .run(),
+    db.prepare('UPDATE resource_purchases SET confirmed_by = ? WHERE confirmed_by = ?').bind(placeholder, userId).run(),
+  ]);
 
   // --- Delete the user's own personal activity outright ---
 
   // attempt_answers reference quiz_attempts by attempt_id, not user_id
-  // directly, so their attempt ids must be looked up first.
-  const { results: attemptRows } = await db
-    .prepare('SELECT id FROM quiz_attempts WHERE user_id = ?')
+  // directly. Was: SELECT the attempt ids, then DELETE once per id in a
+  // loop. Now: delete by subquery in one statement — no per-row round
+  // trip needed at all, and no intermediate SELECT either.
+  await db
+    .prepare('DELETE FROM attempt_answers WHERE attempt_id IN (SELECT id FROM quiz_attempts WHERE user_id = ?)')
     .bind(userId)
-    .all<{ id: string }>();
-  for (const { id: attemptId } of attemptRows) {
-    await db.prepare('DELETE FROM attempt_answers WHERE attempt_id = ?').bind(attemptId).run();
-  }
+    .run();
   await db.prepare('DELETE FROM quiz_attempts WHERE user_id = ?').bind(userId).run();
 
   await db.prepare('DELETE FROM certificates WHERE user_id = ?').bind(userId).run();
@@ -435,31 +438,36 @@ export async function deleteUserCompletely(userId: string): Promise<void> {
   // comment_reactions reference comments by comment_id, so both directions
   // need clearing before the comments themselves can go: reactions BY this
   // user on any comment, and reactions made BY OTHERS on this user's own
-  // comments (which would otherwise dangle once those comments are deleted).
+  // comments (which would otherwise dangle once those comments are
+  // deleted). Was: SELECT comment ids, then DELETE once per id in a loop.
+  // Now: same subquery-delete pattern, one statement instead of N+1.
   await db.prepare('DELETE FROM comment_reactions WHERE user_id = ?').bind(userId).run();
-  const { results: commentRows } = await db
-    .prepare('SELECT id FROM comments WHERE user_id = ?')
+  await db
+    .prepare('DELETE FROM comment_reactions WHERE comment_id IN (SELECT id FROM comments WHERE user_id = ?)')
     .bind(userId)
-    .all<{ id: string }>();
-  for (const { id: commentId } of commentRows) {
-    await db.prepare('DELETE FROM comment_reactions WHERE comment_id = ?').bind(commentId).run();
-  }
+    .run();
   await db.prepare('DELETE FROM comments WHERE user_id = ?').bind(userId).run();
 
-  await db.prepare('DELETE FROM question_reports WHERE user_id = ?').bind(userId).run();
-  await db.prepare('DELETE FROM bookmarks WHERE user_id = ?').bind(userId).run();
-  await db.prepare('DELETE FROM feedback WHERE user_id = ?').bind(userId).run();
-  await db.prepare('DELETE FROM email_log WHERE user_id = ?').bind(userId).run();
-  await db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(userId).run();
-  await db.prepare('DELETE FROM resource_purchases WHERE user_id = ?').bind(userId).run();
-  await db.prepare('DELETE FROM quiz_purchases WHERE buyer_id = ?').bind(userId).run();
+  // These 7 deletes are likewise independent of each other.
+  await Promise.all([
+    db.prepare('DELETE FROM question_reports WHERE user_id = ?').bind(userId).run(),
+    db.prepare('DELETE FROM bookmarks WHERE user_id = ?').bind(userId).run(),
+    db.prepare('DELETE FROM feedback WHERE user_id = ?').bind(userId).run(),
+    db.prepare('DELETE FROM email_log WHERE user_id = ?').bind(userId).run(),
+    db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(userId).run(),
+    db.prepare('DELETE FROM resource_purchases WHERE user_id = ?').bind(userId).run(),
+    db.prepare('DELETE FROM quiz_purchases WHERE buyer_id = ?').bind(userId).run(),
+  ]);
 
   // The user's own payout_requests were already confirmed clear of
   // pending/processing above; any resolved (paid/failed) ones are
   // historical financial records worth keeping for the platform's own
   // books, so they're reassigned to the placeholder rather than deleted.
-  await db.prepare('UPDATE payout_requests SET creator_id = ? WHERE creator_id = ?').bind(placeholder, userId).run();
-  await db.prepare('UPDATE payout_requests SET actioned_by = ? WHERE actioned_by = ?').bind(placeholder, userId).run();
+  // These 2 are independent of each other too.
+  await Promise.all([
+    db.prepare('UPDATE payout_requests SET creator_id = ? WHERE creator_id = ?').bind(placeholder, userId).run(),
+    db.prepare('UPDATE payout_requests SET actioned_by = ? WHERE actioned_by = ?').bind(placeholder, userId).run(),
+  ]);
 
   await db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
 }
