@@ -159,20 +159,26 @@ async function countFor(def: TargetDef, days: number): Promise<{ total: number; 
 }
 
 export async function listTargets(overrides: Partial<Record<DataCleanKey, number>> = {}): Promise<DataCleanTarget[]> {
-  const out: DataCleanTarget[] = [];
-  for (const def of TARGETS) {
-    const days = overrides[def.key] ?? def.defaultOlderThanDays ?? 0;
-    const { total, cleanable } = await countFor(def, days);
-    out.push({
-      key: def.key,
-      label: def.label,
-      description: def.description,
-      rowCount: total,
-      cleanableCount: cleanable,
-      defaultOlderThanDays: def.defaultOlderThanDays ?? 0,
-    });
-  }
-  return out;
+  // FIX (Vercel Hobby duration budget) — src/lib/db/services/dataCleanService.ts
+  // Was: one await per target definition, in sequence, each running 2
+  // count queries internally — 2*N sequential round trips on every load
+  // of the admin data-cleanup dashboard. Now: all targets are counted
+  // concurrently, so dashboard load time no longer scales with how many
+  // cleanup target types exist.
+  return Promise.all(
+    TARGETS.map(async (def) => {
+      const days = overrides[def.key] ?? def.defaultOlderThanDays ?? 0;
+      const { total, cleanable } = await countFor(def, days);
+      return {
+        key: def.key,
+        label: def.label,
+        description: def.description,
+        rowCount: total,
+        cleanableCount: cleanable,
+        defaultOlderThanDays: def.defaultOlderThanDays ?? 0,
+      };
+    })
+  );
 }
 
 // ---- Cleaning ----

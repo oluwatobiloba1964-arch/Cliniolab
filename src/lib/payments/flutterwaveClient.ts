@@ -17,6 +17,14 @@
 
 const FLUTTERWAVE_API_URL = 'https://api.flutterwave.com/v3';
 
+// FIX (Vercel Hobby duration budget): no timeout existed on this call at
+// all — a hung Flutterwave response (e.g. during a checkout or a payout
+// transfer) would hang the invoking function for its full max duration.
+// 15s here rather than 10s since this covers payment/transfer calls where
+// an overly aggressive timeout risks aborting a request that actually
+// succeeded on Flutterwave's end, which is worse than waiting a bit longer.
+const FLUTTERWAVE_TIMEOUT_MS = 15_000;
+
 export class FlutterwaveError extends Error {}
 
 function getSecretKey(): string {
@@ -30,14 +38,28 @@ async function flutterwaveRequest<T>(
   method: 'GET' | 'POST' | 'DELETE',
   body?: Record<string, unknown>
 ): Promise<T> {
-  const res = await fetch(`${FLUTTERWAVE_API_URL}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${getSecretKey()}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FLUTTERWAVE_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${FLUTTERWAVE_API_URL}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new FlutterwaveError(`Flutterwave API request timed out after ${FLUTTERWAVE_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const json = (await res.json()) as { status: string; message: string; data: T };
   if (!res.ok || json.status !== 'success') {

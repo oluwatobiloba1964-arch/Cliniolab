@@ -234,18 +234,27 @@ export async function deleteImageKeysIfUnreferenced(
   keys: string[],
   isStillReferenced: (key: string) => Promise<boolean>
 ): Promise<number> {
-  let deleted = 0;
+  // FIX (Vercel Hobby duration budget) — src/lib/storage/r2Client.ts
+  // Was: one isStillReferenced check + one R2 delete per key, fully
+  // sequential — a post/resource with many embedded images meant that
+  // many round trips, one after another, in the request that deletes it.
+  // Now: all keys are processed concurrently. Each key's own try/catch is
+  // preserved so one failing delete still can't abort the others (same
+  // "best-effort, never fail the caller" contract as before).
   const bucket = getBucket();
-  for (const key of keys) {
-    try {
-      if (await isStillReferenced(key)) continue;
-      await bucket.delete(key);
-      deleted++;
-    } catch (err) {
-      console.error(`Failed to delete orphaned image ${key} (non-fatal):`, err);
-    }
-  }
-  return deleted;
+  const results = await Promise.all(
+    keys.map(async (key) => {
+      try {
+        if (await isStillReferenced(key)) return false;
+        await bucket.delete(key);
+        return true;
+      } catch (err) {
+        console.error(`Failed to delete orphaned image ${key} (non-fatal):`, err);
+        return false;
+      }
+    })
+  );
+  return results.filter(Boolean).length;
 }
 
 export interface StoredObjectInfo {
@@ -273,15 +282,31 @@ export async function listAllObjects(maxObjects = 5000): Promise<StoredObjectInf
 }
 
 export async function deleteObjectsByKey(keys: string[]): Promise<number> {
+  // FIX (Vercel Hobby duration budget) — src/lib/storage/r2Client.ts
+  // Was: one R2 delete per key, fully sequential. This backs the orphan
+  // sweep over listAllObjects (up to thousands of keys) — sequential
+  // deletes there could easily run the sweep past Hobby's function
+  // duration limit. Now: chunked concurrency (CHUNK_SIZE at a time)
+  // rather than one at a time or all-at-once, since firing thousands of
+  // simultaneous R2 deletes in one invocation risks its own connection
+  // limits.
+  const CHUNK_SIZE = 50;
   const bucket = getBucket();
   let deleted = 0;
-  for (const key of keys) {
-    try {
-      await bucket.delete(key);
-      deleted++;
-    } catch (err) {
-      console.error(`Failed to delete object ${key} (non-fatal):`, err);
-    }
+  for (let i = 0; i < keys.length; i += CHUNK_SIZE) {
+    const chunk = keys.slice(i, i + CHUNK_SIZE);
+    const results = await Promise.all(
+      chunk.map(async (key) => {
+        try {
+          await bucket.delete(key);
+          return true;
+        } catch (err) {
+          console.error(`Failed to delete object ${key} (non-fatal):`, err);
+          return false;
+        }
+      })
+    );
+    deleted += results.filter(Boolean).length;
   }
   return deleted;
 }

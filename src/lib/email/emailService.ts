@@ -59,17 +59,51 @@ export async function sendNewsletterForPost(
   const enabled = await featureFlagService.isFeatureEnabled('email_newsletter');
   if (!enabled) return { sent: 0, failed: 0 };
 
+  // FIX (Vercel Hobby duration budget) — src/lib/email/emailService.ts
+  // Was: a for-loop sending one recipient at a time, fully sequential.
+  // For any real subscriber list this is the single worst offender in
+  // the app — a 500-recipient newsletter at ~300-500ms per Resend call
+  // is 2.5-4+ minutes sequential, which blows past Hobby's function
+  // duration limit on its own even before counting anything else.
+  // Now: recipients are sent in concurrent chunks (CHUNK_SIZE at a time)
+  // instead of one at a time. Not all-at-once, on purpose — firing
+  // hundreds/thousands of simultaneous requests at Resend in one go
+  // risks tripping Resend's own rate limit and still ties up a lot of
+  // sockets/memory in a single invocation; chunking keeps a bounded
+  // number in flight.
+  //
+  // Separately, worth flagging even though it's not this function's bug:
+  // both call sites (src/app/api/admin/blog/[id]/route.ts and
+  // src/app/api/blog/route.ts) invoke this fire-and-forget — they call
+  // it without awaiting it, as `sendNewsletterForPost(...).then(...)`
+  // inside the route handler. On Vercel, a serverless function's
+  // execution can be frozen/torn down the moment the HTTP response is
+  // sent, so that background work isn't guaranteed to finish (and if
+  // the runtime does keep it alive briefly to flush it, that time is
+  // still billed against the function). For a real send you'd want the
+  // route to `await` this (accepting the longer response time, which is
+  // now much shorter thanks to chunking) or move the work out of the
+  // request/response lifecycle entirely (a queue, a webhook-triggered
+  // route, Vercel's `waitUntil`, etc.) rather than firing it after
+  // the response and hoping it completes. I've left the call sites
+  // alone since that's a behavior decision, not a drop-in fix.
+  const CHUNK_SIZE = 25;
   let sent = 0;
   let failed = 0;
-  for (const user of recipients) {
-    if (!user.emailNewsletter) continue;
-    try {
-      const { subject, html } = newsletterEmail(postTitle, postSlug, excerpt, unsubscribeUrl(user.id));
-      await sendEmailViaResend({ to: user.email, subject, html });
-      await emailLogService.logEmailSent(user.id, 'newsletter', postId);
-      sent++;
-    } catch {
-      failed++; // one recipient failing shouldn't abort the whole batch
+  const eligible = recipients.filter((user) => user.emailNewsletter);
+
+  for (let i = 0; i < eligible.length; i += CHUNK_SIZE) {
+    const chunk = eligible.slice(i, i + CHUNK_SIZE);
+    const results = await Promise.allSettled(
+      chunk.map(async (user) => {
+        const { subject, html } = newsletterEmail(postTitle, postSlug, excerpt, unsubscribeUrl(user.id));
+        await sendEmailViaResend({ to: user.email, subject, html });
+        await emailLogService.logEmailSent(user.id, 'newsletter', postId);
+      })
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') sent++;
+      else failed++; // one recipient failing shouldn't abort the whole batch
     }
   }
   return { sent, failed };

@@ -29,6 +29,8 @@ const PUSH_FLAG_LABELS: Record<string, string> = {
   push_interest_match: 'New job or scholarship posting',
 };
 
+type CronJobKey = 'daily-quiz-push' | 'inactivity-nudge';
+
 export default function AdminNotificationsPage() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [publicKeyDraft, setPublicKeyDraft] = useState('');
@@ -39,6 +41,13 @@ export default function AdminNotificationsPage() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const [pushFlags, setPushFlags] = useState<FeatureFlag[]>([]);
+
+  // ADDED: admin "Run now" for the two cron broadcasts — src/app/admin/notifications/page.tsx
+  const [runningJob, setRunningJob] = useState<CronJobKey | null>(null);
+  const [runResults, setRunResults] = useState<Record<CronJobKey, string | null>>({
+    'daily-quiz-push': null,
+    'inactivity-nudge': null,
+  });
 
   useEffect(() => {
     fetch('/api/admin/notifications')
@@ -85,6 +94,34 @@ export default function AdminNotificationsPage() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ADDED: admin "Run now" for the two cron broadcasts — src/app/admin/notifications/page.tsx
+  // Hits the same cron route's GET handler (admin-session auth'd, see
+  // that route's GET export) rather than the x-cron-secret POST path
+  // the external scheduler uses — this button is for triggering a
+  // one-off send (e.g. to test, or to re-send after fixing something)
+  // without needing the cron secret on hand.
+  async function runCronJob(key: CronJobKey) {
+    setRunningJob(key);
+    setRunResults((prev) => ({ ...prev, [key]: null }));
+    try {
+      const res = await fetch(`/api/cron/${key}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setRunResults((prev) => ({ ...prev, [key]: data.error || 'Failed to run.' }));
+        return;
+      }
+      const parts: string[] = [];
+      if (typeof data.sent === 'number') parts.push(`${data.sent} sent`);
+      if (typeof data.skipped === 'number') parts.push(`${data.skipped} skipped`);
+      if (data.reason) parts.push(data.reason);
+      setRunResults((prev) => ({ ...prev, [key]: parts.length ? parts.join(', ') : 'Done.' }));
+    } catch {
+      setRunResults((prev) => ({ ...prev, [key]: 'Network error — please try again.' }));
+    } finally {
+      setRunningJob(null);
     }
   }
 
@@ -177,6 +214,54 @@ export default function AdminNotificationsPage() {
         </Button>
         {saveMessage && <span className="text-sm text-ink-500">{saveMessage}</span>}
       </div>
+
+      {/* ADDED: manual "Run now" for the two cron broadcasts — src/app/admin/notifications/page.tsx */}
+      <Card className="mt-4 space-y-4 p-5">
+        <h2 className="font-medium text-ink-800">Run a broadcast now</h2>
+        <p className="text-sm text-ink-500">
+          Triggers the same sweep the external scheduler calls on{' '}
+          <code className="rounded bg-ink-50 px-1">/api/cron/daily-quiz-push</code> and{' '}
+          <code className="rounded bg-ink-50 px-1">/api/cron/inactivity-nudge</code>, run immediately using your
+          admin session instead of the cron secret. Useful for testing, or re-sending after fixing a
+          misconfigured quiz — this does not replace the scheduled cron, which keeps running on its own.
+        </p>
+
+        <div className="flex items-center justify-between gap-3 rounded-md border border-ink-100 p-4">
+          <div>
+            <p className="text-sm font-medium text-ink-800">Daily quiz reminder</p>
+            <p className="text-xs text-ink-400">Sends to every subscribed user who hasn&apos;t taken today&apos;s quiz.</p>
+            {runResults['daily-quiz-push'] && (
+              <p className="mt-1 text-xs text-ink-500">{runResults['daily-quiz-push']}</p>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => runCronJob('daily-quiz-push')}
+            disabled={runningJob !== null}
+          >
+            {runningJob === 'daily-quiz-push' ? 'Running…' : 'Run now'}
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-md border border-ink-100 p-4">
+          <div>
+            <p className="text-sm font-medium text-ink-800">Inactivity nudge</p>
+            <p className="text-xs text-ink-400">Sends to users inactive for 3, 7, or 14 days.</p>
+            {runResults['inactivity-nudge'] && (
+              <p className="mt-1 text-xs text-ink-500">{runResults['inactivity-nudge']}</p>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => runCronJob('inactivity-nudge')}
+            disabled={runningJob !== null}
+          >
+            {runningJob === 'inactivity-nudge' ? 'Running…' : 'Run now'}
+          </Button>
+        </div>
+      </Card>
 
       <h2 className="mt-8 font-medium text-ink-800">Notification types</h2>
       <p className="mt-1 text-sm text-ink-500">

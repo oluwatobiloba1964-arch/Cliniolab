@@ -35,12 +35,24 @@ export async function POST(request: Request) {
 
   const label = body.label ?? (body.scope === 'general' ? 'Top Quiz Takers' : 'Category Leaders');
 
+  // FIX (Vercel Hobby duration budget) — src/app/api/admin/send-leaderboard-emails/route.ts
+  // Was: one user lookup + one email send per entry, fully sequential.
+  // Leaderboards are usually small (top N), so lower risk than the
+  // newsletter/blog-push broadcasts, but it's the same shape of bug and
+  // scales the same way if "top N" ever grows — fixed with the same
+  // chunked-concurrency pattern used there for consistency.
+  const CHUNK_SIZE = 25;
   let sent = 0;
-  for (const entry of entries) {
-    const recipient = await userService.getUserById(entry.userId);
-    if (!recipient) continue;
-    await sendLeaderboardRecognitionEmail(recipient, entry.rank, label).catch(() => {});
-    sent++;
+  for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+    const chunk = entries.slice(i, i + CHUNK_SIZE);
+    await Promise.all(
+      chunk.map(async (entry) => {
+        const recipient = await userService.getUserById(entry.userId);
+        if (!recipient) return;
+        await sendLeaderboardRecognitionEmail(recipient, entry.rank, label).catch(() => {});
+        sent++;
+      })
+    );
   }
 
   return NextResponse.json({ sent });

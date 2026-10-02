@@ -126,15 +126,35 @@ export async function sendBlogPushBroadcast(
   coverImageUrl?: string | null
 ): Promise<number> {
   const userIds = await pushSubscriptionService.listSubscribedUserIds();
+
+  // FIX (Vercel Hobby duration budget) — src/lib/push/pushNotificationService.ts
+  // Was: a for-loop doing one user at a time, each `await`ed in sequence.
+  // sendPushToUserIfEnabled already does its own per-user fan-out in
+  // parallel (see sendPushToUser above), but across users this ran
+  // one-after-another — for a blog with hundreds/thousands of
+  // subscribers, this single request could easily run past Hobby's
+  // function-duration limit and get killed mid-broadcast.
+  // Now: userIds are processed in concurrent chunks (CHUNK_SIZE at a
+  // time) instead of one at a time or all-at-once. All-at-once isn't
+  // used here on purpose — thousands of simultaneous outbound pushes
+  // could exhaust connections/memory in one invocation; chunking keeps
+  // a bounded number in flight while still being far faster than fully
+  // sequential.
+  const CHUNK_SIZE = 25;
   let attempted = 0;
-  for (const userId of userIds) {
-    await sendPushToUserIfEnabled(userId, PUSH_NOTIFICATION_FLAGS.blogNewPost, {
-      title: 'New on the Cliniolab blog',
-      body: postExcerpt || postTitle,
-      url: absolutize(postUrl),
-      image: coverImageUrl ? absolutize(coverImageUrl) : undefined,
-    }).catch(() => {});
-    attempted++;
+  for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+    const chunk = userIds.slice(i, i + CHUNK_SIZE);
+    await Promise.all(
+      chunk.map((userId) =>
+        sendPushToUserIfEnabled(userId, PUSH_NOTIFICATION_FLAGS.blogNewPost, {
+          title: 'New on the Cliniolab blog',
+          body: postExcerpt || postTitle,
+          url: absolutize(postUrl),
+          image: coverImageUrl ? absolutize(coverImageUrl) : undefined,
+        }).catch(() => {})
+      )
+    );
+    attempted += chunk.length;
   }
   return attempted;
 }

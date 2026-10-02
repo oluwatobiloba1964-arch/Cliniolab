@@ -273,17 +273,34 @@ export async function sendWebPush(
     const plaintext = new TextEncoder().encode(JSON.stringify(payload));
     const { body } = await encryptPayload(plaintext, subscription.p256dh, subscription.auth);
 
-    const res = await fetch(subscription.endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: authorization,
-        'Content-Type': 'application/octet-stream',
-        'Content-Encoding': 'aes128gcm',
-        TTL: '86400',
-        Urgency: 'normal',
-      },
-      body: toArrayBufferView(body),
-    });
+    // FIX (Vercel Hobby duration budget): no timeout existed here — and
+    // unlike the other clients, this one is already called in bulk (one
+    // request per subscription, fanned out with Promise.all across
+    // potentially hundreds of push endpoints per broadcast). A single slow
+    // or hung push-service endpoint would stall the whole Promise.all and
+    // the request behind it. 8s is intentionally tighter than the other
+    // clients since a missed/late push notification is low-stakes and
+    // callers already treat failures as soft (caught and turned into
+    // ok:false below), so timing it out fast matters more than waiting it out.
+    const pushController = new AbortController();
+    const pushTimeout = setTimeout(() => pushController.abort(), 8_000);
+    let res: Response;
+    try {
+      res = await fetch(subscription.endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: authorization,
+          'Content-Type': 'application/octet-stream',
+          'Content-Encoding': 'aes128gcm',
+          TTL: '86400',
+          Urgency: 'normal',
+        },
+        body: toArrayBufferView(body),
+        signal: pushController.signal,
+      });
+    } finally {
+      clearTimeout(pushTimeout);
+    }
 
     return {
       endpoint: subscription.endpoint,

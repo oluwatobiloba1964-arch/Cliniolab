@@ -47,13 +47,29 @@ export async function POST(request: Request) {
     }
   }
 
-  for (const [index, quiz] of body.quizzes.entries()) {
-    if (quiz.visibility === 'guest') {
+  // FIX (Vercel Hobby duration budget) — src/app/api/quizzes/bulk/route.ts
+  // Was: checkGuestVisibilityAllowed awaited one quiz at a time inside a
+  // for-loop; that helper does up to 2 DB reads internally (a feature
+  // flag lookup + a platform setting lookup), so a bulk upload of N
+  // quizzes with guest visibility set meant up to 2*N sequential round
+  // trips just for this validation pass, before any actual insert work.
+  // Now: every quiz's check runs concurrently, so wall time is roughly
+  // one round trip's worth regardless of how many quizzes are in the
+  // batch. Admin-only/low-frequency action, but bulk uploads are exactly
+  // the kind of request where N can get large (a full exam bank import).
+  const guestChecks = await Promise.all(
+    body.quizzes.map(async (quiz, index) => {
+      if (quiz.visibility !== 'guest') return null;
       const guestError = await checkGuestVisibilityAllowed({ role: user.role, pricing: quiz.pricing });
-      if (guestError) {
-        return NextResponse.json({ error: `Quiz at index ${index}: ${guestError}` }, { status: 403 });
-      }
-    }
+      return guestError ? { index, guestError } : null;
+    })
+  );
+  const firstGuestFailure = guestChecks.find((r) => r !== null);
+  if (firstGuestFailure) {
+    return NextResponse.json(
+      { error: `Quiz at index ${firstGuestFailure.index}: ${firstGuestFailure.guestError}` },
+      { status: 403 }
+    );
   }
 
   try {
