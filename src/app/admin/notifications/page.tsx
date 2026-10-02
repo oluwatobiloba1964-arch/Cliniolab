@@ -44,6 +44,9 @@ export default function AdminNotificationsPage() {
 
   // ADDED: admin "Run now" for the two cron broadcasts — src/app/admin/notifications/page.tsx
   const [runningJob, setRunningJob] = useState<CronJobKey | null>(null);
+  // ADDED: "Run all" combines both broadcasts into one admin click —
+  // src/app/admin/notifications/page.tsx
+  const [runningAll, setRunningAll] = useState(false);
   const [runResults, setRunResults] = useState<Record<CronJobKey, string | null>>({
     'daily-quiz-push': null,
     'inactivity-nudge': null,
@@ -123,6 +126,18 @@ export default function AdminNotificationsPage() {
     } finally {
       setRunningJob(null);
     }
+  }
+
+  // ADDED: runs both cron jobs sequentially from one button —
+  // src/app/admin/notifications/page.tsx
+  // Sequential (not Promise.all) so the two broadcasts don't compete for
+  // the same push-send concurrency at once; the per-job "Run now" buttons
+  // above still work individually and are disabled while this runs.
+  async function runAllCronJobs() {
+    setRunningAll(true);
+    await runCronJob('daily-quiz-push');
+    await runCronJob('inactivity-nudge');
+    setRunningAll(false);
   }
 
   async function toggleFlag(key: string, enabled: boolean) {
@@ -238,7 +253,7 @@ export default function AdminNotificationsPage() {
             size="sm"
             variant="secondary"
             onClick={() => runCronJob('daily-quiz-push')}
-            disabled={runningJob !== null}
+            disabled={runningJob !== null || runningAll}
           >
             {runningJob === 'daily-quiz-push' ? 'Running…' : 'Run now'}
           </Button>
@@ -256,9 +271,20 @@ export default function AdminNotificationsPage() {
             size="sm"
             variant="secondary"
             onClick={() => runCronJob('inactivity-nudge')}
-            disabled={runningJob !== null}
+            disabled={runningJob !== null || runningAll}
           >
             {runningJob === 'inactivity-nudge' ? 'Running…' : 'Run now'}
+          </Button>
+        </div>
+
+        {/* ADDED: single button to run both broadcasts in sequence — src/app/admin/notifications/page.tsx */}
+        <div className="flex items-center justify-between gap-3 rounded-md border border-pulse-200 bg-pulse-50 p-4">
+          <div>
+            <p className="text-sm font-medium text-ink-800">Run all broadcasts</p>
+            <p className="text-xs text-ink-400">Runs daily quiz reminder, then inactivity nudge, one after another.</p>
+          </div>
+          <Button size="sm" onClick={runAllCronJobs} disabled={runningJob !== null || runningAll}>
+            {runningAll ? 'Running…' : 'Run all now'}
           </Button>
         </div>
       </Card>
