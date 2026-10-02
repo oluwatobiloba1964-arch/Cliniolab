@@ -91,14 +91,31 @@ self.addEventListener('fetch', (event) => {
 // { title, body, url, tag?, image? }. `image` is a large banner-style
 // hero image shown inline in the notification body — supported on
 // Android Chrome, harmlessly ignored where it isn't (e.g. iOS Safari).
+// FIX (silent/suppressed push) — public/sw.js
+// Chrome enforces the push/notification contract strictly: every `push`
+// event MUST result in a call to showNotification() before the event's
+// lifetime ends, or the browser treats it as a "silent push". A handful
+// of silent pushes in a row and Chrome starts showing the user a forced
+// "site has been updated in the background" notification on your behalf,
+// and can mute future pushes from this origin entirely. The old handler
+// violated this in two ways: (1) it returned early with no notification
+// at all when event.data was missing, and (2) showNotification() was
+// fire-and-forgot — not actually guaranteed to resolve before the event
+// handler's promise settled, and no fallback fired if it rejected (e.g.
+// a bad icon/image URL, which Chrome treats as a failure to show).
+// Now: always await a notification, with a generic fallback on missing
+// data, and a last-resort fallback that strips the option that triggered
+// a failure and retries once rather than letting the event finish silent.
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
-
   let payload = { title: 'Cliniolab', body: 'You have a new notification.', url: '/' };
-  try {
-    payload = { ...payload, ...event.data.json() };
-  } catch {
-    payload.body = event.data.text();
+
+  if (event.data) {
+    try {
+      payload = { ...payload, ...event.data.json() };
+    } catch {
+      const text = event.data.text();
+      if (text) payload.body = text;
+    }
   }
 
   const options = {
@@ -110,7 +127,15 @@ self.addEventListener('push', (event) => {
   };
   if (payload.image) options.image = payload.image;
 
-  event.waitUntil(self.registration.showNotification(payload.title, options));
+  event.waitUntil(
+    self.registration.showNotification(payload.title, options).catch(() => {
+      // Most likely cause of a rejected showNotification: the `image`
+      // URL (large banner image) failed to load/decode. Retry once
+      // without it instead of leaving this push silent.
+      const { image, ...safeOptions } = options;
+      return self.registration.showNotification(payload.title, safeOptions);
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {
