@@ -74,7 +74,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
       );
     }
     console.error('Failed to update blog post:', err);
-    return NextResponse.json({ error: 'Failed to save post. Please try again.' }, { status: 500 });
+    // TEMP: surfacing the raw DB error so we can see exactly what's
+    // failing in production. Remove the `detail` field once diagnosed.
+    return NextResponse.json(
+      { error: 'Failed to save post. Please try again.', detail: message },
+      { status: 500 }
+    );
   }
   const updated = await cmsService.getPostById(id);
 
