@@ -80,34 +80,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'blogCategoryId is required' }, { status: 400 });
   }
 
-  const post = await cmsService.createPost(user.id, {
-    title: body.title,
-    slug: body.slug,
-    content: body.content,
-    contentFormat: body.contentFormat,
-    excerpt: body.excerpt,
-    status: body.status ?? 'draft',
-    blogCategoryId: body.blogCategoryId,
-    blogSubcategoryId: body.blogSubcategoryId,
-    featuredImageUrl: body.featuredImageUrl,
-    seoTitle: body.seoTitle,
-    seoDescription: body.seoDescription,
-    isSponsored: body.isSponsored,
-    isPinned: body.isPinned,
-    fullWidth: body.fullWidth,
-    sendAsNewsletter: body.sendAsNewsletter,
-    sendPush: body.sendPush,
-    authorName: body.authorName,
-    authorCredentials: body.authorCredentials,
-    authorPhotoUrl: body.authorPhotoUrl,
-    authorContributorId: body.authorContributorId,
-    authorBio: body.authorBio,
-    reviewerName: body.reviewerName,
-    reviewerCredentials: body.reviewerCredentials,
-    reviewerPhotoUrl: body.reviewerPhotoUrl,
-    reviewerContributorId: body.reviewerContributorId,
-    reviewerBio: body.reviewerBio,
-  });
+  let post;
+  try {
+    post = await cmsService.createPost(user.id, {
+      title: body.title,
+      slug: body.slug,
+      content: body.content,
+      contentFormat: body.contentFormat,
+      excerpt: body.excerpt,
+      status: body.status ?? 'draft',
+      blogCategoryId: body.blogCategoryId,
+      blogSubcategoryId: body.blogSubcategoryId,
+      featuredImageUrl: body.featuredImageUrl,
+      seoTitle: body.seoTitle,
+      seoDescription: body.seoDescription,
+      isSponsored: body.isSponsored,
+      isPinned: body.isPinned,
+      fullWidth: body.fullWidth,
+      sendAsNewsletter: body.sendAsNewsletter,
+      sendPush: body.sendPush,
+      authorName: body.authorName,
+      authorCredentials: body.authorCredentials,
+      authorPhotoUrl: body.authorPhotoUrl,
+      authorContributorId: body.authorContributorId,
+      authorBio: body.authorBio,
+      reviewerName: body.reviewerName,
+      reviewerCredentials: body.reviewerCredentials,
+      reviewerPhotoUrl: body.reviewerPhotoUrl,
+      reviewerContributorId: body.reviewerContributorId,
+      reviewerBio: body.reviewerBio,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/unique constraint failed:\s*blog_posts\.slug/i.test(message)) {
+      return NextResponse.json(
+        { error: 'A post with that slug already exists. Please change the slug and try again.' },
+        { status: 409 }
+      );
+    }
+    if (/foreign key constraint/i.test(message)) {
+      return NextResponse.json(
+        { error: 'Selected category or subcategory is no longer valid. Please re-select it and try again.' },
+        { status: 400 }
+      );
+    }
+    console.error('Failed to create blog post:', err);
+    return NextResponse.json({ error: 'Failed to save post. Please try again.' }, { status: 500 });
+  }
 
   // Only ever send once, and only for posts actually published (not drafts).
   if (post.sendAsNewsletter && post.status === 'published') {
