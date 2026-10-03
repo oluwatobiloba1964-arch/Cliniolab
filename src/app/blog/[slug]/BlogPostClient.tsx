@@ -11,6 +11,8 @@ import { AuthorBox } from '@/components/blog/AuthorBox';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import { RelatedPosts } from '@/components/cms/RelatedPosts';
 import { CommentThread } from '@/components/quiz/CommentThread';
+import { TableOfContents } from '@/components/blog/TableOfContents';
+import { extractTableOfContents, MIN_HEADINGS_FOR_TOC } from '@/lib/utils/tableOfContents';
 import { useBlogSubcategoryName } from '@/lib/hooks/useBlogSubcategoryName';
 import { useBlogCategorySlug } from '@/lib/hooks/useBlogCategorySlug';
 import type { BlogPost } from '@/types';
@@ -271,18 +273,33 @@ function BlogPostBody({ post }: { post: BlogPost }) {
           <RawHtmlFrame html={post.content} />
         </div>
       ) : (
-        <div className={`mx-auto px-6 ${wide ? 'max-w-6xl' : 'max-w-2xl'}`}>
-          <style>{FLATTEN_BOXED_CONTENT_CSS}</style>
-          <div
-            className="post-content-flatten prose prose-sm mt-6 max-w-none text-ink-700"
-            dangerouslySetInnerHTML={{
-              __html:
-                post.contentFormat === 'html' || looksLikeHtml(post.content)
-                  ? wrapWithScopeClass(sanitizeHtml(post.content, post.id), post.id)
-                  : markdownToHtml(post.content),
-            }}
-          />
-        </div>
+        (() => {
+          const renderedHtml =
+            post.contentFormat === 'html' || looksLikeHtml(post.content)
+              ? wrapWithScopeClass(sanitizeHtml(post.content, post.id), post.id)
+              : markdownToHtml(post.content);
+          // The table of contents is auto-generated from whatever <h2>/<h3>
+          // headings the post already has — nothing for the author to turn
+          // on. It's skipped below MIN_HEADINGS_FOR_TOC since a nav for one
+          // or two sections isn't worth the space.
+          const { html: htmlWithIds, items: tocItems } = extractTableOfContents(renderedHtml);
+          const showToc = tocItems.length >= MIN_HEADINGS_FOR_TOC;
+
+          return (
+            <div className={`mx-auto px-6 ${wide ? 'max-w-6xl' : showToc ? 'max-w-4xl' : 'max-w-2xl'}`}>
+              <style>{FLATTEN_BOXED_CONTENT_CSS}</style>
+              <div className={showToc ? 'mt-6 grid grid-cols-1 gap-10 lg:grid-cols-[220px_1fr]' : undefined}>
+                {showToc && <TableOfContents items={tocItems} />}
+                <div
+                  className={`post-content-flatten prose prose-sm max-w-none text-ink-700 ${
+                    showToc ? '' : 'mt-6'
+                  }`}
+                  dangerouslySetInnerHTML={{ __html: htmlWithIds }}
+                />
+              </div>
+            </div>
+          );
+        })()
       )}
 
       <div className="mx-auto max-w-2xl px-6">
