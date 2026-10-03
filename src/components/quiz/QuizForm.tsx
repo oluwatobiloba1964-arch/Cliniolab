@@ -1,3 +1,4 @@
+// src/components/quiz/QuizForm.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -373,13 +374,13 @@ export function QuizForm({
           )}
           {initialQuiz && (
             <p className="mt-1 text-xs text-ink-400">
-              Changing visibility here updates the field only — use the dashboard&apos;s
-              &quot;Regenerate link&quot; action if you also need a new share link or expiry.
+              Visibility changes apply when you click Save changes. Staying on the same
+              visibility keeps your current share link and password.
             </p>
           )}
         </div>
 
-        {visibility === 'private' && !initialQuiz && (
+        {visibility === 'private' && (!initialQuiz || initialQuiz.visibility !== 'private') && (
           <div>
             <label className="text-sm font-medium text-ink-700">Link expiry</label>
             <div className="mt-2 flex flex-wrap gap-2">
