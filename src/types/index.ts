@@ -1,3 +1,4 @@
+// src/types/index.ts
 // ============================================
 // USERS & ROLES
 // ============================================
@@ -233,6 +234,8 @@ export interface AttemptResult {
   showMarks: boolean;
   percentage: number;
   countedForLeaderboard: boolean;
+  /** True when the user already practiced this quiz as a guest in this browser, so this result was graded but not saved. */
+  previouslyPracticedAsGuest?: boolean;
   perQuestion: {
     questionId: string;
     prompt: string;
