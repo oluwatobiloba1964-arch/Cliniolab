@@ -1,3 +1,4 @@
+// src/app/api/guest/quizzes/[quizId]/route.ts
 import { NextResponse } from 'next/server';
 import { featureFlagService, guestService } from '@/lib/db';
 
@@ -29,7 +30,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
           explanation: null,
         }));
 
-  // Never expose creator/share internals to anonymous visitors.
-  const publicQuiz = { ...quiz, shareSlug: null, linkExpiresAt: null, hasPassword: false, creatorId: '' };
+  // Never expose share internals to anonymous visitors. creatorId stays: it is
+  // public (the creator profile card and /creator/[id] page are open to all).
+  const publicQuiz = { ...quiz, shareSlug: null, linkExpiresAt: null, hasPassword: false };
   return NextResponse.json({ quiz: publicQuiz, questions: safeQuestions });
 }
