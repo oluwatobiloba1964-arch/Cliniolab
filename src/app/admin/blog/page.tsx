@@ -371,7 +371,9 @@ export default function AdminBlogPage() {
         load();
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? 'Failed to save post.');
+        // TEMP: data.detail carries the raw DB error for diagnosis; remove
+        // once the root cause is confirmed and the API drops the field.
+        setError(data.detail ? `${data.error ?? 'Failed to save post.'} (${data.detail})` : data.error ?? 'Failed to save post.');
       }
     } catch {
       setError('Failed to save post — check your connection and try again.');
