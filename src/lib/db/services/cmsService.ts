@@ -229,7 +229,7 @@ export async function createPost(
         (id, author_id, title, slug, content, content_format, excerpt, blog_category_id, blog_subcategory_id, featured_image_url, seo_title, seo_description, status, is_sponsored, is_pinned, full_width, send_as_newsletter, send_push,
          author_name, author_credentials, author_photo_url, author_contributor_id, author_bio,
          reviewer_name, reviewer_credentials, reviewer_photo_url, reviewer_contributor_id, reviewer_bio, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       id,
