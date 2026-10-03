@@ -498,7 +498,13 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               quiz to keep your history and streaks and, where available, join the leaderboard and earn a certificate.
             </p>
           )}
-          {!guest && !result.countedForLeaderboard && (
+          {!guest && result.previouslyPracticedAsGuest && (
+            <p className="mt-3 text-xs text-flag-600">
+              You already practiced this quiz as a guest, so this result is not saved and does not
+              count toward the leaderboard or certificates. You can keep practicing as much as you like.
+            </p>
+          )}
+          {!guest && !result.previouslyPracticedAsGuest && !result.countedForLeaderboard && (
             <p className="mt-3 text-xs text-flag-600">
               This quiz allows unlimited retakes, so only your first attempt is saved to your
               dashboard and the leaderboard. This attempt&apos;s score is shown here but wasn&apos;t recorded.
