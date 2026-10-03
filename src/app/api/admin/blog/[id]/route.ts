@@ -57,7 +57,25 @@ export async function PUT(request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  await cmsService.updatePost(id, body);
+  try {
+    await cmsService.updatePost(id, body);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/unique constraint failed:\s*blog_posts\.slug/i.test(message)) {
+      return NextResponse.json(
+        { error: 'A post with that slug already exists. Please change the slug and try again.' },
+        { status: 409 }
+      );
+    }
+    if (/foreign key constraint/i.test(message)) {
+      return NextResponse.json(
+        { error: 'Selected category or subcategory is no longer valid. Please re-select it and try again.' },
+        { status: 400 }
+      );
+    }
+    console.error('Failed to update blog post:', err);
+    return NextResponse.json({ error: 'Failed to save post. Please try again.' }, { status: 500 });
+  }
   const updated = await cmsService.getPostById(id);
 
   // Both newsletter and push only ever fire on the actual draft ->
