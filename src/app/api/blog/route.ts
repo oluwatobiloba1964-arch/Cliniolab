@@ -125,7 +125,12 @@ export async function POST(request: Request) {
       );
     }
     console.error('Failed to create blog post:', err);
-    return NextResponse.json({ error: 'Failed to save post. Please try again.' }, { status: 500 });
+    // TEMP: surfacing the raw DB error so we can see exactly what's
+    // failing in production. Remove the `detail` field once diagnosed.
+    return NextResponse.json(
+      { error: 'Failed to save post. Please try again.', detail: message },
+      { status: 500 }
+    );
   }
 
   // Only ever send once, and only for posts actually published (not drafts).
