@@ -94,20 +94,22 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
         <p className="mt-4 text-sm text-ink-500">{questions.length} questions · No account needed</p>
         {user ? (
           <p className="mt-1 text-xs text-ink-500">
-            You&apos;re logged in. Start the saved attempt to record your result and, where available,
-            join the leaderboard and earn a certificate. Or practice without saving.
+            You&apos;re logged in. Your first saved attempt is recorded and, where available, counts for
+            the leaderboard and certificate. If you practice without saving first, you will see the
+            answers, so a later attempt on this quiz will not be saved or ranked.
           </p>
         ) : (
           <p className="mt-1 text-xs text-ink-500">
-            Practicing as a guest: your result will not be saved. Log in or create a free account to
-            take this quiz with your history saved and, where available, the leaderboard and a certificate.
+            Practicing as a guest: your result will not be saved. To get history, the leaderboard and
+            a certificate (where available), log in and take it first. Once you finish it as a guest,
+            later attempts on this device are practice only and are not saved or ranked.
           </p>
         )}
         <div className="mt-6 flex flex-wrap items-center gap-3">
           {user ? (
             <>
               <Button size="lg" onClick={() => router.push(`/quizzes/${quizId}`)}>
-                Start (saved attempt)
+                Start (first attempt is saved)
               </Button>
               <Button size="lg" variant="secondary" onClick={() => setStarted(true)}>
                 Practice without saving
