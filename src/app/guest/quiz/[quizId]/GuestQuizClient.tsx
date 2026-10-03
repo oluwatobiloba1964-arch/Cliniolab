@@ -1,3 +1,4 @@
+// src/app/guest/quiz/[quizId]/GuestQuizClient.tsx
 'use client';
 
 import Link from 'next/link';
@@ -7,6 +8,8 @@ import { QuizRunner } from '@/components/quiz/QuizRunner';
 import { StudyModeRunner } from '@/components/quiz/StudyModeRunner';
 import { Button } from '@/components/ui/Button';
 import { Card, DifficultyBadge } from '@/components/ui/Card';
+import { CreatorProfileCard } from '@/components/creator/CreatorProfileCard';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
 import type { Quiz, QuizQuestion } from '@/types';
@@ -20,6 +23,7 @@ const MODE_LABELS: Record<Quiz['mode'], string> = {
 export function GuestQuizClient({ quizId }: { quizId: string }) {
   const router = useRouter();
   const { flags } = usePublicConfig();
+  const { user, loading: authLoading } = useAuth();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [started, setStarted] = useState(false);
@@ -42,7 +46,7 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
       .finally(() => setLoading(false));
   }, [quizId, flags.guestPractice]);
 
-  if (loading) return null;
+  if (loading || authLoading) return null;
 
   if (!flags.guestPractice || error || !quiz) {
     return (
@@ -88,11 +92,47 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
         <h1 className="mt-3 font-display text-3xl font-semibold text-ink-800">{quiz.title}</h1>
         {quiz.description && <p className="mt-2 text-ink-500">{quiz.description}</p>}
         <p className="mt-4 text-sm text-ink-500">{questions.length} questions · No account needed</p>
-        <p className="mt-1 text-xs text-ink-400">Your result will not be saved. Create a free account to keep your history.</p>
+        {user ? (
+          <p className="mt-1 text-xs text-ink-500">
+            You&apos;re logged in. Start the saved attempt to record your result and, where available,
+            join the leaderboard and earn a certificate. Or practice without saving.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-ink-500">
+            Practicing as a guest: your result will not be saved. Log in or create a free account to
+            take this quiz with your history saved and, where available, the leaderboard and a certificate.
+          </p>
+        )}
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Button size="lg" onClick={() => setStarted(true)}>
-            Start
-          </Button>
+          {user ? (
+            <>
+              <Button size="lg" onClick={() => router.push(`/quizzes/${quizId}`)}>
+                Start (saved attempt)
+              </Button>
+              <Button size="lg" variant="secondary" onClick={() => setStarted(true)}>
+                Practice without saving
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="lg" onClick={() => setStarted(true)}>
+                Start as guest
+              </Button>
+              <Button
+                size="lg"
+                variant="secondary"
+                onClick={() => router.push(`/login?next=${encodeURIComponent(`/quizzes/${quizId}`)}`)}
+              >
+                Log in to save result
+              </Button>
+              <Link
+                href={`/register?next=${encodeURIComponent(`/quizzes/${quizId}`)}`}
+                className="text-sm text-pulse-600 underline"
+              >
+                Create free account
+              </Link>
+            </>
+          )}
           {quiz.mode === 'study' && (
             <OfflineSaveButton
               kind="quiz"
@@ -104,6 +144,11 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
           )}
         </div>
       </Card>
+      {quiz.creatorId && (
+        <div className="mt-6">
+          <CreatorProfileCard creatorId={quiz.creatorId} />
+        </div>
+      )}
     </div>
   );
 }
