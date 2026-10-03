@@ -1,3 +1,4 @@
+// src/app/quizzes/[quizId]/page.tsx
 import type { Metadata } from 'next';
 import { quizService } from '@/lib/db';
 import { getQuizzesWithStatsByIds } from '@/lib/db/services/quizService';
@@ -113,7 +114,7 @@ export default async function QuizDetailPage({ params }: PageProps) {
   // private ones keep their existing gated flow untouched.
   const quiz = await quizService.getQuizById(quizId).catch(() => null);
   const previewStats =
-    quiz && quiz.visibility === 'public'
+    quiz && (quiz.visibility === 'public' || quiz.visibility === 'guest')
       ? (await getQuizzesWithStatsByIds([quizId]).catch(() => []))[0] ?? null
       : null;
 
