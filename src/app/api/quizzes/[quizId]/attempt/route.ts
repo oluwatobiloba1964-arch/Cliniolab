@@ -1,4 +1,7 @@
+// src/app/api/quizzes/[quizId]/attempt/route.ts
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { guestPracticeCookieName } from '@/lib/security/guestPracticeCookie';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { attemptService, certificateService, featureFlagService, quizService, userService, RetakeNotAllowedError } from '@/lib/db';
 import { sendQuizResultEmail, sendCertificateIssuedEmail } from '@/lib/email/emailService';
@@ -24,6 +27,32 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   if (!Array.isArray(body.answers)) {
     return NextResponse.json({ error: '"answers" array is required' }, { status: 400 });
+  }
+
+  // This browser already practiced this quiz as a guest (saw the graded
+  // answers): grade it so they can keep practicing, but save nothing - no
+  // attempt row, no leaderboard, no certificate, no result email.
+  const cookieName = guestPracticeCookieName(quizId);
+  const practicedAsGuest = !!cookieName && (await cookies()).get(cookieName)?.value === '1';
+  if (practicedAsGuest) {
+    try {
+      const graded = await attemptService.gradeWithoutSaving({
+        quizId,
+        questionIds: Array.isArray(body.questionIds) ? body.questionIds : undefined,
+        answers: body.answers,
+        timeTakenSeconds: body.timeTakenSeconds ?? 0,
+      });
+      await userService.recordActivityForStreak(user.id);
+      return NextResponse.json({
+        result: { ...graded, countedForLeaderboard: false, previouslyPracticedAsGuest: true },
+        certificate: null,
+      });
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Failed to grade attempt' },
+        { status: 500 }
+      );
+    }
   }
 
   try {
