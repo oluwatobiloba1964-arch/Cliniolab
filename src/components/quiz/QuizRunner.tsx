@@ -1,3 +1,4 @@
+// src/components/quiz/QuizRunner.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -493,8 +494,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           </p>
           {guest && (
             <p className="mt-3 text-xs text-ink-500">
-              Guest Practice: this result is not saved. Create a free account to keep your history,
-              streaks and certificates.
+              Guest Practice: this result is not saved. Log in or create a free account and retake this
+              quiz to keep your history and streaks and, where available, join the leaderboard and earn a certificate.
             </p>
           )}
           {!guest && !result.countedForLeaderboard && (
@@ -665,6 +666,15 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                   }}
                 >
                   Create free account
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    leaveResults();
+                    router.push(`/login?next=${encodeURIComponent(`/quizzes/${quiz.id}`)}`);
+                  }}
+                >
+                  Log in &amp; take it for real
                 </Button>
                 <Button
                   variant="secondary"
