@@ -368,8 +368,9 @@ export function QuizForm({
           {visibility === 'guest' && (
             <p className="mt-2 text-xs text-ink-500">
               Guest Practice quizzes are free and shown in the Guest Practice section on the homepage.
-              Visitors can take them without an account, and results are not saved.
-              Leaderboard and certificates do not apply.
+              Visitors can take them without an account, and guest results are not saved.
+              Logged-in users who take it get their result saved and, where available, the
+              leaderboard and certificate.
             </p>
           )}
           {initialQuiz && (
