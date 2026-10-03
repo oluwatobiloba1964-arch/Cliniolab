@@ -69,9 +69,18 @@ export function QuizForm({
   const [title, setTitle] = useState(initialQuiz?.title ?? '');
   const [description, setDescription] = useState(initialQuiz?.description ?? '');
   const [subcategoryId, setSubcategoryId] = useState(initialQuiz?.subcategoryId ?? '');
-  const [mode, setMode] = useState<QuizMode>(initialQuiz?.mode ?? 'quiz');
+  const [mode, setModeState] = useState<QuizMode>(initialQuiz?.mode ?? 'quiz');
+  function setMode(next: QuizMode) {
+    setModeState(next);
+    if (next === 'exam') {
+      // Exam / CBT mode always runs on a timer, so force it on.
+      setTimerEnabled(true);
+    }
+  }
   const [difficulty, setDifficulty] = useState<QuizDifficulty>(initialQuiz?.difficulty ?? 'medium');
-  const [timerEnabled, setTimerEnabled] = useState(!!initialQuiz?.timeLimitSeconds);
+  const [timerEnabled, setTimerEnabled] = useState(
+    initialQuiz?.mode === 'exam' || !!initialQuiz?.timeLimitSeconds
+  );
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(
     initialQuiz?.timeLimitSeconds ? Math.round(initialQuiz.timeLimitSeconds / 60) : 20
   );
