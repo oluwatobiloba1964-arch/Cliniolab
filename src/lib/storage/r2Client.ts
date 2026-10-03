@@ -5,13 +5,15 @@
  *
  * R2 is accessed two ways behind the same R2Bucket interface:
  *  - Workers binding (Cloudflare Pages production)
- *  - S3-compatible API (Vercel testing) — hits the SAME R2 bucket as
+ *  - S3-compatible API (Vercel testing) - hits the SAME R2 bucket as
  *    production, just over R2's S3-compatible HTTPS endpoint instead of
  *    a binding.
  *
  * Selected the same way as the DB driver: STORAGE_DRIVER env var, or
  * inferred from R2_ACCESS_KEY_ID presence when unset.
  */
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+
 export interface R2Bucket {
   put(key: string, value: ArrayBuffer | ArrayBufferView | ReadableStream, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
   delete(key: string): Promise<void>;
@@ -32,26 +34,14 @@ function resolveStorageDriver(): StorageDriver {
 }
 
 function getR2BindingBucket(): R2Bucket {
-  // Loaded via indirect eval, not a literal require(...), so Turbopack's
-  // bundler and the TypeScript checker never try to resolve this module
-  // on Vercel, where @cloudflare/next-on-pages is never installed (no
-  // package, no type declarations).
-  let getRequestContext: () => { env: Record<string, unknown> };
-  try {
-    // eslint-disable-next-line no-eval
-    const dynamicRequire = eval('require') as NodeRequire;
-    ({ getRequestContext } = dynamicRequire('@cloudflare/next-on-pages'));
-  } catch {
+  const { env } = getCloudflareContext();
+  const bucket = (env as unknown as { IMAGES?: R2Bucket }).IMAGES;
+  if (!bucket) {
     throw new Error(
-      "@cloudflare/next-on-pages is not installed. This code path only runs on Cloudflare Pages; " +
-        'set STORAGE_DRIVER=s3 (or R2_ACCESS_KEY_ID) to use the R2 S3-compatible API instead.'
+      "R2 binding 'IMAGES' is not available from getCloudflareContext(). Confirm an [[r2_buckets]] binding named IMAGES exists in wrangler config, or set STORAGE_DRIVER=s3 to use the R2 S3-compatible API instead."
     );
   }
-  const env = getRequestContext().env as { IMAGES?: R2Bucket };
-  if (!env.IMAGES) {
-    throw new Error("R2 binding 'IMAGES' is not configured. Add an [[r2_buckets]] binding named IMAGES in wrangler.toml.");
-  }
-  return env.IMAGES;
+  return bucket;
 }
 
 let r2S3Singleton: R2Bucket | undefined;
@@ -172,7 +162,7 @@ export interface StoredImage {
 
 /**
  * Lists previously uploaded images so the admin can reuse one instead of
- * uploading the same file again — e.g. a diagram already used in one
+ * uploading the same file again - e.g. a diagram already used in one
  * post that fits a later post too. Scoped by purpose/folder (blog,
  * resources, banners, scholars) since that's how uploadImage() already
  * organizes keys; pass no purpose to list across all of them.
@@ -192,7 +182,7 @@ export async function listImages(purpose?: 'blog' | 'resources' | 'banners' | 's
       size: obj.size,
       uploadedAt: new Date(obj.uploaded).toISOString(),
     }))
-    // Newest first — mirrors how the admin thinks about "the image I just used".
+    // Newest first - mirrors how the admin thinks about "the image I just used".
     .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
 
   return { images, nextCursor: result.truncated ? result.cursor : undefined };
@@ -234,9 +224,9 @@ export async function deleteImageKeysIfUnreferenced(
   keys: string[],
   isStillReferenced: (key: string) => Promise<boolean>
 ): Promise<number> {
-  // FIX (Vercel Hobby duration budget) — src/lib/storage/r2Client.ts
+  // FIX (Vercel Hobby duration budget) - src/lib/storage/r2Client.ts
   // Was: one isStillReferenced check + one R2 delete per key, fully
-  // sequential — a post/resource with many embedded images meant that
+  // sequential - a post/resource with many embedded images meant that
   // many round trips, one after another, in the request that deletes it.
   // Now: all keys are processed concurrently. Each key's own try/catch is
   // preserved so one failing delete still can't abort the others (same
@@ -282,9 +272,9 @@ export async function listAllObjects(maxObjects = 5000): Promise<StoredObjectInf
 }
 
 export async function deleteObjectsByKey(keys: string[]): Promise<number> {
-  // FIX (Vercel Hobby duration budget) — src/lib/storage/r2Client.ts
+  // FIX (Vercel Hobby duration budget) - src/lib/storage/r2Client.ts
   // Was: one R2 delete per key, fully sequential. This backs the orphan
-  // sweep over listAllObjects (up to thousands of keys) — sequential
+  // sweep over listAllObjects (up to thousands of keys) - sequential
   // deletes there could easily run the sweep past Hobby's function
   // duration limit. Now: chunked concurrency (CHUNK_SIZE at a time)
   // rather than one at a time or all-at-once, since firing thousands of
