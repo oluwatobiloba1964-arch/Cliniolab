@@ -1,3 +1,4 @@
+// src/app/api/quizzes/[quizId]/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { isOwnerOrStaff } from '@/lib/auth/permissions';
@@ -108,8 +109,10 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
-  // A Guest Practice quiz must stay free.
-  if (quiz.visibility === 'guest' && input.pricing === 'paid') {
+  // A Guest Practice quiz must stay free (checked against the visibility
+  // this save will result in, so guest -> public + paid in one save works).
+  const targetVisibility = input.visibility ?? quiz.visibility;
+  if (targetVisibility === 'guest' && input.pricing === 'paid') {
     return NextResponse.json(
       { error: 'Guest Practice quizzes must be free. Change visibility first to make it paid.' },
       { status: 400 }
@@ -117,7 +120,21 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   try {
-    const updated = await quizService.updateQuiz(quizId, input);
+    let updated = await quizService.updateQuiz(quizId, input);
+
+    // updateQuiz() never touches `visibility`, so apply a change made in the
+    // edit form explicitly. Unchanged visibility is left alone so existing
+    // share links / passwords are preserved.
+    if (input.visibility && input.visibility !== quiz.visibility) {
+      await quizService.setQuizVisibility(
+        quizId,
+        input.visibility,
+        input.linkExpiry,
+        input.customExpiryDate
+      );
+      updated = (await quizService.getQuizById(quizId)) ?? updated;
+    }
+
     return NextResponse.json({ quiz: updated });
   } catch (err) {
     return NextResponse.json(
