@@ -89,6 +89,9 @@ export default function AdminBlogPage() {
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsLoadError, setPostsLoadError] = useState(false);
 
+  const POSTS_PER_PAGE = 30;
+  const [page, setPage] = useState(1);
+
   function load() {
     setPostsLoading(true);
     setPostsLoadError(false);
@@ -371,8 +374,8 @@ export default function AdminBlogPage() {
         load();
       } else {
         const data = await res.json().catch(() => ({}));
-        // TEMP: data.detail carries the raw DB error for diagnosis; remove
-        // once the root cause is confirmed and the API drops the field.
+        // data.detail carries the raw DB error when present (admin-only
+        // panel, so this is safe to show and helps diagnose failures fast).
         setError(data.detail ? `${data.error ?? 'Failed to save post.'} (${data.detail})` : data.error ?? 'Failed to save post.');
       }
     } catch {
@@ -665,7 +668,22 @@ export default function AdminBlogPage() {
         {!postsLoading && !postsLoadError && posts.length === 0 && (
           <p className="text-sm text-ink-400">No posts yet — create your first one above.</p>
         )}
-        {!postsLoading && !postsLoadError && posts.map((post) => (
+        {!postsLoading && !postsLoadError && posts.length > 0 && (() => {
+          const pageCount = Math.max(1, Math.ceil(posts.length / POSTS_PER_PAGE));
+          const currentPage = Math.min(page, pageCount);
+          const pagedPosts = posts.slice(
+            (currentPage - 1) * POSTS_PER_PAGE,
+            currentPage * POSTS_PER_PAGE
+          );
+          return (
+            <>
+              {pageCount > 1 && (
+                <p className="text-xs text-ink-400">
+                  Showing {(currentPage - 1) * POSTS_PER_PAGE + 1}–
+                  {Math.min(currentPage * POSTS_PER_PAGE, posts.length)} of {posts.length} posts
+                </p>
+              )}
+              {pagedPosts.map((post) => (
           <Card key={post.id} className={`p-4 ${editingId === post.id ? 'ring-2 ring-pulse-400' : ''}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -687,7 +705,31 @@ export default function AdminBlogPage() {
               </div>
             </div>
           </Card>
-        ))}
+              ))}
+              {pageCount > 1 && (
+                <div className="flex items-center justify-between gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <p className="text-xs text-ink-400">Page {currentPage} of {pageCount}</p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={currentPage >= pageCount}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
     </div>
   );
