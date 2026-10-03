@@ -103,6 +103,11 @@ export const viewport = {
   themeColor: '#0B1F2E',
 };
 
+// All data comes from D1 via the Cloudflare context, which only exists at
+// request time. Render every route dynamically so nothing hits the database
+// during `next build` prerendering.
+export const dynamic = 'force-dynamic';
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebApplication',
