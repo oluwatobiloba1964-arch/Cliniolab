@@ -1,6 +1,8 @@
+// src/app/api/guest/quizzes/[quizId]/grade/route.ts
 import { NextResponse } from 'next/server';
 import { attemptService, featureFlagService, guestService, rateLimitService } from '@/lib/db';
 import { getClientIp } from '@/lib/security/rateLimit';
+import { GUEST_PRACTICE_COOKIE_MAX_AGE, guestPracticeCookieName } from '@/lib/security/guestPracticeCookie';
 import type { AttemptSubmission } from '@/types';
 
 interface RouteParams {
@@ -49,7 +51,20 @@ export async function POST(request: Request, { params }: RouteParams) {
       await guestService.recordGuestQuizCompletion(quizId).catch(() => {});
     }
 
-    return NextResponse.json({ result });
+    const response = NextResponse.json({ result });
+    // Remember (per browser) that this quiz's answers were already seen, so a
+    // later logged-in attempt on it is not saved or ranked.
+    const cookieName = guestPracticeCookieName(quizId);
+    if (cookieName) {
+      response.cookies.set(cookieName, '1', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: GUEST_PRACTICE_COOKIE_MAX_AGE,
+      });
+    }
+    return response;
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to grade attempt' },
