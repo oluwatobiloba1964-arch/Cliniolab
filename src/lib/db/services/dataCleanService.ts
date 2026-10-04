@@ -17,6 +17,7 @@ export type DataCleanKey =
   | 'expired_rate_limits'
   | 'guest_counters'
   | 'resolved_reports'
+  | 'unresolved_reports'
   | 'resolved_feedback'
   | 'inactive_contributors'
   | 'expired_private_quizzes';
@@ -49,6 +50,13 @@ const TARGETS: TargetDef[] = [
     label: 'Resolved question reports',
     description: 'Flagged-question reports already reviewed or dismissed.',
     defaultOlderThanDays: 60,
+  },
+  {
+    key: 'unresolved_reports',
+    label: 'Unresolved question reports',
+    description:
+      'Flagged-question reports still open (never reviewed or dismissed). Clearing here force-closes stale ones — use with care.',
+    defaultOlderThanDays: 90,
   },
   {
     key: 'resolved_feedback',
@@ -126,6 +134,14 @@ async function countFor(def: TargetDef, days: number): Promise<{ total: number; 
         total: await one('SELECT COUNT(*) as n FROM question_reports'),
         cleanable: await one(
           "SELECT COUNT(*) as n FROM question_reports WHERE status IN ('reviewed', 'dismissed') AND created_at < ?",
+          cutoffSql(days)
+        ),
+      };
+    case 'unresolved_reports':
+      return {
+        total: await one('SELECT COUNT(*) as n FROM question_reports'),
+        cleanable: await one(
+          "SELECT COUNT(*) as n FROM question_reports WHERE status = 'open' AND created_at < ?",
           cutoffSql(days)
         ),
       };
@@ -210,6 +226,17 @@ export async function runClean(key: DataCleanKey, olderThanDays?: number): Promi
         .all<{ id: string }>();
       return { deleted: await deleteByIds('question_reports', results.map((r) => r.id)) };
     }
+    case 'unresolved_reports': {
+      const res = await db
+        .prepare(
+          `UPDATE question_reports SET status = 'dismissed'
+           WHERE status = 'open' AND created_at < ?
+             AND id IN (SELECT id FROM question_reports WHERE status = 'open' AND created_at < ? LIMIT ?)`
+        )
+        .bind(cutoffSql(days), cutoffSql(days), MAX_ROWS_PER_RUN)
+        .run();
+      return { deleted: res.meta?.changes ?? 0 };
+    }
     case 'resolved_feedback': {
       const { results } = await db
         .prepare("SELECT id FROM feedback WHERE status = 'resolved' AND created_at < ? LIMIT ?")
@@ -252,4 +279,18 @@ export async function runClean(key: DataCleanKey, olderThanDays?: number): Promi
       return { deleted };
     }
   }
+}
+
+/** Runs every target in sequence (each capped at MAX_ROWS_PER_RUN) and sums what was removed. */
+export async function runCleanAll(
+  overrides: Partial<Record<DataCleanKey, number>> = {}
+): Promise<{ deleted: number; byKey: Record<DataCleanKey, number> }> {
+  const byKey = {} as Record<DataCleanKey, number>;
+  let total = 0;
+  for (const def of TARGETS) {
+    const { deleted } = await runClean(def.key, overrides[def.key]);
+    byKey[def.key] = deleted;
+    total += deleted;
+  }
+  return { deleted: total, byKey };
 }
