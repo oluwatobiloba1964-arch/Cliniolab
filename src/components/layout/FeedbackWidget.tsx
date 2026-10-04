@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import type { FeedbackCategory } from '@/types';
 
 export function FeedbackWidget() {
@@ -13,12 +14,8 @@ export function FeedbackWidget() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch('/api/admin/flags')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        const flag = data?.flags?.find((f: { key: string }) => f.key === 'feedback_widget');
-        setEnabled(flag ? flag.enabled : true);
-      })
+    publicFetchJson<{ enabled?: boolean }>('/api/flags/feedback_widget', 60_000)
+      .then((data) => setEnabled(data.enabled !== false))
       .catch(() => setEnabled(true));
   }, []);
 

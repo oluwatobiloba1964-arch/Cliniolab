@@ -4,14 +4,14 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import type { QuizWithStats } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 export function DailyQuizBanner() {
   const [quiz, setQuiz] = useState<QuizWithStats | null>(null);
   const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
-    fetch('/api/daily-quiz')
-      .then((res) => res.json())
+    publicFetchJson<{ enabled: boolean; quiz: QuizWithStats | null }>('/api/daily-quiz', 60_000)
       .then((data) => {
         setEnabled(data.enabled);
         setQuiz(data.quiz);

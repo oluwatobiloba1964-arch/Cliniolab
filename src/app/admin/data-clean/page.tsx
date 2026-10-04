@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import type { DataCleanTarget } from '@/types';
+import { LoadingState } from '@/components/ui/StateMessage';
 
 /** Admin Data Clean: shows what can be removed, saves age windows, and supports one-click general cleanup. */
 export default function DataCleanPage() {
@@ -124,16 +125,15 @@ export default function DataCleanPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink-800">Data Clean</h1>
           <p className="mt-2 max-w-3xl text-sm text-ink-500">
-            Safe, on-demand cleanup for expired throttle rows, anonymous Guest Practice counters, resolved and stale
-            unresolved question reports, resolved feedback, unused contributors, and abandoned private quizzes. This
+            Safe, on-demand cleanup for expired throttle rows, anonymous Guest Practice counters, resolved and stale unresolved question reports, resolved feedback, unused contributors, and abandoned private quizzes. This
             does not touch quiz attempts, purchases, or user accounts.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <Button size="sm" variant="secondary" disabled={saving || !dirty} onClick={saveSettings}>
             {saving ? 'Saving…' : 'Save cleanup dates'}
           </Button>
@@ -146,6 +146,7 @@ export default function DataCleanPage() {
       {message && <p role="status" className="mt-3 text-sm text-pulse-600">{message}</p>}
 
       <div className="mt-6 space-y-3">
+        {!targets && <LoadingState label="Loading cleanup data" />}
         {targets?.map((t) => {
           const ageEditable = t.key !== 'expired_rate_limits' && t.key !== 'guest_counters';
           return (
@@ -158,7 +159,7 @@ export default function DataCleanPage() {
                     {t.rowCount.toLocaleString()} total · {t.cleanableCount.toLocaleString()} cleanable now
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                   {ageEditable ? (
                     <label className="flex items-center gap-1 text-xs text-ink-500">
                       Older than
@@ -168,7 +169,7 @@ export default function DataCleanPage() {
                         max={3650}
                         value={days[t.key] ?? t.defaultOlderThanDays}
                         onChange={(e) => setDays((d) => ({ ...d, [t.key]: Math.max(0, Math.min(3650, Number(e.target.value) || 0)) }))}
-                        className="w-20 rounded-md border border-ink-100 px-2 py-1"
+                        className="w-20 rounded-md border border-ink-100 bg-white px-2 py-1 text-center"
                       />
                       days
                     </label>

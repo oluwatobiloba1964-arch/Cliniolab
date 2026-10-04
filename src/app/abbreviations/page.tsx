@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import type { MedicalAbbreviation } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 const PAGE_SIZE = 40;
 
@@ -19,9 +20,9 @@ export default function AbbreviationsPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch('/api/flags/medical_abbreviations')
-      .then((res) => res.json())
-      .then((data) => setEnabled(data.enabled))
+    publicFetchJson<{ enabled?: boolean }>('/api/flags/medical_abbreviations', 60_000)
+      .then((data) => setEnabled(data.enabled !== false))
+      .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
 
@@ -38,8 +39,7 @@ export default function AbbreviationsPage() {
       params.set('page', String(page));
       params.set('pageSize', String(PAGE_SIZE));
 
-      fetch(`/api/abbreviations?${params.toString()}`)
-        .then((res) => res.json())
+      publicFetchJson<{ abbreviations?: MedicalAbbreviation[]; totalPages?: number; total?: number }>(`/api/abbreviations?${params.toString()}`, 30_000)
         .then((data) => {
           setAbbreviations(data.abbreviations ?? []);
           setTotalPages(data.totalPages ?? 1);
@@ -59,7 +59,7 @@ export default function AbbreviationsPage() {
   }
 
   // Windowed page-number list: current page ± 2, plus first/last, with
-  // "…" gaps — standard so it doesn't sprawl to 40+ buttons on a big list.
+  // "…" gaps  -  standard so it doesn't sprawl to 40+ buttons on a big list.
   const pageNumbers = (() => {
     const nums: (number | 'ellipsis')[] = [];
     const add = (n: number) => nums.push(n);
@@ -105,7 +105,7 @@ export default function AbbreviationsPage() {
       {total > 0 && (
         <p className="mt-4 text-xs text-ink-400">
           {total} entr{total === 1 ? 'y' : 'ies'}
-          {totalPages > 1 ? ` — page ${page} of ${totalPages}` : ''}
+          {totalPages > 1 ? `  -  page ${page} of ${totalPages}` : ''}
         </p>
       )}
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { HomepageVideoSetting } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 function extractYoutubeId(url: string): string | null {
   if (!url) return null;
@@ -22,8 +23,7 @@ export function HomepageVideoSection() {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    fetch('/api/admin/homepage-video')
-      .then((res) => res.json())
+    publicFetchJson<{ enabled: boolean; video: HomepageVideoSetting | null }>('/api/homepage-video', 60_000)
       .then((data) => {
         setEnabled(data.enabled);
         setVideo(data.video);

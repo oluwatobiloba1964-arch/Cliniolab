@@ -18,6 +18,7 @@ import { AbbreviationsTeaser } from '@/components/layout/AbbreviationsTeaser';
 import { Button } from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import {
   JOB_CATEGORY_SLUG,
   SCHOLARSHIP_CATEGORY_SLUG,
@@ -44,7 +45,7 @@ interface HomepageData {
 // Job/Scholarship get their own dedicated pages (/jobs, /scholarships)
 // instead of a homepage section, and Clinical Pearls/Exam Prep Guides get
 // their own distinct compact-card teaser section below instead of the
-// generic big-image CategoryBlogSection — so all four are filtered out
+// generic big-image CategoryBlogSection  -  so all four are filtered out
 // of the generic per-category loop.
 const HOMEPAGE_EXCLUDED_SLUGS = new Set([
   JOB_CATEGORY_SLUG,
@@ -99,8 +100,9 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       .catch(() => setHomepageDataFailed(true));
 
     fetch('/api/leaderboard/general')
-      .then((res) => res.json())
-      .then((data) => {
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { enabled: boolean; entries?: LeaderboardEntry[]; currentUserRank?: number | null } | null) => {
+        if (!data) return;
         setLeaderboardEnabled(data.enabled);
         setLeaderboard(data.entries ?? []);
         setLeaderboardCurrentUserRank(data.currentUserRank ?? null);
@@ -108,8 +110,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
 
     // Public endpoint: do not call the admin flags API from the public homepage.
     // The old call returned 401 and still consumed a Worker/Vercel invocation.
-    fetch('/api/flags/leaderboard_general')
-      .then((res) => (res.ok ? res.json() : null))
+    publicFetchJson<{ label?: string }>('/api/flags/leaderboard_general', 60_000)
       .then((data) => {
         if (data?.label) setLeaderboardLabel(data.label);
       })
@@ -129,37 +130,51 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-ink-800 py-20 text-center text-white">
-        <div className="mx-auto max-w-3xl px-6">
-          <h1 className="font-display text-4xl font-semibold leading-tight sm:text-5xl">
+      <section className="relative overflow-hidden bg-ink-800 py-14 text-center text-white sm:py-20">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <h1 className="font-display text-3xl font-semibold leading-tight sm:text-5xl">
             Study Smarter for Every Clinical &amp; Nursing Exam
           </h1>
-          <p className="mt-4 text-lg text-ink-100">
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-ink-100 sm:text-lg">
             Cliniolab brings together student-built quizzes, CBT-style exams, and clinical study
             notes in one place so you can revise a topic, test yourself on it, and track how
             you're improving, all before you ever get to the real exam.
           </p>
 
-          <form onSubmit={handleSearchSubmit} className="mx-auto mt-8 flex max-w-xl overflow-hidden rounded-md bg-white">
+          <form onSubmit={handleSearchSubmit} className="mx-auto mt-8 flex max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-lg sm:flex-row">
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search nursing resources, quizzes, articles…"
-              className="flex-1 px-4 py-3 text-sm text-ink-800 focus:outline-none"
+              className="min-w-0 flex-1 px-4 py-3.5 text-sm text-ink-800 focus:outline-none"
             />
             <button
               type="submit"
-              className="bg-pulse-600 px-6 text-sm font-semibold text-white hover:bg-pulse-700"
+              className="min-h-12 bg-pulse-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-pulse-700 sm:min-h-0"
             >
               Search
             </button>
           </form>
 
-          <div className="mt-8 flex justify-center gap-4">
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:mt-8 sm:flex sm:justify-center sm:gap-4">
             <Link href="/categories"><Button size="lg">Browse categories</Button></Link>
             <Link href={user ? '/quizzes/new' : '/login?next=%2Fquizzes%2Fnew'}>
               <Button size="lg" variant="secondary">Create a quiz</Button>
             </Link>
+          </div>
+
+          <div className="mx-auto mt-6 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ['/quizzes', '📝', 'Quizzes'],
+              ['/flashcards', '🧠', 'Flashcards'],
+              ['/resources', '📚', 'Resources'],
+              ['/blog', '📖', 'Articles'],
+            ].map(([href, icon, label]) => (
+              <Link key={href} href={href} className="rounded-lg border border-white/10 bg-white/5 px-3 py-3 text-left transition-colors hover:bg-white/10">
+                <span className="text-base">{icon}</span>
+                <span className="ml-2 text-xs font-semibold text-white">{label}</span>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
@@ -192,7 +207,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
         />
       ))}
 
-      {/* Clinical Pearls / Exam Prep Guides — compact badge-style cards,
+      {/* Clinical Pearls / Exam Prep Guides  -  compact badge-style cards,
           visually distinct from the generic per-category blog sections
           above, since these are meant to read as quick-hit reference
           content rather than full articles. */}
@@ -363,7 +378,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
             )}
           </div>
         ) : (
-          <p className="mt-6 text-sm text-ink-400">No job listings yet — check back soon.</p>
+          <p className="mt-6 text-sm text-ink-400">No job listings yet. Check back soon.</p>
         )}
       </section>
 
@@ -399,7 +414,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
             )}
           </div>
         ) : (
-          <p className="mt-6 text-sm text-ink-400">No scholarships yet — check back soon.</p>
+          <p className="mt-6 text-sm text-ink-400">No scholarships yet. Check back soon.</p>
         )}
       </section>
 

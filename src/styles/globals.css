@@ -105,3 +105,93 @@ html.theme-pending body { visibility: hidden; }
 .dark .bg-ink-50\/30 { background-color: rgb(22 35 46 / 0.3); }
 .dark .bg-ink-900\/60 { background-color: rgb(11 20 32 / 0.6); }
 .dark .bg-ink-900\/40 { background-color: rgb(11 20 32 / 0.4); }
+
+/* ------------------------------------------------------------------ */
+/* Responsive UX polish                                                */
+/* ------------------------------------------------------------------ */
+
+:focus-visible {
+  outline: 2px solid theme('colors.pulse.500');
+  outline-offset: 2px;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 639px) {
+  .mobile-safe-x {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .mobile-action-row > * {
+    flex: 1 1 100%;
+  }
+
+  .mobile-action-row a,
+  .mobile-action-row button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Keep admin cards and dense content readable on narrow screens. */
+.admin-content-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.admin-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 639px) {
+  .admin-control-row > * {
+    flex: 1 1 100%;
+  }
+}
+
+/* Prevent long URLs and imported content from forcing horizontal page scroll. */
+.prose,
+.break-long-content {
+  overflow-wrap: anywhere;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img,
+video,
+iframe,
+svg {
+  max-width: 100%;
+}
+
+input,
+textarea,
+select {
+  max-width: 100%;
+}

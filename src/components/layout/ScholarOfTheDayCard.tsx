@@ -4,18 +4,22 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import type { ScholarOfTheDay } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 export function ScholarOfTheDayCard() {
   const [scholar, setScholar] = useState<ScholarOfTheDay | null>(null);
   const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
-    fetch('/api/flags/scholar_of_the_day')
-      .then((res) => res.json())
-      .then((data) => setEnabled(data.enabled));
-    fetch('/api/scholars/active')
-      .then((res) => res.json())
-      .then((data) => setScholar(data.scholar));
+    Promise.all([
+      publicFetchJson<{ enabled?: boolean }>('/api/flags/scholar_of_the_day', 60_000),
+      publicFetchJson<{ scholar: ScholarOfTheDay | null }>('/api/scholars/active', 300_000),
+    ])
+      .then(([flag, data]) => {
+        setEnabled(flag.enabled !== false);
+        setScholar(data.scholar);
+      })
+      .catch(() => {});
   }, []);
 
   if (!enabled || !scholar) return null;

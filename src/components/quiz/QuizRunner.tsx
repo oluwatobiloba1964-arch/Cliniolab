@@ -30,7 +30,7 @@ interface QuizRunnerProps {
   /**
    * Fired once, right after a submit succeeds (whether or not it was
    * persisted to quiz_attempts) so a parent can react to "this visitor
-   * has now attempted the quiz" — e.g. to reveal a leaderboard that's
+   * has now attempted the quiz"  -  e.g. to reveal a leaderboard that's
    * only meant for people who've actually taken it.
    */
   onSubmitted?: () => void;
@@ -52,7 +52,7 @@ interface QuizRunnerProps {
 /**
  * Draft autosave cache for an in-progress attempt. This is purely a
  * device-local safety net so a refresh, crash, or accidental tab close
- * doesn't lose answers before they've been submitted to D1 — it is never
+ * doesn't lose answers before they've been submitted to D1  -  it is never
  * itself the graded record. It's cleared the moment a submit succeeds.
  *
  * Disabled entirely for anti-cheat exams: those are meant to be a single,
@@ -146,7 +146,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     if (!quiz.timeLimitSeconds) return null;
     return startedAt + quiz.timeLimitSeconds * 1000;
   });
-  // Purely a display value, recomputed each tick from `deadline` — never
+  // Purely a display value, recomputed each tick from `deadline`  -  never
   // itself the source of truth for whether time is up.
   const [remainingSeconds, setRemainingSeconds] = useState(() =>
     deadline ? Math.max(0, Math.round((deadline - Date.now()) / 1000)) : 0
@@ -158,7 +158,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   const [resultFilter, setResultFilter] = useState<'all' | 'correct' | 'incorrect'>('all');
   // Whether "Practice with flashcards" has been launched from the results
   // screen. Reuses the same shared FlashcardRunner as the standalone
-  // Flashcard feature — this just feeds it the quiz's own questions
+  // Flashcard feature  -  this just feeds it the quiz's own questions
   // (front = prompt, back = correct answer, explanation carried over).
   const [flashcardMode, setFlashcardMode] = useState<'all' | 'missed' | null>(null);
   // Separate from resultFilter above (which filters the post-submit
@@ -233,11 +233,11 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     };
   }, []);
 
-  // Whether this attempt is timed — true for exam mode (always) and for
+  // Whether this attempt is timed  -  true for exam mode (always) and for
   // quiz mode when the creator opted into a time limit for a speed-drill.
   const hasTimer = !!quiz.timeLimitSeconds;
 
-  // The single source of truth for "is time up" — always re-derived from
+  // The single source of truth for "is time up"  -  always re-derived from
   // the fixed deadline against the current wall clock, never from a
   // counter that only moves while this tab is actively running. Called
   // on mount, on every tick, and whenever the tab regains focus, so a
@@ -273,7 +273,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     if (!hasTimer || result) return;
     const interval = setInterval(checkDeadline, 1000);
     // Also re-check the instant the tab/app regains focus, rather than
-    // waiting up to a full second for the next interval tick — covers the
+    // waiting up to a full second for the next interval tick  -  covers the
     // common "unlocked phone, glanced at the screen" case as fast as
     // possible.
     function onVisibilityChange() {
@@ -557,10 +557,10 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                   )}
                 </div>
                 <p className={`mt-1 text-sm ${pq.isCorrect ? 'text-pulse-600' : 'text-critical-600'}`}>
-                  Your answer: {submittedText ?? '—'}
+                  Your answer: {submittedText ?? 'Not answered'}
                 </p>
                 {!pq.isCorrect && (
-                  <p className="mt-1 text-sm text-ink-600">Correct answer: {correctText ?? '—'}</p>
+                  <p className="mt-1 text-sm text-ink-600">Correct answer: {correctText ?? 'Not available'}</p>
                 )}
                 {pq.options && pq.options.length > 0 && (
                   <ul className="mt-3 space-y-1.5">
@@ -600,7 +600,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                   <div className="mt-2">
                     {flaggedQuestionIds.has(pq.questionId) ? (
                       <p className="text-xs font-medium text-pulse-600">
-                        Flagged — thanks, the creator has been notified.
+                        Flagged. The creator has been notified.
                       </p>
                     ) : (
                       <button
@@ -626,7 +626,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
             )}
           </div>
           {flagError && <p className="mt-3 text-xs text-critical-500">{flagError}</p>}
-          <div className="mt-8 flex flex-wrap justify-center gap-2">
+          <div className="mt-8 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:justify-center">
             {draftsEnabled && (
               <Button
                 variant="secondary"
@@ -709,17 +709,24 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-16">
-      <div className="flex items-center justify-between text-sm text-ink-400">
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="sticky top-16 z-20 -mx-4 border-b border-ink-100 bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+        <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
         <span>Question {current + 1} of {questions.length}</span>
         {hasTimer && (
-          <span className="font-mono text-critical-500">
+          <span className="rounded-full bg-critical-50 px-2.5 py-1 font-mono text-xs font-semibold text-critical-600">
             {Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}
           </span>
         )}
-      </div>
-      <div className="mt-2 h-1 w-full rounded-full bg-ink-100">
+        </div>
+        <div className="mt-2 h-1.5 w-full rounded-full bg-ink-100">
         <div className="h-1 rounded-full bg-pulse-500 transition-all" style={{ width: `${progressPercent}%` }} />
+      </div>
+
+        <div className="mt-2 flex items-center justify-between text-[11px] text-ink-400">
+          <span>{Math.round(progressPercent)}% complete</span>
+          <span>{unansweredCount} unanswered</span>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -745,7 +752,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
       </div>
 
       <Card
-        className="mt-8 p-6"
+        className="mt-6 p-4 sm:mt-8 sm:p-6"
         onCopy={isFirstAttempt ? blockCopy : undefined}
         onCut={isFirstAttempt ? blockCopy : undefined}
         onContextMenu={isFirstAttempt ? blockCopy : undefined}
@@ -800,7 +807,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                 onClick={() => setAnswerAndUnskip(question.id, opt.id)}
                 onCopy={isFirstAttempt ? blockCopy : undefined}
                 onContextMenu={isFirstAttempt ? blockCopy : undefined}
-                className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                className={`flex min-h-12 w-full items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors ${
                   answers[question.id] === opt.id
                     ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
                     : 'border-ink-100 text-ink-700 hover:bg-ink-50'
@@ -815,7 +822,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               <button
                 key={label}
                 onClick={() => setAnswerAndUnskip(question.id, label)}
-                className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                className={`flex min-h-12 w-full items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors ${
                   answers[question.id] === label
                     ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
                     : 'border-ink-100 text-ink-700 hover:bg-ink-50'
@@ -839,7 +846,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
 
       {error && <p className="mt-4 text-sm text-critical-500">{error}</p>}
 
-      <div className="mt-6 flex justify-between">
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:justify-between">
         <Button
           variant="secondary"
           disabled={current === 0}
@@ -847,7 +854,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         >
           Previous
         </Button>
-        <div className="flex gap-2">
+        <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex">
           {!isAnswered(question.id) && (
             <Button variant="secondary" onClick={skipQuestion}>
               Skip

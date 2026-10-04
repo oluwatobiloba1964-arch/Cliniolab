@@ -9,7 +9,7 @@ import { CommentThread } from '@/components/quiz/CommentThread';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { QuizLeaderboardSection } from '@/components/quiz/QuizLeaderboardSection';
 import { CreatorProfileCard } from '@/components/creator/CreatorProfileCard';
-import { RelatedQuizzes } from '@/components/quiz/RelatedQuizzes';
+import { RelatedStudyMaterials } from '@/components/quiz/RelatedStudyMaterials';
 import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
 import { Button } from '@/components/ui/Button';
 import { Card, DifficultyBadge } from '@/components/ui/Card';
@@ -261,7 +261,7 @@ export function QuizDetailClient({
               <div>
                 <dt className="text-xs uppercase tracking-wide text-ink-400">Trials allowed</dt>
                 <dd className="text-ink-700">
-                  {RETAKE_LABELS[previewStats.retakePolicy]?.(previewStats.retakeLimit) ?? '—'}
+                  {RETAKE_LABELS[previewStats.retakePolicy]?.(previewStats.retakeLimit) ?? ' - '}
                 </dd>
               </div>
             </dl>
@@ -396,7 +396,7 @@ export function QuizDetailClient({
               <div>
                 <dt className="text-xs uppercase tracking-wide text-ink-400">Trials allowed</dt>
                 <dd className="text-ink-700">
-                  {RETAKE_LABELS[previewStats.retakePolicy]?.(previewStats.retakeLimit) ?? '—'}
+                  {RETAKE_LABELS[previewStats.retakePolicy]?.(previewStats.retakeLimit) ?? ' - '}
                 </dd>
               </div>
             )}
@@ -424,7 +424,7 @@ export function QuizDetailClient({
         {requiresPurchase && quiz ? (
           <div className="mt-6 rounded-md border border-flag-200 bg-flag-50 p-4">
             <p className="text-sm font-medium text-ink-800">
-              This is a paid quiz{quiz.priceKobo ? ` — ${formatNaira(quiz.priceKobo)}` : ''}.
+              This is a paid quiz{quiz.priceKobo ? `  -  ${formatNaira(quiz.priceKobo)}` : ''}.
             </p>
             <Button className="mt-3" onClick={handlePurchase} disabled={purchasing}>
               {purchasing ? 'Redirecting to payment…' : 'Purchase to unlock'}
@@ -444,7 +444,7 @@ export function QuizDetailClient({
           <CreatorProfileCard creatorId={previewStats.creatorId} />
         </div>
       )}
-      <RelatedQuizzes endpoint={`/api/quizzes/${quizId}/related`} />
+      <RelatedStudyMaterials endpoint={`/api/quizzes/${quizId}/related`} />
     </div>
   );
 }

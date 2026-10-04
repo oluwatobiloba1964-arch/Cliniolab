@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import { BlogPostCard } from '@/components/cms/BlogPostCard';
 import type { BlogPost } from '@/types';
 
@@ -18,7 +19,7 @@ interface CompactTeaserBlogSectionProps {
 }
 
 /**
- * Section wrapper for Clinical Pearls / Exam Prep Guides — same
+ * Section wrapper for Clinical Pearls / Exam Prep Guides  -  same
  * image-forward BlogPostCard used everywhere else on the site, just
  * under a compact icon+tagline header instead of a plain heading, so
  * these sections read as part of the same magazine rather than a
@@ -40,9 +41,9 @@ export function CompactTeaserBlogSection({
       if (initialPosts !== null) setPosts(initialPosts);
       return;
     }
-    fetch(`/api/blog?categoryId=${encodeURIComponent(categoryId)}&limit=${limit}`)
-      .then((res) => res.json())
-      .then((data) => setPosts(data.posts ?? []));
+    publicFetchJson<{ posts?: BlogPost[] }>(`/api/blog?categoryId=${encodeURIComponent(categoryId)}&limit=${limit}`, 30_000)
+      .then((data) => setPosts(data.posts ?? []))
+      .catch(() => setPosts([]));
   }, [categoryId, limit, initialPosts]);
 
   if (posts.length === 0) return null; // don't show empty sections

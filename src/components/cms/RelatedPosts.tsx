@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import { CompactBlogPostCard } from '@/components/cms/BlogPostCard';
 import type { BlogPost } from '@/types';
 
@@ -16,8 +17,7 @@ export function RelatedPosts({ endpoint, title = 'Related posts' }: RelatedPosts
 
   useEffect(() => {
     let cancelled = false;
-    fetch(endpoint)
-      .then((res) => (res.ok ? res.json() : { posts: [] }))
+    publicFetchJson<{ posts?: BlogPost[] }>(endpoint, 60_000)
       .then((data) => {
         if (!cancelled) setPosts(data.posts ?? []);
       })

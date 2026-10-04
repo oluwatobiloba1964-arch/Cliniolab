@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { FlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
+import { LoadingState } from '@/components/ui/StateMessage';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -58,21 +59,19 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     fetch('/api/dashboard')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('Dashboard request failed');
+        return res.json();
+      })
       .then((data) => {
         setStats(data.stats);
         setCertificates(data.certificates ?? []);
         setCertificatesEnabled(data.certificatesEnabled !== false);
-      });
-    fetch('/api/quizzes?mine=true')
-      .then((res) => res.json())
-      .then((data) => setMyQuizzes(data.quizzes ?? []));
-    fetch('/api/flashcards?mine=true')
-      .then((res) => res.json())
-      .then((data) => setMyFlashcardSets(data.sets ?? []));
-    fetch('/api/dashboard/flagged-questions')
-      .then((res) => res.json())
-      .then((data) => setFlaggedQuestions(data.reports ?? []));
+        setMyQuizzes(data.myQuizzes ?? []);
+        setMyFlashcardSets(data.myFlashcardSets ?? []);
+        setFlaggedQuestions(data.flaggedQuestions ?? []);
+      })
+      .catch(() => {});
   }, [user]);
 
   async function regenerateLink(quizId: string) {
@@ -218,7 +217,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading) return null;
+  if (loading) return <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14"><LoadingState label="Loading your dashboard" /></div>;
   if (!user) {
     return (
       <div className="mx-auto max-w-xl px-6 py-24 text-center">
@@ -229,12 +228,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-16">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl font-semibold text-ink-800">
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="font-display text-2xl font-semibold text-ink-800 sm:text-3xl">
           Welcome back, {user.displayName ?? user.email}
         </h1>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <Link href="/dashboard/creator-settings" className="text-sm font-medium text-pulse-600 hover:text-pulse-700">
             Creator settings
           </Link>
@@ -322,7 +321,7 @@ export default function DashboardPage() {
 
       {activeTab === 'quizzes' && (
         <div>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Link href="/quizzes/bulk-upload">
               <Button size="sm" variant="secondary">Upload many</Button>
             </Link>
@@ -355,7 +354,7 @@ export default function DashboardPage() {
                 )}
 
                 {accessPickerQuizId === quiz.id && (
-                  <div className="mt-3 w-full max-w-sm rounded-md border border-ink-100 bg-ink-50 p-3">
+                  <div className="mt-3 w-full max-w-lg rounded-lg border border-ink-100 bg-ink-50 p-3">
                     <p className="text-xs font-medium text-ink-700">How should this private link work?</p>
                     <div className="mt-2 flex flex-col gap-2">
                       <label className="flex items-center gap-2 text-sm text-ink-700">
@@ -387,7 +386,7 @@ export default function DashboardPage() {
                       />
                     )}
                     {accessError && <p className="mt-2 text-xs text-critical-500">{accessError}</p>}
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => confirmGoPrivate(quiz.id)} disabled={savingAccess}>
                         {savingAccess ? 'Saving…' : 'Make private'}
                       </Button>
@@ -406,9 +405,9 @@ export default function DashboardPage() {
                 )}
 
                 {passwordChangeQuizId === quiz.id && (
-                  <div className="mt-3 w-full max-w-sm rounded-md border border-ink-100 bg-ink-50 p-3">
+                  <div className="mt-3 w-full max-w-lg rounded-lg border border-ink-100 bg-ink-50 p-3">
                     <p className="text-xs font-medium text-ink-700">Set a new password</p>
-                    <p className="mt-1 text-xs text-ink-400">The share link stays the same — only the password changes.</p>
+                    <p className="mt-1 text-xs text-ink-400">The share link stays the same. Only the password changes.</p>
                     <input
                       type="password"
                       value={passwordDraft}
@@ -417,7 +416,7 @@ export default function DashboardPage() {
                       className="mt-2 w-full rounded-md border border-ink-200 px-3 py-1.5 text-sm focus:border-pulse-400 focus:outline-none"
                     />
                     {accessError && <p className="mt-2 text-xs text-critical-500">{accessError}</p>}
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => changePassword(quiz.id)} disabled={savingAccess}>
                         {savingAccess ? 'Saving…' : 'Save password'}
                       </Button>
@@ -520,7 +519,7 @@ export default function DashboardPage() {
 
       {activeTab === 'flashcards' && (
         <div>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Link href="/flashcards/bulk-upload">
               <Button size="sm" variant="secondary">Upload many</Button>
             </Link>

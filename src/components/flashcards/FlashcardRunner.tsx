@@ -31,7 +31,7 @@ interface FlashcardRunnerProps {
    * draftIds never collide. If omitted, progress isn't persisted.
    */
   draftId?: string;
-  /** Shuffle card order once per mount. Defaults to false — off for the shared "practice with flashcards" quiz entry point, which has no per-set shuffle concept. */
+  /** Shuffle card order once per mount. Defaults to false  -  off for the shared "practice with flashcards" quiz entry point, which has no per-set shuffle concept. */
   shuffle?: boolean;
 }
 
@@ -58,15 +58,15 @@ const DRAFT_NAMESPACE = FLASHCARD_DRAFT_NAMESPACE;
 /**
  * Shared flip-card study UI. Used both by the standalone Flashcard
  * section (/flashcards/[setId]) and by "Practice with flashcards" on a
- * regular quiz's results/detail screen — same front/back/explanation
+ * regular quiz's results/detail screen  -  same front/back/explanation
  * shape either way, so one component covers both entry points.
  *
  * Session progress (position, known/review marks) is cached in
  * localStorage, keyed by draftId, so closing the tab or navigating away
- * mid-session doesn't lose your place — same pattern as Study Mode.
+ * mid-session doesn't lose your place  -  same pattern as Study Mode.
  */
 export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, draftId, shuffle }: FlashcardRunnerProps) {
-  // Shuffle once per mount, same pattern as QuizRunner — not on every
+  // Shuffle once per mount, same pattern as QuizRunner  -  not on every
   // re-render, so flipping/marking a card doesn't reorder the deck.
   const [cards] = useState(() => (shuffle ? shuffleArray(rawCards) : rawCards));
 
@@ -149,7 +149,7 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
 
   if (finished) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-16">
+      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
         <Card className="p-8 text-center">
           <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Flashcards complete</p>
           <p className="mt-4 font-display text-3xl font-semibold text-ink-800">
@@ -172,12 +172,12 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
   }
 
   return (
-    <div className="mx-auto max-w-xl px-6 py-16">
-      <div className="flex items-center justify-between text-sm text-ink-400">
-        <span>Card {current + 1} of {cards.length}</span>
+    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
+        <span className="font-medium">Card {current + 1} of {cards.length}</span>
         {title && <span className="font-mono text-xs uppercase tracking-widest text-pulse-600">{title}</span>}
       </div>
-      <div className="mt-2 h-1 w-full rounded-full bg-ink-100">
+      <div className="mt-3 h-1.5 w-full rounded-full bg-ink-100">
         <div
           className="h-1 rounded-full bg-pulse-500 transition-all"
           style={{ width: `${((current + 1) / cards.length) * 100}%` }}
@@ -186,10 +186,11 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
 
       <button
         type="button"
+        aria-label={flipped ? 'Show the front of the card' : 'Reveal the back of the card'}
         onClick={() => setFlipped((f) => !f)}
-        className="mt-8 block w-full text-left"
+        className="mt-7 block w-full text-left"
       >
-        <Card className="flex min-h-[220px] flex-col justify-center p-8 text-center transition-shadow hover:shadow-md">
+        <Card className="flex min-h-[260px] flex-col justify-center p-6 text-center transition-shadow hover:shadow-md sm:min-h-[300px] sm:p-10">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-400">
             {flipped ? 'Back' : 'Front'}
           </p>
@@ -205,12 +206,12 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
         </Card>
       </button>
 
-      <div className="mt-6 flex justify-between">
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:justify-between">
         <Button variant="secondary" onClick={goPrevious} disabled={current === 0}>
           Previous
         </Button>
         {flipped ? (
-          <div className="flex gap-2">
+          <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex">
             <Button variant="secondary" onClick={markReview}>
               Review again
             </Button>

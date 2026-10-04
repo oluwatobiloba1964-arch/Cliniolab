@@ -126,8 +126,29 @@ export function NavBar() {
         </button>
       </div>
 
-      <div className="flex items-center justify-end gap-2 px-4 pb-2 md:hidden">
-        <ThemeToggle />
+      <div className="flex items-center gap-2 overflow-x-auto border-t border-ink-100 px-4 py-2 md:hidden">
+        {[
+          { href: '/', label: 'Home' },
+          { href: '/categories', label: 'Categories' },
+          { href: '/quizzes', label: 'Quizzes' },
+          { href: '/flashcards', label: 'Flashcards' },
+          { href: user ? '/dashboard' : '/login', label: user ? 'Dashboard' : 'Log in' },
+        ].map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+              pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
+                ? 'bg-pulse-50 text-pulse-700'
+                : 'text-ink-500 hover:bg-ink-50 hover:text-ink-800'
+            }`}
+          >
+            {link.label}
+          </Link>
+        ))}
+        <span className="ml-auto shrink-0">
+          <ThemeToggle />
+        </span>
       </div>
 
       {searchOpen && (
@@ -145,7 +166,7 @@ export function NavBar() {
       )}
 
       {mobileOpen && (
-        <nav className="border-t border-ink-100 bg-paper px-4 py-4 md:hidden">
+        <nav className="border-t border-ink-100 bg-paper px-4 py-4 shadow-lg md:hidden">
           <div className="flex flex-col gap-3">
             {navLinks.map((link) => (
               <Link

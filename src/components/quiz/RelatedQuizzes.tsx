@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import { QuizCard } from '@/components/quiz/QuizCard';
 import type { QuizWithStats } from '@/types';
 
@@ -16,8 +17,7 @@ export function RelatedQuizzes({ endpoint, title = 'Related quizzes' }: RelatedQ
 
   useEffect(() => {
     let cancelled = false;
-    fetch(endpoint)
-      .then((res) => (res.ok ? res.json() : { quizzes: [] }))
+    publicFetchJson<{ quizzes?: QuizWithStats[] }>(endpoint, 60_000)
       .then((data) => {
         if (!cancelled) setQuizzes(data.quizzes ?? []);
       })

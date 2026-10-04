@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import { FeaturedQuizCard, CompactQuizCard } from '@/components/quiz/QuizCard';
 import type { Category, QuizWithStats } from '@/types';
 
@@ -13,9 +14,9 @@ export function CategoryQuizSection({ category, initialQuizzes }: { category: Ca
       if (initialQuizzes !== null) setQuizzes(initialQuizzes);
       return;
     }
-    fetch(`/api/quizzes?categoryId=${category.id}&limit=7`)
-      .then((res) => res.json())
-      .then((data) => setQuizzes(data.quizzes ?? []));
+    publicFetchJson<{ quizzes?: QuizWithStats[] }>(`/api/quizzes?categoryId=${category.id}&limit=7`, 30_000)
+      .then((data) => setQuizzes(data.quizzes ?? []))
+      .catch(() => setQuizzes([]));
   }, [category.id, initialQuizzes]);
 
   if (quizzes.length === 0) return null; // don't show empty category sections

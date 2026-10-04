@@ -56,6 +56,12 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
   return row ? mapCategory(row) : null;
 }
 
+export async function getSubcategoryById(id: string): Promise<Subcategory | null> {
+  const db = getDb();
+  const row = await db.prepare('SELECT * FROM subcategories WHERE id = ?').bind(id).first<SubcategoryRow>();
+  return row ? mapSubcategory(row) : null;
+}
+
 export async function listSubcategories(categoryId?: string): Promise<Subcategory[]> {
   const db = getDb();
   if (categoryId) {

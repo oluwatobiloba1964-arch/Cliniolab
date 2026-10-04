@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import { FeaturedBlogPostCard, CompactBlogPostCard } from '@/components/cms/BlogPostCard';
 import type { BlogPost } from '@/types';
 
@@ -20,9 +21,9 @@ export function CategoryBlogSection({ categoryId, categorySlug, categoryName, in
       if (initialPosts !== null) setPosts(initialPosts);
       return;
     }
-    fetch(`/api/blog?categoryId=${encodeURIComponent(categoryId)}&limit=7`)
-      .then((res) => res.json())
-      .then((data) => setPosts(data.posts ?? []));
+    publicFetchJson<{ posts?: BlogPost[] }>(`/api/blog?categoryId=${encodeURIComponent(categoryId)}&limit=7`, 30_000)
+      .then((data) => setPosts(data.posts ?? []))
+      .catch(() => setPosts([]));
   }, [categoryId, initialPosts]);
 
   if (posts.length === 0) return null; // don't show empty category sections

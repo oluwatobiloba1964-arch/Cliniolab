@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import { HomepageVideoSection } from './HomepageVideoSection';
 import { BannerSlot } from './BannerSlot';
 import { AdSenseSlot } from './AdSenseSlot';
@@ -13,9 +14,9 @@ export function Footer() {
   const [blogCategories, setBlogCategories] = useState<BlogCategoryOption[]>([]);
 
   useEffect(() => {
-    fetch('/api/blog-categories')
-      .then((res) => res.json())
-      .then((data) => setBlogCategories(data.categories ?? []));
+    publicFetchJson<{ categories?: BlogCategoryOption[] }>('/api/blog-categories', 300_000)
+      .then((data) => setBlogCategories(data.categories ?? []))
+      .catch(() => setBlogCategories([]));
   }, []);
 
   return (

@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
   if (random) {
     const abbreviations = await abbreviationService.listRandomAbbreviations(Number(random), kind);
-    return NextResponse.json({ abbreviations });
+    return NextResponse.json({ abbreviations }, { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } });
   }
 
   if (page) {
@@ -33,11 +33,11 @@ export async function GET(request: Request) {
       page: pageNum,
       pageSize: size,
       totalPages: Math.max(1, Math.ceil(total / size)),
-    });
+    }, { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } });
   }
 
   const abbreviations = await abbreviationService.listAbbreviations(search, kind);
-  return NextResponse.json({ abbreviations });
+  return NextResponse.json({ abbreviations }, { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } });
 }
 
 export async function POST(request: Request) {
