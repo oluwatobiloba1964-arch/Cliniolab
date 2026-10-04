@@ -39,6 +39,16 @@ export async function isFeatureEnabled(key: FeatureFlagKey): Promise<boolean> {
   return row ? row.enabled === 1 : true;
 }
 
+export async function getFeatureFlag(key: FeatureFlagKey): Promise<FeatureFlag> {
+  const db = getDb();
+  const row = await db
+    .prepare('SELECT key, enabled, label FROM feature_flags WHERE key = ?')
+    .bind(key)
+    .first<FlagRow>();
+  if (!row) return { key, enabled: true, label: null };
+  return mapFlag(row);
+}
+
 export async function setFeatureFlag(
   key: FeatureFlagKey,
   enabled: boolean,

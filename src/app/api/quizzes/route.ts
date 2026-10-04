@@ -26,10 +26,13 @@ export async function GET(request: Request) {
       const page = Math.max(1, Number(pageParam) || 1);
       const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? 25) || 25));
       const result = await quizService.listQuizzesBySubcategoryPaginated(subcategoryId, page, pageSize);
-      return NextResponse.json(result);
+      return NextResponse.json(result, { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } });
     }
     const quizzes = await quizService.listQuizzesBySubcategory(subcategoryId);
-    return NextResponse.json({ quizzes });
+    return NextResponse.json(
+      { quizzes },
+      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+    );
   }
 
   if (categoryId) {
@@ -37,7 +40,7 @@ export async function GET(request: Request) {
       const page = Math.max(1, Number(pageParam) || 1);
       const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? 25) || 25));
       const result = await quizService.listQuizzesByCategoryPaginated(categoryId, page, pageSize);
-      return NextResponse.json(result);
+      return NextResponse.json(result, { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } });
     }
     const quizzes = await quizService.listQuizzesByCategory(categoryId, limit);
     return NextResponse.json({ quizzes });
@@ -48,11 +51,14 @@ export async function GET(request: Request) {
     const page = Math.max(1, Number(pageParam) || 1);
     const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? 12) || 12));
     const result = await quizService.listLatestPublicQuizzesPaginated(page, pageSize);
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } });
   }
 
   const quizzes = await quizService.listLatestPublicQuizzes(limit);
-  return NextResponse.json({ quizzes });
+  return NextResponse.json(
+    { quizzes },
+    { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+  );
 }
 
 export async function POST(request: Request) {

@@ -14,6 +14,7 @@ interface CompactTeaserBlogSectionProps {
   /** Short one-line description shown under the section heading. */
   tagline: string;
   limit?: number;
+  initialPosts?: BlogPost[] | null;
 }
 
 /**
@@ -30,14 +31,19 @@ export function CompactTeaserBlogSection({
   icon,
   tagline,
   limit = 6,
+  initialPosts,
 }: CompactTeaserBlogSectionProps) {
-  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [posts, setPosts] = useState<BlogPost[]>(initialPosts ?? []);
 
   useEffect(() => {
+    if (initialPosts !== undefined) {
+      if (initialPosts !== null) setPosts(initialPosts);
+      return;
+    }
     fetch(`/api/blog?categoryId=${encodeURIComponent(categoryId)}&limit=${limit}`)
       .then((res) => res.json())
       .then((data) => setPosts(data.posts ?? []));
-  }, [categoryId, limit]);
+  }, [categoryId, limit, initialPosts]);
 
   if (posts.length === 0) return null; // don't show empty sections
 

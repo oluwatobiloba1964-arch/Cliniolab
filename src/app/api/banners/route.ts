@@ -12,8 +12,16 @@ export async function GET(request: Request) {
 
   const flagKey = placement === 'header' ? 'banners_header' : 'banners_footer';
   const enabled = await featureFlagService.isFeatureEnabled(flagKey);
-  if (!enabled) return NextResponse.json({ enabled: false, banners: [] });
+  if (!enabled) {
+    return NextResponse.json(
+      { enabled: false, banners: [] },
+      { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+    );
+  }
 
   const banners = await bannerService.listActiveBanners(placement as BannerPlacement);
-  return NextResponse.json({ enabled: true, banners });
+  return NextResponse.json(
+    { enabled: true, banners },
+    { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+  );
 }

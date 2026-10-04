@@ -29,7 +29,10 @@ export async function GET(request: Request) {
     posts = await cmsService.listPublishedPosts(limit);
   }
 
-  return NextResponse.json({ posts });
+  return NextResponse.json(
+    { posts },
+    { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+  );
 }
 
 export async function POST(request: Request) {

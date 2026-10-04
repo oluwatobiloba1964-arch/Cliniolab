@@ -6,14 +6,18 @@ import { FeaturedFlashcardSetCard } from '@/components/flashcards/FlashcardSetCa
 import type { Category, FlashcardSetWithStats } from '@/types';
 
 /** Sits inside each category's homepage block, labelled "Flashcard", right alongside that category's quiz section. */
-export function CategoryFlashcardSection({ category }: { category: Category }) {
-  const [sets, setSets] = useState<FlashcardSetWithStats[]>([]);
+export function CategoryFlashcardSection({ category, initialSets }: { category: Category; initialSets?: FlashcardSetWithStats[] | null }) {
+  const [sets, setSets] = useState<FlashcardSetWithStats[]>(initialSets ?? []);
 
   useEffect(() => {
+    if (initialSets !== undefined) {
+      if (initialSets !== null) setSets(initialSets);
+      return;
+    }
     fetch(`/api/flashcards?categoryId=${category.id}&limit=1`)
       .then((res) => res.json())
       .then((data) => setSets(data.sets ?? []));
-  }, [category.id]);
+  }, [category.id, initialSets]);
 
   if (sets.length === 0) return null;
 

@@ -24,9 +24,22 @@ import {
   CLINICAL_PEARLS_CATEGORY_SLUG,
   EXAM_PREP_GUIDES_CATEGORY_SLUG,
 } from '@/lib/constants/blogCategories';
-import type { BlogPost, Category, LeaderboardEntry, Resource, FlashcardSetWithStats } from '@/types';
+import type { BlogPost, Category, LeaderboardEntry, Resource, FlashcardSetWithStats, QuizWithStats } from '@/types';
 
 interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
+
+interface HomepageData {
+  blogCategories: BlogCategoryOption[];
+  resourcesEnabled: boolean;
+  resources: Resource[];
+  flashcardsEnabled: boolean;
+  latestFlashcards: FlashcardSetWithStats[];
+  jobPosts: BlogPost[];
+  scholarshipPosts: BlogPost[];
+  blogsByCategory: Record<string, BlogPost[]>;
+  quizzesByCategory: Record<string, QuizWithStats[]>;
+  flashcardsByCategory: Record<string, FlashcardSetWithStats[]>;
+}
 
 // Job/Scholarship get their own dedicated pages (/jobs, /scholarships)
 // instead of a homepage section, and Clinical Pearls/Exam Prep Guides get
@@ -50,6 +63,8 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [blogCategories, setBlogCategories] = useState<BlogCategoryOption[]>([]);
+  const [homepageData, setHomepageData] = useState<HomepageData | null>(null);
+  const [homepageDataFailed, setHomepageDataFailed] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardEnabled, setLeaderboardEnabled] = useState(true);
   const [leaderboardLabel, setLeaderboardLabel] = useState('Top Quiz Takers');
@@ -62,9 +77,26 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   const [flashcardsEnabled, setFlashcardsEnabled] = useState(true);
 
   useEffect(() => {
-    // Categories already arrived server-rendered via initialCategories,
-    // so no fetch here - avoids a redundant request and a flash of
-    // empty state on first paint.
+    // Aggregate the homepage feeds into one public request. The previous
+    // implementation made one API call per category for blogs, quizzes and
+    // flashcards, which could create dozens of Worker/Vercel invocations on
+    // a single homepage load.
+    fetch('/api/homepage-data')
+      .then((res) => {
+        if (!res.ok) throw new Error('Homepage data request failed');
+        return res.json();
+      })
+      .then((data: HomepageData) => {
+        setHomepageData(data);
+        setBlogCategories(data.blogCategories ?? []);
+        setResourcesEnabled(data.resourcesEnabled);
+        setResources(data.resources ?? []);
+        setFlashcardsEnabled(data.flashcardsEnabled);
+        setFlashcardSets(data.latestFlashcards ?? []);
+        setJobPosts(data.jobPosts ?? []);
+        setScholarshipPosts(data.scholarshipPosts ?? []);
+      })
+      .catch(() => setHomepageDataFailed(true));
 
     fetch('/api/leaderboard/general')
       .then((res) => res.json())
@@ -74,42 +106,12 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
         setLeaderboardCurrentUserRank(data.currentUserRank ?? null);
       });
 
-    fetch('/api/blog-categories')
-      .then((res) => res.json())
-      .then((data) => setBlogCategories(data.categories ?? []));
-
-
-
-    fetch('/api/resources?limit=8')
-      .then((res) => res.json())
-      .then((data) => {
-        setResourcesEnabled(data.enabled);
-        setResources(data.resources ?? []);
-      });
-
-    fetch('/api/admin/flags')
+    // Public endpoint: do not call the admin flags API from the public homepage.
+    // The old call returned 401 and still consumed a Worker/Vercel invocation.
+    fetch('/api/flags/leaderboard_general')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        const flag = data?.flags?.find((f: { key: string }) => f.key === 'leaderboard_general');
-        if (flag?.label) setLeaderboardLabel(flag.label);
-      })
-      .catch(() => {});
-
-    fetch(`/api/blog?categorySlug=${JOB_CATEGORY_SLUG}`)
-      .then((res) => res.json())
-      .then((data) => setJobPosts((data.posts ?? []).slice(0, 7)))
-      .catch(() => {});
-
-    fetch(`/api/blog?categorySlug=${SCHOLARSHIP_CATEGORY_SLUG}`)
-      .then((res) => res.json())
-      .then((data) => setScholarshipPosts((data.posts ?? []).slice(0, 7)))
-      .catch(() => {});
-
-    fetch('/api/flashcards?limit=6')
-      .then((res) => res.json())
-      .then((data) => {
-        setFlashcardsEnabled(data.enabled ?? true);
-        setFlashcardSets(data.sets ?? []);
+        if (data?.label) setLeaderboardLabel(data.label);
       })
       .catch(() => {});
   }, []);
@@ -186,6 +188,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
           categoryId={category.id}
           categorySlug={category.slug}
           categoryName={category.name}
+          initialPosts={homepageDataFailed ? undefined : homepageData?.blogsByCategory?.[category.id] ?? null}
         />
       ))}
 
@@ -200,6 +203,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
           categoryName={clinicalPearlsCategory.name}
           icon="💡"
           tagline="Quick clinical insights worth remembering"
+          initialPosts={homepageDataFailed ? undefined : homepageData?.blogsByCategory?.[clinicalPearlsCategory.id] ?? null}
         />
       )}
       {examPrepCategory && (
@@ -209,6 +213,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
           categoryName={examPrepCategory.name}
           icon="📝"
           tagline="Focused guides to help you prep for exams"
+          initialPosts={homepageDataFailed ? undefined : homepageData?.blogsByCategory?.[examPrepCategory.id] ?? null}
         />
       )}
 
@@ -262,8 +267,8 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       )}
       {categories.map((category) => (
         <div key={category.id}>
-          <CategoryFlashcardSection category={category} />
-          <CategoryQuizSection category={category} />
+          <CategoryFlashcardSection category={category} initialSets={homepageDataFailed ? undefined : homepageData?.flashcardsByCategory?.[category.id] ?? null} />
+          <CategoryQuizSection category={category} initialQuizzes={homepageDataFailed ? undefined : homepageData?.quizzesByCategory?.[category.id] ?? null} />
         </div>
       ))}
 

@@ -6,17 +6,12 @@ import type { FlashcardInput } from '@/types';
 import { checkGuestVisibilityAllowed } from '@/lib/guest/guestAccess';
 
 export async function GET(request: Request) {
-  const enabled = await featureFlagService.isFeatureEnabled('flashcards');
-  if (!enabled) return NextResponse.json({ enabled: false, sets: [] });
-
   const { searchParams } = new URL(request.url);
   const subcategoryId = searchParams.get('subcategoryId');
   const categoryId = searchParams.get('categoryId');
   const mine = searchParams.get('mine');
-  const limitParam = searchParams.get('limit');
-  const limit = limitParam ? Number(limitParam) : undefined;
-  const pageParam = searchParams.get('page');
 
+  // Keep the account-specific branch outside the public cacheable path.
   if (mine === 'true') {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -24,9 +19,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ enabled: true, sets });
   }
 
+  const enabled = await featureFlagService.isFeatureEnabled('flashcards');
+  if (!enabled) {
+    return NextResponse.json(
+      { enabled: false, sets: [] },
+      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+    );
+  }
+  const limitParam = searchParams.get('limit');
+  const limit = limitParam ? Number(limitParam) : undefined;
+  const pageParam = searchParams.get('page');
+
   if (subcategoryId) {
     const sets = await flashcardService.listFlashcardSetsBySubcategory(subcategoryId);
-    return NextResponse.json({ enabled: true, sets });
+    return NextResponse.json(
+      { enabled: true, sets },
+      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+    );
   }
 
   if (categoryId) {
@@ -34,21 +43,33 @@ export async function GET(request: Request) {
       const page = Math.max(1, Number(pageParam) || 1);
       const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? 25) || 25));
       const result = await flashcardService.listFlashcardSetsByCategoryPaginated(categoryId, page, pageSize);
-      return NextResponse.json({ enabled: true, ...result });
+      return NextResponse.json(
+        { enabled: true, ...result },
+        { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+      );
     }
     const sets = await flashcardService.listFlashcardSetsByCategory(categoryId, limit);
-    return NextResponse.json({ enabled: true, sets });
+    return NextResponse.json(
+      { enabled: true, sets },
+      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+    );
   }
 
   if (pageParam) {
     const page = Math.max(1, Number(pageParam) || 1);
     const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? 12) || 12));
     const result = await flashcardService.listLatestPublicFlashcardSetsPaginated(page, pageSize);
-    return NextResponse.json({ enabled: true, ...result });
+    return NextResponse.json(
+      { enabled: true, ...result },
+      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+    );
   }
 
   const sets = await flashcardService.listLatestPublicFlashcardSets(limit);
-  return NextResponse.json({ enabled: true, sets });
+  return NextResponse.json(
+    { enabled: true, sets },
+    { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+  );
 }
 
 export async function POST(request: Request) {

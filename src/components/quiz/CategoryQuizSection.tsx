@@ -5,14 +5,18 @@ import { useEffect, useState } from 'react';
 import { FeaturedQuizCard, CompactQuizCard } from '@/components/quiz/QuizCard';
 import type { Category, QuizWithStats } from '@/types';
 
-export function CategoryQuizSection({ category }: { category: Category }) {
-  const [quizzes, setQuizzes] = useState<QuizWithStats[]>([]);
+export function CategoryQuizSection({ category, initialQuizzes }: { category: Category; initialQuizzes?: QuizWithStats[] | null }) {
+  const [quizzes, setQuizzes] = useState<QuizWithStats[]>(initialQuizzes ?? []);
 
   useEffect(() => {
+    if (initialQuizzes !== undefined) {
+      if (initialQuizzes !== null) setQuizzes(initialQuizzes);
+      return;
+    }
     fetch(`/api/quizzes?categoryId=${category.id}&limit=7`)
       .then((res) => res.json())
       .then((data) => setQuizzes(data.quizzes ?? []));
-  }, [category.id]);
+  }, [category.id, initialQuizzes]);
 
   if (quizzes.length === 0) return null; // don't show empty category sections
 

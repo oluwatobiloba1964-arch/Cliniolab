@@ -6,5 +6,8 @@ export async function GET() {
     categoryService.listCategories(),
     categoryService.listSubcategories(),
   ]);
-  return NextResponse.json({ categories, subcategories });
+  return NextResponse.json(
+    { categories, subcategories },
+    { headers: { 'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600' } }
+  );
 }

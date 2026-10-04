@@ -27,6 +27,6 @@ export async function GET(request: Request) {
   const visible = flashcardsOn ? items : items.filter((i) => i.kind !== 'flashcards');
   return NextResponse.json(
     { enabled: true, items: visible, total },
-    { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' } }
+    { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
   );
 }

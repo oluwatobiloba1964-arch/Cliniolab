@@ -5,5 +5,8 @@ import { blogCategoryService } from '@/lib/db';
 // The admin blog editor's main category dropdown fetches from here.
 export async function GET() {
   const categories = await blogCategoryService.listBlogCategories();
-  return NextResponse.json({ categories });
+  return NextResponse.json(
+    { categories },
+    { headers: { 'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600' } }
+  );
 }

@@ -8,6 +8,9 @@ interface RouteParams {
 
 export async function GET(_request: Request, { params }: RouteParams) {
   const { key } = await params;
-  const enabled = await featureFlagService.isFeatureEnabled(key as FeatureFlagKey);
-  return NextResponse.json({ enabled });
+  const flag = await featureFlagService.getFeatureFlag(key as FeatureFlagKey);
+  return NextResponse.json(
+    { enabled: flag.enabled, label: flag.label },
+    { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+  );
 }

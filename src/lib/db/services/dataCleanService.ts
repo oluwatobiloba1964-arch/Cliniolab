@@ -1,5 +1,4 @@
-// src/lib/db/services/dataCleanService.ts
-import { getDb } from '@/lib/db/client';
+import { getDb, nowIso } from '@/lib/db/client';
 import { deleteQuiz } from '@/lib/db/services/quizService';
 import type { DataCleanTarget } from '@/types';
 
@@ -7,21 +6,26 @@ import type { DataCleanTarget } from '@/types';
  * Admin "Data Clean": one place to see what could be tidied and remove it
  * on demand. Every target reports how many rows exist and how many a run
  * would remove, and only touches data that is safe to lose (expired,
- * resolved, or anonymous counters). Retention for attempt answers, email
- * logs and banner stats stays on the Storage & Cleanup page.
+ * resolved, stale unresolved reports, or anonymous counters). Retention
+ * windows are persisted in site_settings so the admin's saved dates are
+ * reused on the next visit.
  */
 
 const CHUNK = 200;
 const MAX_ROWS_PER_RUN = 2000;
+const SETTINGS_KEY = 'data_clean';
+const MAX_DAYS = 3650;
 
 export type DataCleanKey =
   | 'expired_rate_limits'
   | 'guest_counters'
   | 'resolved_reports'
-  | 'unresolved_reports'
+  | 'open_reports'
   | 'resolved_feedback'
   | 'inactive_contributors'
   | 'expired_private_quizzes';
+
+export type DataCleanSettings = Record<DataCleanKey, number>;
 
 interface TargetDef {
   key: DataCleanKey;
@@ -53,11 +57,11 @@ const TARGETS: TargetDef[] = [
     defaultOlderThanDays: 60,
   },
   {
-    key: 'unresolved_reports',
+    key: 'open_reports',
     label: 'Unresolved question reports',
     description:
-      'Flagged-question reports still open (never reviewed or dismissed). Clearing here force-closes stale ones — use with care.',
-    defaultOlderThanDays: 90,
+      'Flagged-question reports that are still open. Only stale reports older than the saved window are removed; the question itself is never deleted.',
+    defaultOlderThanDays: 180,
   },
   {
     key: 'resolved_feedback',
@@ -79,6 +83,56 @@ const TARGETS: TargetDef[] = [
     defaultOlderThanDays: 30,
   },
 ];
+
+function clampDays(value: unknown, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(MAX_DAYS, Math.max(0, Math.round(n)));
+}
+
+const DEFAULT_SETTINGS = Object.fromEntries(
+  TARGETS.map((target) => [target.key, target.defaultOlderThanDays ?? 0])
+) as DataCleanSettings;
+
+async function readSavedSettings(): Promise<DataCleanSettings> {
+  try {
+    const db = getDb();
+    const row = await db.prepare('SELECT value FROM site_settings WHERE key = ?').bind(SETTINGS_KEY).first<{ value: string }>();
+    if (!row) return { ...DEFAULT_SETTINGS };
+    const parsed = JSON.parse(row.value) as Partial<DataCleanSettings>;
+    const settings = { ...DEFAULT_SETTINGS } as DataCleanSettings;
+    for (const target of TARGETS) {
+      settings[target.key] = clampDays(parsed[target.key], DEFAULT_SETTINGS[target.key]);
+    }
+    return settings;
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+export async function getDataCleanSettings(): Promise<DataCleanSettings> {
+  return readSavedSettings();
+}
+
+export async function setDataCleanSettings(input: Partial<Record<DataCleanKey, unknown>>): Promise<DataCleanSettings> {
+  const current = await readSavedSettings();
+  const clean = { ...current } as DataCleanSettings;
+  for (const target of TARGETS) {
+    if (target.defaultOlderThanDays !== null && input[target.key] !== undefined) {
+      clean[target.key] = clampDays(input[target.key], current[target.key]);
+    }
+  }
+
+  const db = getDb();
+  await db
+    .prepare(
+      `INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+    )
+    .bind(SETTINGS_KEY, JSON.stringify(clean), nowIso())
+    .run();
+  return clean;
+}
 
 function cutoffIso(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -104,6 +158,7 @@ function placeholders(n: number): string {
 }
 
 async function deleteByIds(table: string, ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
   const db = getDb();
   let deleted = 0;
   for (let i = 0; i < ids.length; i += CHUNK) {
@@ -138,9 +193,9 @@ async function countFor(def: TargetDef, days: number): Promise<{ total: number; 
           cutoffSql(days)
         ),
       };
-    case 'unresolved_reports':
+    case 'open_reports':
       return {
-        total: await one('SELECT COUNT(*) as n FROM question_reports'),
+        total: await one("SELECT COUNT(*) as n FROM question_reports WHERE status = 'open'"),
         cleanable: await one(
           "SELECT COUNT(*) as n FROM question_reports WHERE status = 'open' AND created_at < ?",
           cutoffSql(days)
@@ -176,15 +231,10 @@ async function countFor(def: TargetDef, days: number): Promise<{ total: number; 
 }
 
 export async function listTargets(overrides: Partial<Record<DataCleanKey, number>> = {}): Promise<DataCleanTarget[]> {
-  // FIX (Vercel Hobby duration budget) — src/lib/db/services/dataCleanService.ts
-  // Was: one await per target definition, in sequence, each running 2
-  // count queries internally — 2*N sequential round trips on every load
-  // of the admin data-cleanup dashboard. Now: all targets are counted
-  // concurrently, so dashboard load time no longer scales with how many
-  // cleanup target types exist.
+  const saved = await readSavedSettings();
   return Promise.all(
     TARGETS.map(async (def) => {
-      const days = overrides[def.key] ?? def.defaultOlderThanDays ?? 0;
+      const days = overrides[def.key] ?? saved[def.key];
       const { total, cleanable } = await countFor(def, days);
       return {
         key: def.key,
@@ -192,7 +242,7 @@ export async function listTargets(overrides: Partial<Record<DataCleanKey, number
         description: def.description,
         rowCount: total,
         cleanableCount: cleanable,
-        defaultOlderThanDays: def.defaultOlderThanDays ?? 0,
+        defaultOlderThanDays: days,
       };
     })
   );
@@ -203,7 +253,8 @@ export async function listTargets(overrides: Partial<Record<DataCleanKey, number
 export async function runClean(key: DataCleanKey, olderThanDays?: number): Promise<{ deleted: number }> {
   const def = TARGETS.find((t) => t.key === key);
   if (!def) throw new Error('Unknown clean target');
-  const days = Math.max(0, Math.min(3650, Math.round(olderThanDays ?? def.defaultOlderThanDays ?? 0)));
+  const saved = await readSavedSettings();
+  const days = Math.max(0, Math.min(MAX_DAYS, Math.round(olderThanDays ?? saved[key] ?? def.defaultOlderThanDays ?? 0)));
   const db = getDb();
 
   switch (key) {
@@ -220,23 +271,14 @@ export async function runClean(key: DataCleanKey, olderThanDays?: number): Promi
       ]);
       return { deleted: before.cleanable };
     }
-    case 'resolved_reports': {
+    case 'resolved_reports':
+    case 'open_reports': {
+      const statusSql = key === 'open_reports' ? "status = 'open'" : "status IN ('reviewed', 'dismissed')";
       const { results } = await db
-        .prepare("SELECT id FROM question_reports WHERE status IN ('reviewed', 'dismissed') AND created_at < ? LIMIT ?")
+        .prepare(`SELECT id FROM question_reports WHERE ${statusSql} AND created_at < ? LIMIT ?`)
         .bind(cutoffSql(days), MAX_ROWS_PER_RUN)
         .all<{ id: string }>();
       return { deleted: await deleteByIds('question_reports', results.map((r) => r.id)) };
-    }
-    case 'unresolved_reports': {
-      const res = await db
-        .prepare(
-          `UPDATE question_reports SET status = 'dismissed'
-           WHERE status = 'open' AND created_at < ?
-             AND id IN (SELECT id FROM question_reports WHERE status = 'open' AND created_at < ? LIMIT ?)`
-        )
-        .bind(cutoffSql(days), cutoffSql(days), MAX_ROWS_PER_RUN)
-        .run();
-      return { deleted: res.meta?.changes ?? 0 };
     }
     case 'resolved_feedback': {
       const { results } = await db
@@ -282,16 +324,24 @@ export async function runClean(key: DataCleanKey, olderThanDays?: number): Promi
   }
 }
 
-/** Runs every target in sequence (each capped at MAX_ROWS_PER_RUN) and sums what was removed. */
-export async function runCleanAll(
-  overrides: Partial<Record<DataCleanKey, number>> = {}
-): Promise<{ deleted: number; byKey: Record<DataCleanKey, number> }> {
+export async function runAllClean(): Promise<{ deleted: number; byKey: Record<DataCleanKey, number>; hasMore: boolean }> {
+  const settings = await readSavedSettings();
   const byKey = {} as Record<DataCleanKey, number>;
-  let total = 0;
-  for (const def of TARGETS) {
-    const { deleted } = await runClean(def.key, overrides[def.key]);
-    byKey[def.key] = deleted;
-    total += deleted;
+  let deleted = 0;
+  let hasMore = false;
+
+  // Keep this in a single Worker/Vercel invocation. Each individual cleaner
+  // remains bounded, so a large table can be safely retried from the button.
+  for (const target of TARGETS) {
+    const result = await runClean(target.key, settings[target.key]);
+    byKey[target.key] = result.deleted;
+    deleted += result.deleted;
+
+    // A target returning its hard per-run ceiling may have more rows waiting.
+    // The next press continues safely instead of letting one invocation grow
+    // without a bound.
+    if (result.deleted >= MAX_ROWS_PER_RUN) hasMore = true;
   }
-  return { deleted: total, byKey };
+
+  return { deleted, byKey, hasMore };
 }

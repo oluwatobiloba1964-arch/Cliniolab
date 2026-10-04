@@ -6,14 +6,22 @@ import type { ResourceKind, ResourcePricing } from '@/types';
 
 export async function GET(request: Request) {
   const enabled = await featureFlagService.isFeatureEnabled('resources');
-  if (!enabled) return NextResponse.json({ enabled: false, resources: [] });
+  if (!enabled) {
+    return NextResponse.json(
+      { enabled: false, resources: [] },
+      { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+    );
+  }
 
   const { searchParams } = new URL(request.url);
   const limitParam = searchParams.get('limit');
   const limit = limitParam ? Number(limitParam) : undefined;
 
   const resources = await resourceService.listResources(limit);
-  return NextResponse.json({ enabled: true, resources });
+  return NextResponse.json(
+    { enabled: true, resources },
+    { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+  );
 }
 
 export async function POST(request: Request) {

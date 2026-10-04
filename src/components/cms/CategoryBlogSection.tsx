@@ -9,16 +9,21 @@ interface CategoryBlogSectionProps {
   categoryId: string;
   categorySlug: string;
   categoryName: string;
+  initialPosts?: BlogPost[] | null;
 }
 
-export function CategoryBlogSection({ categoryId, categorySlug, categoryName }: CategoryBlogSectionProps) {
-  const [posts, setPosts] = useState<BlogPost[]>([]);
+export function CategoryBlogSection({ categoryId, categorySlug, categoryName, initialPosts }: CategoryBlogSectionProps) {
+  const [posts, setPosts] = useState<BlogPost[]>(initialPosts ?? []);
 
   useEffect(() => {
+    if (initialPosts !== undefined) {
+      if (initialPosts !== null) setPosts(initialPosts);
+      return;
+    }
     fetch(`/api/blog?categoryId=${encodeURIComponent(categoryId)}&limit=7`)
       .then((res) => res.json())
       .then((data) => setPosts(data.posts ?? []));
-  }, [categoryId]);
+  }, [categoryId, initialPosts]);
 
   if (posts.length === 0) return null; // don't show empty category sections
 

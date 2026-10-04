@@ -141,6 +141,8 @@ CREATE TABLE question_reports (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE INDEX idx_question_reports_status_created_at ON question_reports(status, created_at);
+
 CREATE TABLE blog_categories (
   id TEXT PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
