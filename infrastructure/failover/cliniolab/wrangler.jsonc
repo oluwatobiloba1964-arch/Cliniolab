@@ -1,0 +1,11 @@
+{
+  "name": "cliniolab-failover",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-04",
+  "workers_dev": false,
+  "vars": {
+    "PRIMARY_ORIGIN": "https://YOUR-CLINILAB-WORKER-DOMAIN",
+    "BACKUP_ORIGIN": "https://YOUR-CLINILAB-VERCEL-DOMAIN",
+    "HEALTH_PATH": "/api/health"
+  }
+}
