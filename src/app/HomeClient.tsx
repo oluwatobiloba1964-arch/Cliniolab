@@ -1,7 +1,8 @@
+// File: src/app/HomeClient.tsx
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { LeaderboardList } from '@/components/quiz/LeaderboardList';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import { CategoryBlogSection } from '@/components/cms/CategoryBlogSection';
@@ -16,9 +17,9 @@ import { BannerSlot } from '@/components/layout/BannerSlot';
 import { ScholarOfTheDayCard } from '@/components/layout/ScholarOfTheDayCard';
 import { AbbreviationsTeaser } from '@/components/layout/AbbreviationsTeaser';
 import { Button } from '@/components/ui/Button';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { publicFetchJson } from '@/lib/client/publicFetch';
+import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import {
   JOB_CATEGORY_SLUG,
   SCHOLARSHIP_CATEGORY_SLUG,
@@ -60,7 +61,6 @@ interface HomeClientProps {
 
 export function HomeClient({ initialCategories }: HomeClientProps) {
   const { user } = useAuth();
-  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [blogCategories, setBlogCategories] = useState<BlogCategoryOption[]>([]);
@@ -82,11 +82,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
     // implementation made one API call per category for blogs, quizzes and
     // flashcards, which could create dozens of Worker/Vercel invocations on
     // a single homepage load.
-    fetch('/api/homepage-data')
-      .then((res) => {
-        if (!res.ok) throw new Error('Homepage data request failed');
-        return res.json();
-      })
+    publicFetchJson<HomepageData>('/api/homepage-data', 60_000)
       .then((data: HomepageData) => {
         setHomepageData(data);
         setBlogCategories(data.blogCategories ?? []);
@@ -121,12 +117,6 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   const clinicalPearlsCategory = blogCategories.find((c) => c.slug === CLINICAL_PEARLS_CATEGORY_SLUG);
   const examPrepCategory = blogCategories.find((c) => c.slug === EXAM_PREP_GUIDES_CATEGORY_SLUG);
 
-  function handleSearchSubmit(e: FormEvent) {
-    e.preventDefault();
-    const trimmed = searchQuery.trim();
-    if (trimmed) router.push(`/search?q=${encodeURIComponent(trimmed)}`);
-  }
-
   return (
     <div>
       {/* Hero */}
@@ -141,20 +131,13 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
             you're improving, all before you ever get to the real exam.
           </p>
 
-          <form onSubmit={handleSearchSubmit} className="mx-auto mt-8 flex max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-lg sm:flex-row">
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search nursing resources, quizzes, articles…"
-              className="min-w-0 flex-1 px-4 py-3.5 text-sm text-ink-800 focus:outline-none"
-            />
-            <button
-              type="submit"
-              className="min-h-12 bg-pulse-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-pulse-700 sm:min-h-0"
-            >
-              Search
-            </button>
-          </form>
+          <SearchAutocomplete
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search nursing resources, quizzes, articles…"
+            className="mx-auto mt-8 max-w-2xl overflow-visible rounded-xl bg-white shadow-lg"
+            inputClassName="rounded-l-xl"
+          />
 
           <div className="mt-6 grid grid-cols-1 gap-3 sm:mt-8 sm:flex sm:justify-center sm:gap-4">
             <Link href="/categories"><Button size="lg">Browse categories</Button></Link>
@@ -180,6 +163,17 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       </section>
 
       <BannerSlot placement="header" />
+
+      {!homepageData && !homepageDataFailed && (
+        <div className="mx-auto max-w-7xl px-6 py-10" aria-label="Loading homepage content" aria-busy="true">
+          <div className="h-5 w-40 animate-pulse rounded bg-ink-100" />
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="h-32 animate-pulse rounded-xl bg-ink-50" />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Articles are the first major learning section after the hero.
           Categories remain intact; only the homepage ordering changes. */}
@@ -317,7 +311,8 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
 
       <ScholarOfTheDayCard />
 
-      {/* Resources */}
+      <div className="[content-visibility:auto] [contain-intrinsic-size:1200px]">
+            {/* Resources */}
       {resourcesEnabled && (
         <>
           <div className="mx-auto max-w-7xl px-6 pt-12">
@@ -419,6 +414,8 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
           <p className="mt-6 text-sm text-ink-400">No scholarships yet. Check back soon.</p>
         )}
       </section>
+
+      </div>
 
       <AbbreviationsTeaser />
     </div>

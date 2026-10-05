@@ -1,5 +1,13 @@
+// File: src/lib/db/services/searchService.ts
 import { getDb } from '@/lib/db/client';
 import type { QuizWithStats, BlogPost, Resource } from '@/types';
+
+export interface SearchSuggestion {
+  id: string;
+  title: string;
+  type: 'quiz' | 'article' | 'resource';
+  url: string;
+}
 
 export interface SearchResults {
   quizzes: Pick<QuizWithStats, 'id' | 'title' | 'description' | 'difficulty' | 'mode'>[];
@@ -60,4 +68,39 @@ export async function searchSite(query: string): Promise<SearchResults> {
       kind: r.kind as Resource['kind'],
     })),
   };
+}
+
+
+/**
+ * Lightweight typeahead search. One UNION query keeps suggestions to a
+ * single D1 round-trip even though they come from three content tables.
+ */
+export async function suggestSite(query: string): Promise<SearchSuggestion[]> {
+  const db = getDb();
+  const like = `%${query}%`;
+  const { results } = await db.prepare(`
+    SELECT id, title, type, url FROM (
+      SELECT id, title, 'quiz' AS type, '/quizzes/' || id AS url
+      FROM quizzes
+      WHERE visibility = 'public' AND status = 'published' AND (title LIKE ? OR description LIKE ?)
+      LIMIT 5
+    )
+    UNION ALL
+    SELECT id, title, type, url FROM (
+      SELECT id, title, 'article' AS type, '/blog/' || slug AS url
+      FROM blog_posts
+      WHERE status = 'published' AND (title LIKE ? OR content LIKE ?)
+      LIMIT 5
+    )
+    UNION ALL
+    SELECT id, title, type, url FROM (
+      SELECT id, title, 'resource' AS type, '/resources' AS url
+      FROM resources
+      WHERE status = 'published' AND (title LIKE ? OR description LIKE ?)
+      LIMIT 5
+    )
+    LIMIT 8
+  `).bind(like, like, like, like, like, like).all<SearchSuggestion>();
+
+  return results;
 }

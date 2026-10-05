@@ -1,3 +1,4 @@
+// File: src/app/quizzes/[quizId]/QuizDetailClient.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -210,7 +211,19 @@ export function QuizDetailClient({
     }
   }
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-16" aria-label="Loading quiz" aria-busy="true">
+        <Card className="animate-pulse p-8">
+          <div className="h-4 w-24 rounded bg-ink-100" />
+          <div className="mt-4 h-8 w-3/4 rounded bg-ink-100" />
+          <div className="mt-3 h-4 w-full rounded bg-ink-50" />
+          <div className="mt-6 h-24 rounded bg-ink-50" />
+          <div className="mt-6 h-10 w-28 rounded bg-ink-100" />
+        </Card>
+      </div>
+    );
+  }
 
   if (!user) {
     // Logged-out visitors still see the shareable preview (title, price,
@@ -362,6 +375,15 @@ export function QuizDetailClient({
           )}
         </div>
         {quiz?.description && <p className="mt-2 text-ink-500">{quiz.description}</p>}
+        {quiz && (
+          <p className="mt-3 text-sm text-ink-500">
+            {quiz.mode === 'exam'
+              ? 'Timed CBT-style practice. Check the time limit before you begin.'
+              : quiz.mode === 'study'
+                ? 'Study at your own pace, reveal explanations, and review difficult questions.'
+                : 'Practice questions with immediate feedback and a full review after submission.'}
+          </p>
+        )}
 
         {previewStats && (
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border border-ink-100 bg-ink-50/50 p-4 text-sm sm:grid-cols-3">
@@ -387,6 +409,14 @@ export function QuizDetailClient({
               <dt className="text-xs uppercase tracking-wide text-ink-400">Questions</dt>
               <dd className="text-ink-700">{previewStats.questionCount}</dd>
             </div>
+            {(previewStats.categoryName || previewStats.subcategoryName) && (
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-ink-400">Topic</dt>
+                <dd className="text-ink-700">
+                  {previewStats.categoryName}{previewStats.subcategoryName ? ` · ${previewStats.subcategoryName}` : ''}
+                </dd>
+              </div>
+            )}
             {previewStats.mode === 'study' ? (
               <div>
                 <dt className="text-xs uppercase tracking-wide text-ink-400">Study attempts</dt>

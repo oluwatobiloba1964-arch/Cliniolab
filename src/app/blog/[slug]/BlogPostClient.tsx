@@ -1,7 +1,9 @@
+// File: src/app/blog/[slug]/BlogPostClient.tsx
 // src/app/blog/[slug]/BlogPostClient.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { markdownToHtml } from '@/components/ui/RichTextEditor';
 import { sanitizeHtml, wrapWithScopeClass } from '@/lib/utils/sanitizeHtml';
 import { RawHtmlFrame, isFullRawDocument } from '@/components/ui/RawHtmlFrame';
@@ -320,6 +322,13 @@ function BlogPostBody({ post }: { post: BlogPost }) {
         />
         <RelatedPosts endpoint={`/api/blog/${post.slug}/related-posts`} title="Related posts" />
         <RelatedQuizzes endpoint={`/api/blog/${post.slug}/related`} title="Practice quizzes for this topic" />
+        <div className="mt-8 rounded-lg border border-ink-100 bg-ink-50/40 p-4">
+          <p className="text-sm font-medium text-ink-800">Want to memorize this topic?</p>
+          <p className="mt-1 text-xs text-ink-500">Browse Cliniolab flashcards for active recall practice.</p>
+          <Link href="/flashcards" className="mt-2 inline-block text-sm font-semibold text-pulse-600 hover:text-pulse-700">
+            Browse flashcards →
+          </Link>
+        </div>
       </div>
     </div>
   );

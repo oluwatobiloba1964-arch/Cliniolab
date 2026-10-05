@@ -1,11 +1,13 @@
+// File: src/components/layout/NavBar.tsx
 'use client';
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 
 const navLinks = [
   { href: '/categories', label: 'Categories' },
@@ -20,19 +22,10 @@ const navLinks = [
 
 export function NavBar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-    setSearchOpen(false);
-    setSearchQuery('');
-  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-ink-100 bg-paper/95 backdrop-blur">
@@ -126,7 +119,7 @@ export function NavBar() {
         </button>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto border-t border-ink-100 px-4 py-2 md:hidden">
+      <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain border-t border-ink-100 px-4 py-2 md:hidden">
         {[
           { href: '/', label: 'Home' },
           { href: '/categories', label: 'Categories' },
@@ -138,7 +131,7 @@ export function NavBar() {
           <Link
             key={link.href}
             href={link.href}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+            className={`min-h-9 shrink-0 rounded-full px-3 py-2 text-xs font-medium ${
               pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
                 ? 'bg-pulse-50 text-pulse-700'
                 : 'text-ink-500 hover:bg-ink-50 hover:text-ink-800'
@@ -154,21 +147,36 @@ export function NavBar() {
 
       {searchOpen && (
         <div className="border-t border-ink-100 bg-paper px-4 py-3">
-          <form onSubmit={submitSearch} className="mx-auto max-w-7xl">
-            <input
-              autoFocus
+          <div className="mx-auto max-w-7xl">
+            <SearchAutocomplete
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search quizzes, blog posts, resources…"
-              className="w-full rounded-md border border-ink-100 px-4 py-2 text-sm focus:border-pulse-400 focus:outline-none"
+              onChange={setSearchQuery}
+              onSubmit={() => {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }}
+              placeholder="Search quizzes, articles, resources…"
+              compact
+              className="overflow-visible"
+              inputClassName="rounded-l-md border border-ink-100"
             />
-          </form>
+          </div>
         </div>
       )}
 
       {mobileOpen && (
         <nav className="border-t border-ink-100 bg-paper px-4 py-4 shadow-lg md:hidden">
           <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                setSearchOpen(true);
+              }}
+              className="text-left text-sm font-medium text-ink-600"
+            >
+              Search
+            </button>
             {navLinks.map((link) => (
               <Link
                 key={link.href}

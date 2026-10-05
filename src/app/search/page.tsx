@@ -1,9 +1,11 @@
+// File: src/app/search/page.tsx
 'use client';
 
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 import type { SearchResults } from '@/lib/db/services/searchService';
 
 function SearchPageContent() {
@@ -11,15 +13,36 @@ function SearchPageContent() {
   const query = searchParams.get('q') ?? '';
   const [results, setResults] = useState<SearchResults | null>(null);
   const [enabled, setEnabled] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!query) return;
-    fetch(`/api/search?q=${encodeURIComponent(query)}`)
-      .then((res) => res.json())
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setResults(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    publicFetchJson<{ enabled: boolean; results?: SearchResults | null }>(
+      `/api/search?q=${encodeURIComponent(trimmed)}`,
+      30_000,
+    )
       .then((data) => {
+        if (cancelled) return;
         setEnabled(data.enabled);
-        setResults(data.results);
+        setResults(data.results ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setResults({ quizzes: [], posts: [], resources: [] });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [query]);
 
   if (!enabled) {
@@ -39,11 +62,19 @@ function SearchPageContent() {
         Search results for &ldquo;{query}&rdquo;
       </h1>
 
-      {!hasResults && results && (
+      {loading && (
+        <div className="mt-8 space-y-3" aria-label="Loading search results" aria-busy="true">
+          {[1, 2, 3].map((item) => (
+            <div key={item} className="h-20 animate-pulse rounded-lg bg-ink-50" />
+          ))}
+        </div>
+      )}
+
+      {!loading && !hasResults && results && (
         <p className="mt-6 text-sm text-ink-400">No results found.</p>
       )}
 
-      {results && results.quizzes.length > 0 && (
+      {!loading && results && results.quizzes.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-pulse-600">Quizzes</h2>
           <div className="mt-3 space-y-2">
@@ -59,9 +90,9 @@ function SearchPageContent() {
         </div>
       )}
 
-      {results && results.posts.length > 0 && (
+      {!loading && results && results.posts.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-pulse-600">Blog</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-pulse-600">Articles</h2>
           <div className="mt-3 space-y-2">
             {results.posts.map((p) => (
               <Link key={p.id} href={`/blog/${p.slug}`}>
@@ -75,7 +106,7 @@ function SearchPageContent() {
         </div>
       )}
 
-      {results && results.resources.length > 0 && (
+      {!loading && results && results.resources.length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-pulse-600">Resources</h2>
           <div className="mt-3 space-y-2">
@@ -99,7 +130,8 @@ export default function SearchPage() {
     <Suspense
       fallback={
         <div className="mx-auto max-w-3xl px-6 py-16">
-          <p className="text-sm text-ink-400">Loading…</p>
+          <div className="h-8 w-2/3 animate-pulse rounded bg-ink-100" />
+          <div className="mt-8 h-20 animate-pulse rounded-lg bg-ink-50" />
         </div>
       }
     >

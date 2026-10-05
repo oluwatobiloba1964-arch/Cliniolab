@@ -1,3 +1,4 @@
+// File: src/components/quiz/QuizRunner.tsx
 // src/components/quiz/QuizRunner.tsx
 'use client';
 
@@ -491,6 +492,13 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           <p className="mt-2 text-ink-500">
             {result.score} / {result.totalQuestions} correct
             {result.showMarks && ` · ${result.marksEarned} / ${result.totalMarks} marks`}
+          </p>
+          <p className="mt-3 text-sm font-medium text-ink-700">
+            {result.percentage >= 80
+              ? 'Strong performance — keep reviewing the questions you missed.'
+              : result.percentage >= 60
+                ? 'Good progress — review the missed questions before your next attempt.'
+                : 'Use the review below to focus your next study session on the questions you missed.'}
           </p>
           {guest && (
             <p className="mt-3 text-xs text-ink-500">
