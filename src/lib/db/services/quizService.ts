@@ -1,3 +1,4 @@
+// File: src/lib/db/services/quizService.ts
 import { getDb, generateId, nowIso } from '@/lib/db/client';
 import { normalizeForDedup } from '@/lib/utils/normalizeText';
 import type {
@@ -1134,14 +1135,17 @@ export async function getQuizzesWithStatsByIds(
 
 export async function listQuizzesByCategories(
   categoryIds: string[],
-  limit = 7
+  limit = 7,
+  options: { includeCommentCount?: boolean } = {}
 ): Promise<Record<string, QuizWithStats[]>> {
+  const includeCommentCount = options.includeCommentCount !== false;
   const grouped: Record<string, QuizWithStats[]> = {};
 
   if (!categoryIds.length) return grouped;
 
   const db = getDb();
   const placeholders = categoryIds.map(() => '?').join(', ');
+  const comment_count_sql = '(SELECT COUNT(*) FROM comments WHERE comments.quiz_id = ranked.id) AS comment_count';
 
   const { results } = await db
     .prepare(
@@ -1170,9 +1174,7 @@ export async function listQuizzesByCategories(
           THEN qas.percentage_sum / qas.attempt_count
           ELSE NULL
         END AS avg_score,
-        (SELECT COUNT(*)
-         FROM comments
-         WHERE comments.quiz_id = ranked.id) AS comment_count,
+        ${includeCommentCount ? comment_count_sql : '0 AS comment_count'},
         u.display_name AS creator_name,
         u.contact_phone AS creator_contact
       FROM ranked
