@@ -64,6 +64,8 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   const { user } = useAuth();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [showRecentSearches, setShowRecentSearches] = useState(false);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [blogCategories, setBlogCategories] = useState<BlogCategoryOption[]>([]);
   const [homepageData, setHomepageData] = useState<HomepageData | null>(null);
@@ -80,6 +82,11 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   const [flashcardsEnabled, setFlashcardsEnabled] = useState(true);
 
   useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('cliniolab_recent_searches') || '[]');
+      if (Array.isArray(saved)) setRecentSearches(saved.filter((x): x is string => typeof x === 'string').slice(0, 5));
+    } catch {}
+
     // Aggregate the homepage feeds into one public request. The previous
     // implementation made one API call per category for blogs, quizzes and
     // flashcards, which could create dozens of Worker/Vercel invocations on
@@ -122,7 +129,12 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   function handleSearchSubmit(e: FormEvent) {
     e.preventDefault();
     const trimmed = searchQuery.trim();
-    if (trimmed) router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    if (trimmed) {
+      const next = [trimmed, ...recentSearches.filter((item) => item.toLowerCase() !== trimmed.toLowerCase())].slice(0, 5);
+      setRecentSearches(next);
+      try { window.localStorage.setItem('cliniolab_recent_searches', JSON.stringify(next)); } catch {}
+      router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    }
   }
 
   const allArticles = Object.values<BlogPost[]>(homepageData?.blogsByCategory ?? {})
@@ -158,6 +170,8 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setShowRecentSearches(true)}
+              onBlur={() => window.setTimeout(() => setShowRecentSearches(false), 120)}
               placeholder="Search nursing resources, quizzes, articles…"
               className="min-w-0 flex-1 px-4 py-3.5 text-sm text-ink-800 focus:outline-none"
             />
@@ -168,6 +182,16 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
               Search
             </button>
           </form>
+          {showRecentSearches && recentSearches.length > 0 && (
+            <div className="mx-auto mt-2 max-w-2xl rounded-xl border border-ink-100 bg-white p-2 text-left shadow-lg" role="listbox" aria-label="Recent searches">
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-ink-400">Recent searches</p>
+              {recentSearches.map((term) => (
+                <button key={term} type="button" className="block w-full rounded-lg px-2 py-2 text-left text-sm text-ink-600 hover:bg-ink-50" onMouseDown={() => { setSearchQuery(term); router.push(`/search?q=${encodeURIComponent(term)}`); }}>
+                  ↗ {term}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="mt-6 grid grid-cols-1 gap-3 sm:mt-8 sm:flex sm:justify-center sm:gap-4">
             <Link href="/categories"><Button size="lg">Browse categories</Button></Link>
@@ -245,6 +269,39 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
               <p className="mt-4 text-sm font-semibold text-pulse-600">{item.action} →</p>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* Browser-only study controls: these are navigation shortcuts and do not create database state. */}
+      <section className="mx-auto max-w-7xl px-6 pb-10 sm:pb-14">
+        <div className="grid gap-4 lg:grid-cols-[1.25fr_1fr]">
+          <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-pulse-600">Quick practice</p>
+                <h2 className="mt-1 font-display text-xl font-semibold text-ink-900">Choose your study window</h2>
+                <p className="mt-1 text-sm text-ink-500">Pick a target duration, then choose any quiz that fits your session.</p>
+              </div>
+              <span className="hidden rounded-full bg-pulse-50 px-2.5 py-1 text-[10px] font-semibold text-pulse-700 sm:block">No tracking</span>
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {[5, 10, 20].map((minutes) => (
+                <Link key={minutes} href={`/quizzes?studyTime=${minutes}`} className="rounded-xl border border-ink-100 px-3 py-3 text-center transition hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
+                  <span className="block font-display text-lg font-semibold text-ink-900">{minutes}</span>
+                  <span className="text-[11px] font-semibold text-ink-400">minutes</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-ink-100 bg-ink-50/50 p-5 sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-400">Study tools</p>
+            <h2 className="mt-1 font-display text-xl font-semibold text-ink-900">Everything in one tap</h2>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {[['📝','Quizzes','/quizzes'],['🧠','Flashcards','/flashcards'],['📚','Resources','/resources'],['📖','Articles','/blog']].map(([icon,label,href]) => (
+                <Link key={href} href={href} className="rounded-xl border border-ink-100 bg-white px-3 py-3 text-sm font-semibold text-ink-700 transition hover:border-pulse-200 hover:text-pulse-700">{icon} <span className="ml-1">{label}</span></Link>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -361,14 +418,20 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
               <Link href="/quizzes" className="text-sm font-semibold text-pulse-600 hover:text-pulse-700">Browse all quizzes →</Link>
             </div>
             {featuredQuiz && (
-              <div className="mt-6 rounded-2xl border border-pulse-100 bg-white p-5 shadow-sm sm:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <span className="rounded-full bg-pulse-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-pulse-700">Recommended practice</span>
-                    <h3 className="mt-3 font-display text-xl font-semibold text-ink-900">{featuredQuiz.title}</h3>
-                    <p className="mt-1 text-sm text-ink-500">{featuredQuiz.questionCount} questions · {featuredQuiz.difficulty ?? 'Practice'} level</p>
+              <div className="mt-6 overflow-hidden rounded-2xl border border-pulse-100 bg-white shadow-sm">
+                <div className="h-1 bg-pulse-500" />
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-pulse-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-pulse-700">Recommended practice</span>
+                        <span className="rounded-full bg-ink-50 px-2.5 py-1 text-[10px] font-semibold text-ink-500">{featuredQuiz.questionCount} questions</span>
+                      </div>
+                      <h3 className="mt-3 font-display text-xl font-semibold text-ink-900">{featuredQuiz.title}</h3>
+                      <p className="mt-1 text-sm text-ink-500">{featuredQuiz.difficulty ?? 'Practice'} level · A focused session to keep your recall sharp.</p>
+                    </div>
+                    <Link href={`/quizzes/${featuredQuiz.id}`}><Button>Start practice →</Button></Link>
                   </div>
-                  <Link href={`/quizzes/${featuredQuiz.id}`}><Button>Start quiz →</Button></Link>
                 </div>
               </div>
             )}
