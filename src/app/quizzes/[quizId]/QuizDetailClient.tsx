@@ -214,7 +214,7 @@ export function QuizDetailClient({
   if (loading) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-16" aria-label="Loading quiz" aria-busy="true">
-        <Card className="animate-pulse p-8">
+        <Card className="ui-polish-card animate-pulse p-8">
           <div className="h-4 w-24 rounded bg-ink-100" />
           <div className="mt-4 h-8 w-3/4 rounded bg-ink-100" />
           <div className="mt-3 h-4 w-full rounded bg-ink-50" />
@@ -231,7 +231,7 @@ export function QuizDetailClient({
     // to - they just can't start the quiz without logging in.
     return (
       <div className="mx-auto max-w-2xl px-6 py-16">
-        <Card className="p-8">
+        <Card className="ui-polish-card p-8">
           <div className="flex items-start justify-between gap-3">
             <div>
               {previewStats && <DifficultyBadge difficulty={previewStats.difficulty} />}
@@ -327,7 +327,7 @@ export function QuizDetailClient({
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
-      <Card className="p-8">
+      <Card className="ui-polish-card p-8">
         <div className="flex items-start justify-between gap-3">
           <div>
             {quiz && <DifficultyBadge difficulty={quiz.difficulty} />}
