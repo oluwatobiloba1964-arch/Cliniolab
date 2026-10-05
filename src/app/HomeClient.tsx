@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { LeaderboardList } from '@/components/quiz/LeaderboardList';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import { CategoryBlogSection } from '@/components/cms/CategoryBlogSection';
@@ -17,6 +17,7 @@ import { BannerSlot } from '@/components/layout/BannerSlot';
 import { ScholarOfTheDayCard } from '@/components/layout/ScholarOfTheDayCard';
 import { AbbreviationsTeaser } from '@/components/layout/AbbreviationsTeaser';
 import { Button } from '@/components/ui/Button';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { publicFetchJson } from '@/lib/client/publicFetch';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
@@ -61,6 +62,7 @@ interface HomeClientProps {
 
 export function HomeClient({ initialCategories }: HomeClientProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [blogCategories, setBlogCategories] = useState<BlogCategoryOption[]>([]);
@@ -117,6 +119,12 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   const clinicalPearlsCategory = blogCategories.find((c) => c.slug === CLINICAL_PEARLS_CATEGORY_SLUG);
   const examPrepCategory = blogCategories.find((c) => c.slug === EXAM_PREP_GUIDES_CATEGORY_SLUG);
 
+  function handleSearchSubmit(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (trimmed) router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+  }
+
   const allArticles = Object.values<BlogPost[]>(homepageData?.blogsByCategory ?? {})
     .flat()
     .filter((post) => post.status === 'published');
@@ -135,50 +143,51 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   return (
     <div className="bg-white">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-ink-900 text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.10),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,107,0,0.16),transparent_32%)]" aria-hidden="true" />
-        <div className="relative mx-auto max-w-7xl px-6 py-14 sm:py-20 lg:py-24">
-          <div className="mx-auto max-w-4xl text-center">
-            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-100">
-              Learn • Practise • Review • Master
-            </span>
-            <h1 className="mt-5 font-display text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
-              Practice smarter. Pass with confidence.
-            </h1>
-            <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-ink-200 sm:text-lg">
-              Quizzes, CBT-style exams, flashcards, clinical articles and study resources built to help nursing and healthcare students learn with purpose.
-            </p>
+      <section className="relative overflow-hidden bg-ink-800 py-14 text-center text-white sm:py-20">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <h1 className="font-display text-3xl font-semibold leading-tight sm:text-5xl">
+            Practice, Revise &amp; Master Your Clinical &amp; Nursing Exams
+          </h1>
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-ink-100 sm:text-lg">
+            Cliniolab brings together student-built quizzes, CBT-style exams, and clinical study
+            notes in one place so you can revise a topic, test yourself on it, and track how
+            you're improving, all before you ever get to the real exam.
+          </p>
 
-            <SearchAutocomplete
+          <form onSubmit={handleSearchSubmit} className="mx-auto mt-8 flex max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-lg sm:flex-row">
+            <input
               value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search quizzes, articles, flashcards and resources…"
-              className="mx-auto mt-8 max-w-2xl overflow-visible rounded-2xl bg-white shadow-2xl"
-              inputClassName="rounded-l-2xl"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search nursing resources, quizzes, articles…"
+              className="min-w-0 flex-1 px-4 py-3.5 text-sm text-ink-800 focus:outline-none"
             />
+            <button
+              type="submit"
+              className="min-h-12 bg-pulse-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-pulse-700 sm:min-h-0"
+            >
+              Search
+            </button>
+          </form>
 
-            <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link href="/quizzes">
-                <Button size="lg">Start practising</Button>
-              </Link>
-              <Link href="/categories">
-                <Button size="lg" variant="secondary">Explore subjects</Button>
-              </Link>
-            </div>
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:mt-8 sm:flex sm:justify-center sm:gap-4">
+            <Link href="/categories"><Button size="lg">Browse categories</Button></Link>
+            <Link href={user ? '/quizzes/new' : '/login?next=%2Fquizzes%2Fnew'}>
+              <Button size="lg" variant="secondary">Create a quiz</Button>
+            </Link>
+          </div>
 
-            <div className="mx-auto mt-8 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                ['/quizzes', '📝', 'Quizzes'],
-                ['/flashcards', '🧠', 'Flashcards'],
-                ['/resources', '📚', 'Study resources'],
-                ['/blog', '📖', 'Articles'],
-              ].map(([href, icon, label]) => (
-                <Link key={href} href={href} className="group rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-left backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:bg-white/10">
-                  <span className="text-base">{icon}</span>
-                  <span className="ml-2 text-xs font-semibold text-white group-hover:text-pulse-100">{label}</span>
-                </Link>
-              ))}
-            </div>
+          <div className="mx-auto mt-6 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ['/quizzes', '📝', 'Quizzes'],
+              ['/flashcards', '🧠', 'Flashcards'],
+              ['/resources', '📚', 'Resources'],
+              ['/blog', '📖', 'Articles'],
+            ].map(([href, icon, label]) => (
+              <Link key={href} href={href} className="rounded-lg border border-white/10 bg-white/5 px-3 py-3 text-left transition-colors hover:bg-white/10">
+                <span className="text-base">{icon}</span>
+                <span className="ml-2 text-xs font-semibold text-white">{label}</span>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
