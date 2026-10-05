@@ -19,7 +19,22 @@ import type { BlogPost, FlashcardSetWithStats, QuizWithStats } from '@/types';
  * homepage load; this route does it all in one invocation, concurrently.
  * Fully public and safe to edge-cache — nothing here is user-specific.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  // This endpoint is entirely public and contains no user-specific data.
+  // Cloudflare's edge cache is the most important protection against repeated
+  // homepage loads turning into repeated D1 reads. The browser cache alone
+  // only protects a single visitor; the edge cache protects every visitor.
+  const cacheStorage = (globalThis as typeof globalThis & {
+    caches?: { default?: Cache };
+  }).caches;
+  const edgeCache = cacheStorage?.default;
+  const cacheKey = new Request(new URL(request.url).toString(), { method: 'GET' });
+
+  if (edgeCache) {
+    const cached = await edgeCache.match(cacheKey);
+    if (cached) return cached;
+  }
+
   const [blogCategories, quizCategories, resourcesEnabled, flashcardsEnabled] = await Promise.all([
     blogCategoryService.listBlogCategories(),
     categoryService.listCategories(),
@@ -43,7 +58,7 @@ export async function GET() {
 
   const [bulkBlogs, bulkQuizzes, bulkFlashcards] = await Promise.all([
     cmsService.getPostsByCategoryIds(blogCategories.map((c) => c.id), 7),
-    quizService.listQuizzesByCategories(quizCategories.map((c) => c.id), 7),
+    quizService.listQuizzesByCategories(quizCategories.map((c) => c.id), 7, { includeCommentCount: false }),
     flashcardsEnabled
       ? flashcardService.listFlashcardSetsByCategories(quizCategories.map((c) => c.id), 1)
       : Promise.resolve({} as Record<string, FlashcardSetWithStats[]>),
@@ -53,7 +68,7 @@ export async function GET() {
   Object.assign(quizzesByCategory, bulkQuizzes);
   Object.assign(flashcardsByCategory, bulkFlashcards);
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       blogCategories,
       resourcesEnabled,
@@ -66,6 +81,22 @@ export async function GET() {
       quizzesByCategory,
       flashcardsByCategory,
     },
-    { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+    {
+      headers: {
+        // Keep the browser cache short, but keep the shared Cloudflare edge
+        // copy for 1 hour. This dramatically reduces D1 reads for public
+        // homepage traffic while keeping content reasonably fresh. Stale data can
+        // continue to be served for up to 24 hours while a fresh copy is rebuilt.
+        'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+      },
+    }
   );
+
+  if (edgeCache) {
+    // Do not await the cache write: the user does not need to wait for the
+    // edge copy to be stored before receiving the homepage data.
+    void edgeCache.put(cacheKey, response.clone());
+  }
+
+  return response;
 }
