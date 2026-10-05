@@ -1,5 +1,4 @@
 // File: src/components/quiz/QuizRunner.tsx
-// src/components/quiz/QuizRunner.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -482,24 +481,69 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   }
 
   if (result) {
+    const roundedPercentage = Math.round(result.percentage);
+    const incorrectCount = result.perQuestion.filter((pq) => !pq.isCorrect).length;
+    const correctCount = result.perQuestion.length - incorrectCount;
+    const resultTone = roundedPercentage >= 80 ? 'Excellent progress' : roundedPercentage >= 60 ? 'Good progress' : 'Keep building';
+    const resultMessage = roundedPercentage >= 80
+      ? 'You have a strong grasp of this set. Use the review below to polish the few gaps.'
+      : roundedPercentage >= 60
+        ? 'You are on the right track. A focused review of missed questions can move this score higher.'
+        : 'Turn the missed questions into your next study session. Review, practise, then retake when ready.';
+
     return (
-      <div className="mx-auto max-w-2xl px-6 py-16">
-        <Card className="p-8 text-center">
-          <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Result</p>
-          <p className="mt-4 font-display text-5xl font-semibold text-ink-800">
-            {Math.round(result.percentage)}%
-          </p>
-          <p className="mt-2 text-ink-500">
-            {result.score} / {result.totalQuestions} correct
-            {result.showMarks && ` · ${result.marksEarned} / ${result.totalMarks} marks`}
-          </p>
-          <p className="mt-3 text-sm font-medium text-ink-700">
-            {result.percentage >= 80
-              ? 'Strong performance — keep reviewing the questions you missed.'
-              : result.percentage >= 60
-                ? 'Good progress — review the missed questions before your next attempt.'
-                : 'Use the review below to focus your next study session on the questions you missed.'}
-          </p>
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+        <Card className="overflow-hidden p-0">
+          <div className="bg-gradient-to-br from-pulse-50 via-white to-ink-50 p-6 sm:p-8">
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-center sm:text-left">
+                <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Quiz complete</p>
+                <h2 className="mt-2 font-display text-2xl font-semibold text-ink-900 sm:text-3xl">{resultTone}</h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-ink-500">{resultMessage}</p>
+              </div>
+              <div
+                className="relative grid h-32 w-32 shrink-0 place-items-center rounded-full text-pulse-500"
+                style={{ background: `conic-gradient(currentColor ${roundedPercentage}%, #e5e7eb ${roundedPercentage}% 100%)` }}
+                aria-label={`Score ${roundedPercentage} percent`}
+              >
+                <div className="grid h-24 w-24 place-items-center rounded-full bg-white shadow-sm">
+                  <div className="text-center">
+                    <p className="font-mono text-3xl font-semibold text-ink-900">{roundedPercentage}%</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">score</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-xl border border-pulse-100 bg-white p-3 text-center shadow-sm">
+                <p className="font-mono text-xl font-semibold text-pulse-600">{correctCount}</p>
+                <p className="mt-1 text-[11px] font-medium text-ink-400">Correct</p>
+              </div>
+              <div className="rounded-xl border border-critical-100 bg-white p-3 text-center shadow-sm">
+                <p className="font-mono text-xl font-semibold text-critical-600">{incorrectCount}</p>
+                <p className="mt-1 text-[11px] font-medium text-ink-400">To review</p>
+              </div>
+              <div className="rounded-xl border border-ink-100 bg-white p-3 text-center shadow-sm">
+                <p className="font-mono text-xl font-semibold text-ink-800">{result.totalQuestions}</p>
+                <p className="mt-1 text-[11px] font-medium text-ink-400">Questions</p>
+              </div>
+            </div>
+
+            <p className="mt-4 text-center text-xs text-ink-500">
+              {result.score} / {result.totalQuestions} correct
+              {result.showMarks && ` · ${result.marksEarned} / ${result.totalMarks} marks`}
+            </p>
+          </div>
+
+          <div className="p-6 sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-100 bg-ink-50/60 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-ink-800">Review your answers</p>
+              <p className="mt-0.5 text-xs text-ink-400">Focus on the questions marked for review.</p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-600">{incorrectCount} to review</span>
+          </div>
           {guest && (
             <p className="mt-3 text-xs text-ink-500">
               Guest Practice: this result is not saved. Log in or create a free account and retake this
@@ -710,6 +754,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                 Go to dashboard
               </Button>
             )}
+          </div>
           </div>
         </Card>
       </div>
