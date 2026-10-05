@@ -883,6 +883,56 @@ export async function getQuizzesWithStatsByIds(ids: string[]): Promise<QuizWithS
   }));
 }
 
+
+/** Public homepage feed: rank a small slice per category in one D1 statement. */
+export async function listQuizzesByCategories(categoryIds: string[], limit = 7): Promise<Record<string, QuizWithStats[]>> {
+  const grouped: Record<string, QuizWithStats[]> = {};
+  if (!categoryIds.length) return grouped;
+  const db = getDb();
+  const placeholders = categoryIds.map(() => '?').join(', ');
+  const { results } = await db
+    .prepare(
+      `WITH ranked AS (
+        SELECT q.*, s.category_id,
+          ROW_NUMBER() OVER (
+            PARTITION BY s.category_id
+            ORDER BY q.updated_at DESC
+          ) AS category_rank
+        FROM quizzes q
+        JOIN subcategories s ON s.id = q.subcategory_id
+        WHERE s.category_id IN (${placeholders})
+          AND q.visibility = 'public' AND q.status = 'published'
+      )
+      SELECT ranked.*,
+        (SELECT COUNT(*) FROM questions WHERE quiz_id = ranked.id) as question_count,
+        (SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id = ranked.id) as attempt_count,
+        (SELECT AVG(CAST(score AS REAL) / total_questions * 100) FROM quiz_attempts WHERE quiz_id = ranked.id) as avg_score,
+        (SELECT COUNT(*) FROM comments WHERE quiz_id = ranked.id) as comment_count,
+        u.display_name as creator_name,
+        u.contact_phone as creator_contact
+      FROM ranked
+      JOIN users u ON u.id = ranked.creator_id
+      WHERE ranked.category_rank <= ?
+      ORDER BY ranked.category_id, ranked.updated_at DESC`
+    )
+    .bind(...categoryIds, limit)
+    .all<QuizRow & { category_id: string; category_rank: number; question_count: number; attempt_count: number; avg_score: number | null; comment_count: number; creator_name: string | null; creator_contact: string | null }>();
+
+  for (const id of categoryIds) grouped[id] = [];
+  for (const row of results) {
+    (grouped[row.category_id] ??= []).push({
+      ...mapQuiz(row),
+      questionCount: row.question_count,
+      attemptCount: row.attempt_count,
+      averageScorePercent: row.avg_score,
+      commentCount: row.comment_count,
+      creatorName: row.creator_name ?? 'Anonymous',
+      creatorContact: row.creator_contact,
+    });
+  }
+  return grouped;
+}
+
 export async function listQuizzesByCategoryPaginated(
   categoryId: string,
   page = 1,

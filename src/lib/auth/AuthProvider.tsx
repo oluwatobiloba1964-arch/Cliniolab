@@ -42,15 +42,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
 
-    fetchAppUser()
+    // Avoid an unauthenticated /api/auth/sync-user request on every public page.
+    // Supabase can tell us whether a session exists locally before we call
+    // the server-side app-user endpoint.
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        if (!data.session) return null;
+        return fetchAppUser();
+      })
       .then((u) => {
-        setUser(u);
+        if (u) setUser(u);
       })
       .finally(() => {
         setLoading(false);
       });
 
     const { data: subscription } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // INITIAL_SESSION was already handled by getSession() above. Ignoring it
+      // prevents a duplicate app-user request during every initial page load.
+      if (event === 'INITIAL_SESSION') return;
       // Only clear the user on an explicit logout. Other events (e.g. a
       // momentary null session during INITIAL_SESSION, or a failed
       // TOKEN_REFRESHED) must never log the user out on their own.

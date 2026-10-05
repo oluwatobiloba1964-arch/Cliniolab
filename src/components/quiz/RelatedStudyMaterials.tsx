@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { publicFetchJson } from '@/lib/client/publicFetch';
 import { QuizCard } from '@/components/quiz/QuizCard';
 import { CompactBlogPostCard } from '@/components/cms/BlogPostCard';
-import { FeaturedFlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
+import { CompactFlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import type { BlogPost, FlashcardSetWithStats, QuizWithStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 
@@ -56,17 +56,20 @@ export function RelatedStudyMaterials({ endpoint }: RelatedStudyMaterialsProps) 
             <h3 className="text-sm font-semibold text-ink-700">Practice quizzes</h3>
             <Link href="/quizzes" className="text-xs font-semibold text-pulse-600 hover:text-pulse-700">View all</Link>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {quizzes.slice(0, 2).map((quiz) => <QuizCard key={quiz.id} quiz={quiz} />)}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {quizzes.slice(0, 6).map((quiz) => <QuizCard key={quiz.id} quiz={quiz} />)}
           </div>
         </div>
       )}
 
       {flashcards.length > 0 && (
         <div className="mt-6">
-          <h3 className="mb-3 text-sm font-semibold text-ink-700">Flashcards</h3>
-          <div className="max-w-xl">
-            <FeaturedFlashcardSetCard set={flashcards[0]} />
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-ink-700">Flashcards</h3>
+            <Link href="/flashcards" className="text-xs font-semibold text-pulse-600 hover:text-pulse-700">View all</Link>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {flashcards.slice(0, 6).map((set) => <CompactFlashcardSetCard key={set.id} set={set} />)}
           </div>
         </div>
       )}

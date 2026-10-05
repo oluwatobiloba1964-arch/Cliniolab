@@ -15,7 +15,7 @@ const navLinks = [
   { href: '/offline', label: 'Offline' },
   { href: '/resources', label: 'Resources' },
   { href: '/leaderboard', label: 'Leaderboard' },
-  { href: '/blog', label: 'Blog' },
+  { href: '/blog', label: 'Articles' },
 ];
 
 export function NavBar() {
@@ -132,6 +132,7 @@ export function NavBar() {
           { href: '/categories', label: 'Categories' },
           { href: '/quizzes', label: 'Quizzes' },
           { href: '/flashcards', label: 'Flashcards' },
+          { href: '/blog', label: 'Articles' },
           { href: user ? '/dashboard' : '/login', label: user ? 'Dashboard' : 'Log in' },
         ].map((link) => (
           <Link

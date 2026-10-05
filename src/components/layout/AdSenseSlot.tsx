@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 /**
  * Routes where ads must never show:
@@ -47,16 +48,29 @@ interface AdSenseSlotProps {
   slot?: string;
 }
 
+type AdSenseConfig = { enabled: boolean; clientId: string };
+let configPromise: Promise<AdSenseConfig> | null = null;
+
+function loadAdSenseConfig(): Promise<AdSenseConfig> {
+  if (!configPromise) {
+    configPromise = publicFetchJson<{ enabled?: boolean; clientId?: string }>('/api/adsense-config', 300_000)
+      .then((data) => ({ enabled: !!data?.enabled, clientId: data?.clientId ?? '' }))
+      .catch(() => ({ enabled: false, clientId: '' }));
+  }
+  return configPromise;
+}
+
 export function AdSenseSlot({ className, slot }: AdSenseSlotProps) {
   const pathname = usePathname();
   const [config, setConfig] = useState<{ enabled: boolean; clientId: string } | null>(null);
   const pushed = useRef(false);
 
   useEffect(() => {
-    fetch('/api/adsense-config')
-      .then((res) => res.json())
-      .then((data) => setConfig({ enabled: !!data.enabled, clientId: data.clientId ?? '' }))
-      .catch(() => setConfig({ enabled: false, clientId: '' }));
+    let active = true;
+    loadAdSenseConfig().then((value) => {
+      if (active) setConfig(value);
+    });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {

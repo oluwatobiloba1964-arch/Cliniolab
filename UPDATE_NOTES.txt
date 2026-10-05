@@ -1,0 +1,16 @@
+Cliniolab optimization update
+
+Included files are ONLY the files changed for this update; this is not the full project.
+
+Changes:
+- Homepage now puts Articles first while preserving article categories.
+- Daily Quiz / Guest Practice moved below the Articles area.
+- Mobile primary navigation now includes Articles.
+- Related Study Materials now supports 6 quizzes + 6 flashcards, with Flashcards View all.
+- Related flashcards are limited at the database query instead of fetched then sliced.
+- Homepage category feeds use bounded bulk queries instead of one D1 query per category.
+- Added homepage/quiz/flashcard performance indexes and migration.
+- Anonymous auth initialization avoids unnecessary /api/auth/sync-user calls.
+- Leaderboard homepage fetch uses the public cached fetch helper.
+- AdSense slot config is shared/cached across multiple ad slots to avoid duplicate config requests.
+- Existing AdSense, Privacy, Terms, Disclaimer, About and Contact infrastructure is preserved.

@@ -277,6 +277,48 @@ export async function listFlashcardSetsByCategory(categoryId: string, limit?: nu
   return results.map(mapStatsRow);
 }
 
+
+/** Public homepage feed: rank a small slice per category in one D1 statement. */
+export async function listFlashcardSetsByCategories(categoryIds: string[], limit = 1): Promise<Record<string, FlashcardSetWithStats[]>> {
+  const grouped: Record<string, FlashcardSetWithStats[]> = {};
+  if (!categoryIds.length) return grouped;
+  const db = getDb();
+  const placeholders = categoryIds.map(() => '?').join(', ');
+  const { results } = await db
+    .prepare(
+      `WITH ranked AS (
+        SELECT fs.*, c.id as category_id,
+          ROW_NUMBER() OVER (
+            PARTITION BY c.id
+            ORDER BY fs.updated_at DESC
+          ) AS category_rank
+        FROM flashcard_sets fs
+        JOIN subcategories s ON s.id = fs.subcategory_id
+        JOIN categories c ON c.id = s.category_id
+        WHERE c.id IN (${placeholders})
+          AND fs.visibility = 'public' AND fs.status = 'published'
+      )
+      SELECT ranked.*,
+        (SELECT COUNT(*) FROM flashcards WHERE set_id = ranked.id) as card_count,
+        (SELECT COUNT(*) FROM flashcard_attempts WHERE set_id = ranked.id) as attempt_count,
+        c.name as category_name,
+        s.name as subcategory_name,
+        u.display_name as creator_name
+      FROM ranked
+      JOIN subcategories s ON s.id = ranked.subcategory_id
+      JOIN categories c ON c.id = ranked.category_id
+      JOIN users u ON u.id = ranked.creator_id
+      WHERE ranked.category_rank <= ?
+      ORDER BY ranked.category_id, ranked.updated_at DESC`
+    )
+    .bind(...categoryIds, limit)
+    .all<StatsRow & { category_id: string; category_rank: number }>();
+
+  for (const id of categoryIds) grouped[id] = [];
+  for (const row of results) (grouped[row.category_id] ??= []).push(mapStatsRow(row));
+  return grouped;
+}
+
 export async function listFlashcardSetsByCategoryPaginated(
   categoryId: string,
   page = 1,
@@ -307,16 +349,13 @@ export async function listFlashcardSetsByCategoryPaginated(
   return { sets: results.map(mapStatsRow), total: countRow?.total ?? 0, page, pageSize };
 }
 
-export async function listFlashcardSetsBySubcategory(subcategoryId: string): Promise<FlashcardSetWithStats[]> {
+export async function listFlashcardSetsBySubcategory(subcategoryId: string, limit?: number): Promise<FlashcardSetWithStats[]> {
   const db = getDb();
-  const { results } = await db
-    .prepare(
-      `SELECT ${STATS_SELECT}
+  const query = `SELECT ${STATS_SELECT}
        WHERE fs.subcategory_id = ? AND fs.visibility = 'public' AND fs.status = 'published'
-       ORDER BY fs.updated_at DESC`
-    )
-    .bind(subcategoryId)
-    .all<StatsRow>();
+       ORDER BY fs.updated_at DESC${limit ? ' LIMIT ?' : ''}`;
+  const stmt = limit ? db.prepare(query).bind(subcategoryId, limit) : db.prepare(query).bind(subcategoryId);
+  const { results } = await stmt.all<StatsRow>();
   return results.map(mapStatsRow);
 }
 

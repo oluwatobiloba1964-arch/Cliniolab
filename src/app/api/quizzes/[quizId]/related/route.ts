@@ -22,7 +22,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const subcategory = await categoryService.getSubcategoryById(quiz.subcategoryId);
   const [quizzes, flashcards, posts] = await Promise.all([
     quizService.listRelatedQuizzes(quiz.subcategoryId, quizId, Math.min(setting.count, 6)),
-    flashcardService.listFlashcardSetsBySubcategory(quiz.subcategoryId),
+    flashcardService.listFlashcardSetsBySubcategory(quiz.subcategoryId, 6),
     subcategory
       ? cmsService.getPostsByCategory(subcategory.name, 3)
       : Promise.resolve([]),
@@ -31,7 +31,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   return NextResponse.json(
     {
       quizzes,
-      flashcards: flashcards.slice(0, 2),
+      flashcards,
       posts: posts.slice(0, 3),
     },
     { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }

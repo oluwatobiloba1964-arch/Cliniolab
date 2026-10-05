@@ -187,6 +187,9 @@ CREATE TABLE blog_posts (
 );
 
 CREATE INDEX idx_blog_posts_category ON blog_posts(blog_category_id, status, created_at);
+CREATE INDEX idx_questions_quiz_sort ON questions(quiz_id, sort_order);
+CREATE INDEX idx_attempt_answers_attempt ON attempt_answers(attempt_id);
+CREATE INDEX idx_attempt_answers_question ON attempt_answers(question_id);
 
 -- Fixed top-level blog categories. Admins pick one of these when writing a
 -- post — they cannot add/remove from this list via the UI. Subcategories
@@ -248,6 +251,7 @@ CREATE TABLE flashcard_sets (
 CREATE INDEX idx_flashcard_sets_subcategory ON flashcard_sets(subcategory_id);
 CREATE INDEX idx_flashcard_sets_visibility ON flashcard_sets(visibility, status);
 CREATE INDEX idx_flashcard_sets_creator ON flashcard_sets(creator_id);
+CREATE INDEX idx_flashcards_set_sort ON flashcards(set_id, sort_order);
 
 CREATE TABLE flashcards (
   id TEXT PRIMARY KEY,
@@ -466,6 +470,8 @@ CREATE INDEX idx_quiz_purchases_quiz ON quiz_purchases(quiz_id);
 CREATE INDEX idx_quizzes_subcategory ON quizzes(subcategory_id);
 CREATE INDEX idx_quizzes_visibility ON quizzes(visibility, status);
 CREATE INDEX idx_attempts_quiz ON quiz_attempts(quiz_id);
+CREATE INDEX idx_quiz_attempts_quiz_completed ON quiz_attempts(quiz_id, completed_at);
+CREATE INDEX idx_quiz_attempts_user_started ON quiz_attempts(user_id, started_at);
 CREATE INDEX idx_attempts_user ON quiz_attempts(user_id);
 CREATE INDEX idx_comments_quiz ON comments(quiz_id);
 CREATE INDEX idx_comment_reactions_comment ON comment_reactions(comment_id);

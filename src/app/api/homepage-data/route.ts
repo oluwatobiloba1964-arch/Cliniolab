@@ -27,30 +27,31 @@ export async function GET() {
     featureFlagService.isFeatureEnabled('flashcards'),
   ]);
 
+  const jobCategory = blogCategories.find((c) => c.slug === JOB_CATEGORY_SLUG);
+  const scholarshipCategory = blogCategories.find((c) => c.slug === SCHOLARSHIP_CATEGORY_SLUG);
+
   const [resources, latestFlashcards, jobPosts, scholarshipPosts] = await Promise.all([
     resourcesEnabled ? resourceService.listResources(8) : Promise.resolve([]),
     flashcardsEnabled ? flashcardService.listLatestPublicFlashcardSets(6) : Promise.resolve([]),
-    cmsService.getPostsByCategorySlug(JOB_CATEGORY_SLUG, 7),
-    cmsService.getPostsByCategorySlug(SCHOLARSHIP_CATEGORY_SLUG, 7),
+    jobCategory ? cmsService.getPostsByCategoryId(jobCategory.id, 7) : Promise.resolve([]),
+    scholarshipCategory ? cmsService.getPostsByCategoryId(scholarshipCategory.id, 7) : Promise.resolve([]),
   ]);
 
   const blogsByCategory: Record<string, BlogPost[]> = {};
   const quizzesByCategory: Record<string, QuizWithStats[]> = {};
   const flashcardsByCategory: Record<string, FlashcardSetWithStats[]> = {};
 
-  await Promise.all([
-    ...blogCategories.map(async (c) => {
-      blogsByCategory[c.id] = await cmsService.getPostsByCategoryId(c.id, 7);
-    }),
-    ...quizCategories.map(async (c) => {
-      quizzesByCategory[c.id] = await quizService.listQuizzesByCategory(c.id, 7);
-    }),
-    ...(flashcardsEnabled
-      ? quizCategories.map(async (c) => {
-          flashcardsByCategory[c.id] = await flashcardService.listFlashcardSetsByCategory(c.id, 1);
-        })
-      : []),
+  const [bulkBlogs, bulkQuizzes, bulkFlashcards] = await Promise.all([
+    cmsService.getPostsByCategoryIds(blogCategories.map((c) => c.id), 7),
+    quizService.listQuizzesByCategories(quizCategories.map((c) => c.id), 7),
+    flashcardsEnabled
+      ? flashcardService.listFlashcardSetsByCategories(quizCategories.map((c) => c.id), 1)
+      : Promise.resolve({} as Record<string, FlashcardSetWithStats[]>),
   ]);
+
+  Object.assign(blogsByCategory, bulkBlogs);
+  Object.assign(quizzesByCategory, bulkQuizzes);
+  Object.assign(flashcardsByCategory, bulkFlashcards);
 
   return NextResponse.json(
     {

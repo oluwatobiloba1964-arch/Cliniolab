@@ -99,14 +99,14 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       })
       .catch(() => setHomepageDataFailed(true));
 
-    fetch('/api/leaderboard/general')
-      .then((res) => (res.ok ? res.json() : null))
+    publicFetchJson<{ enabled: boolean; entries?: LeaderboardEntry[]; currentUserRank?: number | null }>('/api/leaderboard/general', 60_000)
       .then((data: { enabled: boolean; entries?: LeaderboardEntry[]; currentUserRank?: number | null } | null) => {
         if (!data) return;
         setLeaderboardEnabled(data.enabled);
         setLeaderboard(data.entries ?? []);
         setLeaderboardCurrentUserRank(data.currentUserRank ?? null);
-      });
+      })
+      .catch(() => {});
 
     // Public endpoint: do not call the admin flags API from the public homepage.
     // The old call returned 401 and still consumed a Worker/Vercel invocation.
@@ -133,7 +133,7 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       <section className="relative overflow-hidden bg-ink-800 py-14 text-center text-white sm:py-20">
         <div className="mx-auto max-w-4xl px-4 sm:px-6">
           <h1 className="font-display text-3xl font-semibold leading-tight sm:text-5xl">
-            Study Smarter for Every Clinical &amp; Nursing Exam
+            Practice, Revise &amp; Master Your Clinical &amp; Nursing Exams
           </h1>
           <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-ink-100 sm:text-lg">
             Cliniolab brings together student-built quizzes, CBT-style exams, and clinical study
@@ -181,10 +181,8 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
 
       <BannerSlot placement="header" />
 
-      <DailyQuizBanner />
-
-      <GuestPracticeSection />
-
+      {/* Articles are the first major learning section after the hero.
+          Categories remain intact; only the homepage ordering changes. */}
       {/* Blog / education content, one section per fixed category (excluding Job/Scholarship) */}
       {homepageBlogCategories.length > 0 && (
         <div className="mx-auto max-w-7xl px-6 pt-12">
@@ -231,6 +229,10 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
           initialPosts={homepageDataFailed ? undefined : homepageData?.blogsByCategory?.[examPrepCategory.id] ?? null}
         />
       )}
+
+      <DailyQuizBanner />
+
+      <GuestPracticeSection />
 
       <div className="chart-strip mx-auto max-w-7xl text-ink-200" aria-hidden />
 
