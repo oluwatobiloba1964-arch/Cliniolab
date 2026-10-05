@@ -1,4 +1,5 @@
 'use client';
+// File: src/app/flashcards/[setId]/FlashcardDetailClient.tsx
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -103,7 +104,7 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
 
   if (error && !set) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-24 text-center">
+      <div className="ui-error-state mx-auto max-w-xl px-6 py-24 text-center">
         <h1 className="font-display text-2xl font-semibold text-ink-800">Can&apos;t load this set</h1>
         <p className="mt-2 text-ink-500">{error}</p>
       </div>
@@ -129,7 +130,7 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
-      <Card className="p-8">
+      <Card className="ui-polish-card p-8">
         <div className="flex items-start justify-between gap-3">
           <div>
             <span className="rounded bg-pulse-50 px-2 py-0.5 text-xs font-semibold text-pulse-600">Flashcard</span>
