@@ -1,3 +1,4 @@
+// File: src/components/flashcards/FlashcardRunner.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -148,40 +149,64 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
   }
 
   if (finished) {
+    const knownPercent = Math.round((knownIds.size / cards.length) * 100);
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
-        <Card className="p-8 text-center">
-          <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Flashcards complete</p>
-          <p className="mt-4 font-display text-3xl font-semibold text-ink-800">
-            {knownIds.size} / {cards.length} known
-          </p>
-          {reviewIds.size > 0 && (
-            <p className="mt-2 text-sm text-ink-500">
-              {reviewIds.size} card{reviewIds.size === 1 ? '' : 's'} marked for review.
-            </p>
-          )}
-          <div className="mt-8 flex flex-wrap justify-center gap-2">
+        <Card className="overflow-hidden p-0">
+          <div className="bg-gradient-to-br from-pulse-50 via-white to-ink-50 p-8 text-center">
+            <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Session complete</p>
+            <h2 className="mt-2 font-display text-3xl font-semibold text-ink-900">Nice work.</h2>
+            <p className="mt-2 text-sm text-ink-500">You finished every card in this study session.</p>
+            <div className="mx-auto mt-6 h-3 max-w-sm overflow-hidden rounded-full bg-ink-100">
+              <div className="h-full rounded-full bg-pulse-500 transition-all duration-700" style={{ width: `${knownPercent}%` }} />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-pulse-100 bg-white p-3 shadow-sm">
+                <p className="font-mono text-2xl font-semibold text-pulse-600">{knownIds.size}</p>
+                <p className="mt-1 text-xs text-ink-400">Known</p>
+              </div>
+              <div className="rounded-xl border border-flag-100 bg-white p-3 shadow-sm">
+                <p className="font-mono text-2xl font-semibold text-flag-500">{reviewIds.size}</p>
+                <p className="mt-1 text-xs text-ink-400">Review again</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 text-center">
+          <div className="flex flex-wrap justify-center gap-2">
             <Button variant="secondary" onClick={restart}>
               Study again
             </Button>
             {onDone && <Button onClick={onDone}>Done</Button>}
+          </div>
           </div>
         </Card>
       </div>
     );
   }
 
+  const progressPercent = Math.round(((current + 1) / cards.length) * 100);
+  const reviewedCount = knownIds.size + reviewIds.size;
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
-      <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
-        <span className="font-medium">Card {current + 1} of {cards.length}</span>
-        {title && <span className="font-mono text-xs uppercase tracking-widest text-pulse-600">{title}</span>}
-      </div>
-      <div className="mt-3 h-1.5 w-full rounded-full bg-ink-100">
-        <div
-          className="h-1 rounded-full bg-pulse-500 transition-all"
-          style={{ width: `${((current + 1) / cards.length) * 100}%` }}
-        />
+    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="rounded-xl border border-ink-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
+          <div>
+            <span className="font-semibold text-ink-700">Card {current + 1}</span>
+            <span className="text-ink-400"> of {cards.length}</span>
+          </div>
+          {title && <span className="max-w-[45%] truncate font-mono text-[10px] uppercase tracking-widest text-pulse-600">{title}</span>}
+        </div>
+        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink-100">
+          <div
+            className="h-full rounded-full bg-pulse-500 transition-all duration-500 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <div className="mt-2 flex items-center justify-between text-[11px] text-ink-400">
+          <span>{progressPercent}% through</span>
+          <span>{reviewedCount} reviewed</span>
+        </div>
       </div>
 
       <button
@@ -190,35 +215,36 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
         onClick={() => setFlipped((f) => !f)}
         className="mt-7 block w-full text-left"
       >
-        <Card className="flex min-h-[260px] flex-col justify-center p-6 text-center transition-shadow hover:shadow-md sm:min-h-[300px] sm:p-10">
-          <p className="font-mono text-xs uppercase tracking-widest text-ink-400">
-            {flipped ? 'Back' : 'Front'}
-          </p>
-          <p className="mt-4 whitespace-pre-line font-display text-xl font-medium text-ink-800">
+        <Card className="flex min-h-[280px] flex-col justify-center border-ink-100 p-6 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg sm:min-h-[330px] sm:p-10">
+          <div className="mx-auto rounded-full bg-pulse-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-pulse-700">
+            {flipped ? 'Answer' : 'Recall'}
+          </div>
+          <p className="mt-5 whitespace-pre-line font-display text-xl font-medium leading-8 text-ink-800 sm:text-2xl">
             {flipped ? card.back : card.front}
           </p>
           {flipped && card.explanation && (
-            <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-500">
-              {card.explanation}
-            </p>
+            <div className="mx-auto mt-5 max-w-xl rounded-xl border border-ink-100 bg-ink-50/70 p-4 text-left">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">Explanation</p>
+              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600">{card.explanation}</p>
+            </div>
           )}
-          <p className="mt-6 text-xs text-ink-400">Tap card to flip</p>
+          <p className="mt-6 text-xs text-ink-400">{flipped ? 'Choose how well you knew it' : 'Tap to reveal the answer'}</p>
         </Card>
       </button>
 
       <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:justify-between">
         <Button variant="secondary" onClick={goPrevious} disabled={current === 0}>
-          Previous
+          ← Previous
         </Button>
         {flipped ? (
           <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex">
             <Button variant="secondary" onClick={markReview}>
               Review again
             </Button>
-            <Button onClick={markKnown}>I knew this</Button>
+            <Button onClick={markKnown}>I knew this ✓</Button>
           </div>
         ) : (
-          <Button onClick={() => setFlipped(true)}>Flip</Button>
+          <Button onClick={() => setFlipped(true)}>Reveal answer →</Button>
         )}
       </div>
     </div>
