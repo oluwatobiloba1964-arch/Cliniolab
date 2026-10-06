@@ -79,6 +79,12 @@ interface AttemptDraft {
 
 const DRAFT_NAMESPACE = 'attempt';
 const RESULT_NAMESPACE = 'attempt-result';
+const RESULT_META_NAMESPACE = 'attempt-result-meta';
+
+interface ResultReviewMeta {
+  markedForReview: string[];
+  skipped: string[];
+}
 
 /** Fisher-Yates shuffle, returns a new array without mutating the input. */
 function shuffleArray<T>(arr: T[]): T[] {
@@ -109,6 +115,9 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   // never cache anything client-side.
   const initialResult = useRef<AttemptResult | null>(
     draftsEnabled && typeof window !== 'undefined' ? loadDraft<AttemptResult>(RESULT_NAMESPACE, quiz.id) : null
+  ).current;
+  const initialResultMeta = useRef<ResultReviewMeta | null>(
+    draftsEnabled && typeof window !== 'undefined' ? loadDraft<ResultReviewMeta>(RESULT_META_NAMESPACE, quiz.id) : null
   ).current;
 
   // Shuffle once per attempt (on mount), not on every render, so the order
@@ -156,7 +165,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   const [result, setResult] = useState<AttemptResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-  const [resultFilter, setResultFilter] = useState<'all' | 'correct' | 'incorrect'>('all');
+  const [resultFilter, setResultFilter] = useState<'all' | 'correct' | 'incorrect' | 'marked' | 'skipped'>('all');
+  const [copiedExplanationId, setCopiedExplanationId] = useState<string | null>(null);
   // Whether "Practice with flashcards" has been launched from the results
   // screen. Reuses the same shared FlashcardRunner as the standalone
   // Flashcard feature  -  this just feeds it the quiz's own questions
@@ -173,15 +183,29 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   );
   // Questions explicitly skipped without answering, so they can be
   // revisited or filtered separately from "answered".
-  const [skipped, setSkipped] = useState<Set<string>>(new Set(initialDraft?.skipped ?? []));
+  const [skipped, setSkipped] = useState<Set<string>>(new Set(initialDraft?.skipped ?? initialResultMeta?.skipped ?? []));
   const [flaggedQuestionIds, setFlaggedQuestionIds] = useState<Set<string>>(new Set());
   const [flaggingQuestionId, setFlaggingQuestionId] = useState<string | null>(null);
   const [flagError, setFlagError] = useState<string | null>(null);
   // "Mark for review" during the attempt (CBT-style), distinct from the
   // post-result "report this question" flag above.
   const [markedForReview, setMarkedForReview] = useState<Set<string>>(
-    new Set(initialDraft?.markedForReview ?? [])
+    new Set(initialDraft?.markedForReview ?? initialResultMeta?.markedForReview ?? [])
   );
+
+  // Single source of truth for the results-screen review filters.
+  function matchesReviewFilter(
+    pq: { questionId: string; isCorrect: boolean },
+    filter: 'all' | 'correct' | 'incorrect' | 'marked' | 'skipped'
+  ): boolean {
+    switch (filter) {
+      case 'all': return true;
+      case 'correct': return pq.isCorrect;
+      case 'incorrect': return !pq.isCorrect;
+      case 'marked': return markedForReview.has(pq.questionId);
+      case 'skipped': return skipped.has(pq.questionId);
+    }
+  }
 
   function toggleMarkForReview(questionId: string) {    setMarkedForReview((prev) => {
       const next = new Set(prev);
@@ -415,6 +439,10 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         // restores it instead of starting a fresh attempt. Cleared only
         // once the user actually navigates away (see leaveResults below).
         saveDraft(RESULT_NAMESPACE, quiz.id, resultData);
+        saveDraft<ResultReviewMeta>(RESULT_META_NAMESPACE, quiz.id, {
+          markedForReview: Array.from(markedForReview),
+          skipped: Array.from(skipped),
+        });
       }
     } catch {
       setError('Network error while submitting. Please try again.');
@@ -451,7 +479,10 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   // "retake missed" attempt) -- NOT on a plain reload, which is exactly
   // the case this cache exists to survive.
   function leaveResults() {
-    if (draftsEnabled) clearDraft(RESULT_NAMESPACE, quiz.id);
+    if (draftsEnabled) {
+      clearDraft(RESULT_NAMESPACE, quiz.id);
+      clearDraft(RESULT_META_NAMESPACE, quiz.id);
+    }
   }
 
   if (autoSubmittingExpired && !result) {
@@ -511,6 +542,11 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           : result.perQuestion.length >= 20
             ? 'Practice completed'
             : 'Session completed';
+    const questionDensity = result.perQuestion.length >= 50
+      ? { label: 'Intensive set', detail: 'Large question volume — use focused review breaks.' }
+      : result.perQuestion.length >= 20
+        ? { label: 'Standard set', detail: 'A balanced practice session for focused review.' }
+        : { label: 'Focused set', detail: 'Short enough for targeted revision.' };
 
     return (
       <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
@@ -575,6 +611,18 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               {result.score} / {result.totalQuestions} correct
               {result.showMarks && ` · ${result.marksEarned} / ${result.totalMarks} marks`}
             </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-xl border border-ink-100 bg-white px-3 py-2 text-left shadow-sm">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">Session density</p>
+                <p className="mt-1 text-sm font-semibold text-ink-800">{questionDensity.label}</p>
+                <p className="mt-0.5 text-xs text-ink-400">{questionDensity.detail}</p>
+              </div>
+              <div className="rounded-xl border border-pulse-100 bg-pulse-50/60 px-3 py-2 text-left shadow-sm">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-pulse-600">Achievement</p>
+                <p className="mt-1 text-sm font-semibold text-ink-800">{achievement}</p>
+                <p className="mt-0.5 text-xs text-ink-500">Use the filters below to turn this result into your next study session.</p>
+              </div>
+            </div>
           </div>
 
           <div className="p-6 sm:p-8">
@@ -604,13 +652,17 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
             </p>
           )}
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            {(['all', 'correct', 'incorrect'] as const).map((f) => {
+            {(['all', 'correct', 'incorrect', 'marked', 'skipped'] as const).map((f) => {
               const count =
                 f === 'all'
                   ? result.perQuestion.length
                   : f === 'correct'
                     ? result.perQuestion.filter((pq) => pq.isCorrect).length
-                    : result.perQuestion.filter((pq) => !pq.isCorrect).length;
+                    : f === 'incorrect'
+                      ? result.perQuestion.filter((pq) => !pq.isCorrect).length
+                      : f === 'marked'
+                        ? result.perQuestion.filter((pq) => markedForReview.has(pq.questionId)).length
+                        : result.perQuestion.filter((pq) => skipped.has(pq.questionId)).length;
               return (
                 <button
                   key={f}
@@ -622,7 +674,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                       : 'border-ink-100 text-ink-500 hover:bg-ink-50'
                   }`}
                 >
-                  {f === 'all' ? 'All' : f === 'correct' ? 'Correct' : f === 'incorrect' ? 'Incorrect' : 'High-yield review'} ({count})
+                  {f === 'all' ? 'All' : f === 'correct' ? 'Correct' : f === 'incorrect' ? 'Incorrect' : f === 'marked' ? 'Marked' : 'Skipped'} ({count})
                 </button>
               );
             })}
@@ -631,13 +683,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
             {result.perQuestion
               .map((pq, i) => ({ pq, i }))
               .filter(({ pq }) =>
-                resultFilter === 'all'
-                  ? true
-                  : resultFilter === 'correct'
-                    ? pq.isCorrect
-                    : resultFilter === 'incorrect'
-                      ? !pq.isCorrect
-                      : !pq.isCorrect && !!(pq.explanation || pq.incorrectRationale)
+                matchesReviewFilter(pq, resultFilter)
               )
               .map(({ pq, i }) => {
               const resolve = (value: string | null) => {
@@ -692,9 +738,37 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                   </ul>
                 )}
                 {pq.explanation && (
-                  <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600">
-                    {pq.explanation}
-                  </p>
+                  <div className="mt-3 rounded-lg border border-ink-100 bg-ink-50/60 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">Explanation</p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(pq.explanation ?? '');
+                          } catch {
+                            const textarea = document.createElement('textarea');
+                            textarea.value = pq.explanation ?? '';
+                            textarea.style.position = 'fixed';
+                            textarea.style.opacity = '0';
+                            document.body.appendChild(textarea);
+                            textarea.focus();
+                            textarea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textarea);
+                          }
+                          setCopiedExplanationId(pq.questionId);
+                          window.setTimeout(() => setCopiedExplanationId((id) => id === pq.questionId ? null : id), 1800);
+                        }}
+                        className="rounded-md border border-ink-200 bg-white px-2 py-1 text-[11px] font-semibold text-ink-500 transition hover:border-pulse-300 hover:text-pulse-700 focus:outline-none focus:ring-2 focus:ring-pulse-300"
+                      >
+                        {copiedExplanationId === pq.questionId ? 'Copied' : 'Copy explanation'}
+                      </button>
+                    </div>
+                    <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600">
+                      {pq.explanation}
+                    </p>
+                  </div>
                 )}
                 <IncorrectRationale text={pq.incorrectRationale} />
                 {!pq.isCorrect && (
@@ -729,7 +803,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               );
             })}
             {result.perQuestion.filter((pq) =>
-              resultFilter === 'all' ? true : resultFilter === 'correct' ? pq.isCorrect : !pq.isCorrect
+              matchesReviewFilter(pq, resultFilter)
             ).length === 0 && (
               <p className="py-6 text-center text-sm text-ink-400">
                 No questions match this review filter.
@@ -918,9 +992,11 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               <button
                 key={opt.id}
                 onClick={() => setAnswerAndUnskip(question.id, opt.id)}
+                aria-label={`Answer option: ${opt.text}`}
+                aria-pressed={answers[question.id] === opt.id}
                 onCopy={isFirstAttempt ? blockCopy : undefined}
                 onContextMenu={isFirstAttempt ? blockCopy : undefined}
-                className={`flex min-h-12 w-full items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors ${
+                className={`flex min-h-12 w-full items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors focus:outline-none focus:ring-2 focus:ring-pulse-300 ${
                   answers[question.id] === opt.id
                     ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
                     : 'border-ink-100 text-ink-700 hover:bg-ink-50'
@@ -935,7 +1011,9 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               <button
                 key={label}
                 onClick={() => setAnswerAndUnskip(question.id, label)}
-                className={`flex min-h-12 w-full items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors ${
+                aria-label={`Answer ${label}`}
+                aria-pressed={answers[question.id] === label}
+                className={`flex min-h-12 w-full items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors focus:outline-none focus:ring-2 focus:ring-pulse-300 ${
                   answers[question.id] === label
                     ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
                     : 'border-ink-100 text-ink-700 hover:bg-ink-50'
