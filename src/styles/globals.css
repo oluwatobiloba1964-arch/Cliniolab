@@ -279,5 +279,5 @@ select {
   }
   .mobile-bottom-nav a:hover, .mobile-bottom-nav a:focus-visible { background: rgb(16 185 129 / .08); color: #0f766e; }
   .mobile-bottom-nav a span:first-child { font-size: 1.05rem; line-height: 1; }
-  .back-to-top { bottom: 5.5rem; }
+  .back-to-top { bottom: 5.5rem; left: 1rem; right: auto; }
 }
