@@ -1,4 +1,7 @@
+// File: src/app/api/blog-subcategories/route.ts
 import { NextResponse } from 'next/server';
+
+const CC = 'public, max-age=300, s-maxage=300, stale-while-revalidate=600';
 import { blogCategoryService } from '@/lib/db';
 
 // Public read-only endpoint. The admin blog editor's subcategory
@@ -13,5 +16,5 @@ export async function GET(request: Request) {
   }
 
   const subcategories = await blogCategoryService.listBlogSubcategories(categoryId);
-  return NextResponse.json({ subcategories });
+  return NextResponse.json({ subcategories }, { headers: { 'Cache-Control': CC } });
 }
