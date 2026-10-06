@@ -1,11 +1,14 @@
+// File: src/app/api/scholars/route.ts
 import { NextResponse } from 'next/server';
+
+const CC = 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
 import { scholarService } from '@/lib/db';
 
 export async function GET() {
   const scholars = await scholarService.listScholars();
-  return NextResponse.json({ scholars });
+  return NextResponse.json({ scholars }, { headers: { 'Cache-Control': CC } });
 }
 
 export async function POST(request: Request) {
