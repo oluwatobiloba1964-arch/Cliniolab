@@ -1,8 +1,9 @@
 'use client';
+// File: src/components/layout/HomepageVideoSection.tsx
 
 import { useEffect, useState } from 'react';
 import type { HomepageVideoSetting } from '@/types';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { getSiteWidgets } from '@/lib/client/siteWidgets';
 
 function extractYoutubeId(url: string): string | null {
   if (!url) return null;
@@ -23,10 +24,10 @@ export function HomepageVideoSection() {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    publicFetchJson<{ enabled: boolean; video: HomepageVideoSetting | null }>('/api/homepage-video', 60_000)
+    getSiteWidgets()
       .then((data) => {
-        setEnabled(data.enabled);
-        setVideo(data.video);
+        setEnabled(data.homepageVideo.enabled);
+        setVideo(data.homepageVideo.video);
       })
       .catch(() => setEnabled(false));
   }, []);
