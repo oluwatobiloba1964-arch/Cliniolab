@@ -1,9 +1,10 @@
-// File: src/components/quiz/QuizRunner.tsx
 'use client';
+// File: src/components/quiz/QuizRunner.tsx
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent, MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
@@ -166,7 +167,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   // the user can jump between unanswered/answered/skipped questions while
   // still attempting. Deliberately "answered" not "correct/incorrect" -
   // correctness isn't known (or shown) until after submit.
-  const [progressFilter, setProgressFilter] = useState<'all' | 'unanswered' | 'answered' | 'skipped'>('all');
+  const [progressFilter, setProgressFilter] = useState<'all' | 'unanswered' | 'answered' | 'skipped' | 'marked'>('all');
   const [confidence, setConfidence] = useState<Record<string, 'sure' | 'guessing'>>(
     initialDraft?.confidence ?? {}
   );
@@ -317,6 +318,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         return isAnswered(questionId);
       case 'skipped':
         return skipped.has(questionId);
+      case 'marked':
+        return markedForReview.has(questionId);
       default:
         return true;
     }
@@ -325,15 +328,16 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   // Counts per progress filter, for the filter bar badges during the
   // attempt itself (not the post-submit results screen).
   const progressFilterCounts = useMemo(() => {
-    const counts = { all: questions.length, unanswered: 0, answered: 0, skipped: 0 };
+    const counts = { all: questions.length, unanswered: 0, answered: 0, skipped: 0, marked: 0 };
     for (const q of questions) {
       if (matchesProgressFilter(q.id, 'unanswered')) counts.unanswered++;
       if (matchesProgressFilter(q.id, 'answered')) counts.answered++;
       if (matchesProgressFilter(q.id, 'skipped')) counts.skipped++;
+      if (matchesProgressFilter(q.id, 'marked')) counts.marked++;
     }
     return counts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questions, answers, skipped]);
+  }, [questions, answers, skipped, markedForReview]);
 
   // The timer's setInterval callback is created once and would otherwise
   // close over the `answers` value from that render, so an auto-submit on
@@ -491,6 +495,23 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         ? 'You are on the right track. A focused review of missed questions can move this score higher.'
         : 'Turn the missed questions into your next study session. Review, practise, then retake when ready.';
 
+    const readiness = roundedPercentage >= 85
+      ? { label: 'Exam ready', detail: 'Strong performance on this session.' }
+      : roundedPercentage >= 70
+        ? { label: 'Nearly ready', detail: 'A focused review can close the remaining gaps.' }
+        : roundedPercentage >= 50
+          ? { label: 'Developing', detail: 'Keep practising the missed concepts before your exam.' }
+          : { label: 'Build your base', detail: 'Review the explanations, then try another short session.' };
+    const achievement = roundedPercentage >= 90
+      ? 'Clinical ace'
+      : roundedPercentage >= 80
+        ? 'Strong finish'
+        : incorrectCount === 0
+          ? 'Perfect run'
+          : result.perQuestion.length >= 20
+            ? 'Practice completed'
+            : 'Session completed';
+
     return (
       <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
         <Card className="overflow-hidden p-0">
@@ -530,6 +551,26 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               </div>
             </div>
 
+            <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+              <div className="rounded-xl border border-pulse-100 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-pulse-600">Exam readiness</p>
+                    <p className="mt-1 text-base font-semibold text-ink-800">{readiness.label}</p>
+                    <p className="mt-0.5 text-xs text-ink-500">{readiness.detail}</p>
+                  </div>
+                  <span className="rounded-full bg-pulse-50 px-3 py-1 text-xs font-semibold text-pulse-700">{achievement}</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink-100">
+                  <div className="h-full rounded-full bg-pulse-500 transition-all" style={{ width: `${roundedPercentage}%` }} />
+                </div>
+              </div>
+              <div className="rounded-xl border border-ink-100 bg-white p-4 text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-ink-400">Review coverage</p>
+                <p className="mt-1 font-mono text-2xl font-semibold text-ink-800">{Math.round(((result.totalQuestions - incorrectCount) / Math.max(1, result.totalQuestions)) * 100)}%</p>
+                <p className="text-xs text-ink-400">questions correct</p>
+              </div>
+            </div>
             <p className="mt-4 text-center text-xs text-ink-500">
               {result.score} / {result.totalQuestions} correct
               {result.showMarks && ` · ${result.marksEarned} / ${result.totalMarks} marks`}
@@ -562,24 +603,26 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               dashboard and the leaderboard. This attempt&apos;s score is shown here but wasn&apos;t recorded.
             </p>
           )}
-          <div className="mt-6 flex justify-center gap-2">
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
             {(['all', 'correct', 'incorrect'] as const).map((f) => {
               const count =
                 f === 'all'
                   ? result.perQuestion.length
-                  : result.perQuestion.filter((pq) => (f === 'correct' ? pq.isCorrect : !pq.isCorrect)).length;
+                  : f === 'correct'
+                    ? result.perQuestion.filter((pq) => pq.isCorrect).length
+                    : result.perQuestion.filter((pq) => !pq.isCorrect).length;
               return (
                 <button
                   key={f}
                   type="button"
                   onClick={() => setResultFilter(f)}
-                  className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                     resultFilter === f
                       ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
                       : 'border-ink-100 text-ink-500 hover:bg-ink-50'
                   }`}
                 >
-                  {f === 'all' ? 'All' : f === 'correct' ? 'Correct' : 'Incorrect'} ({count})
+                  {f === 'all' ? 'All' : f === 'correct' ? 'Correct' : f === 'incorrect' ? 'Incorrect' : 'High-yield review'} ({count})
                 </button>
               );
             })}
@@ -588,7 +631,13 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
             {result.perQuestion
               .map((pq, i) => ({ pq, i }))
               .filter(({ pq }) =>
-                resultFilter === 'all' ? true : resultFilter === 'correct' ? pq.isCorrect : !pq.isCorrect
+                resultFilter === 'all'
+                  ? true
+                  : resultFilter === 'correct'
+                    ? pq.isCorrect
+                    : resultFilter === 'incorrect'
+                      ? !pq.isCorrect
+                      : !pq.isCorrect && !!(pq.explanation || pq.incorrectRationale)
               )
               .map(({ pq, i }) => {
               const resolve = (value: string | null) => {
@@ -648,6 +697,16 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                   </p>
                 )}
                 <IncorrectRationale text={pq.incorrectRationale} />
+                {!pq.isCorrect && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <Link
+                      href={`/search?q=${encodeURIComponent(pq.prompt.slice(0, 80))}`}
+                      className="inline-flex items-center rounded-lg border border-pulse-200 bg-pulse-50 px-3 py-1.5 text-xs font-semibold text-pulse-700 transition hover:bg-pulse-100"
+                    >
+                      Learn this topic →
+                    </Link>
+                  </div>
+                )}
                 {quiz.allowFlagging && !guest && (
                   <div className="mt-2">
                     {flaggedQuestionIds.has(pq.questionId) ? (
@@ -673,7 +732,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               resultFilter === 'all' ? true : resultFilter === 'correct' ? pq.isCorrect : !pq.isCorrect
             ).length === 0 && (
               <p className="py-6 text-center text-sm text-ink-400">
-                No {resultFilter} questions.
+                No questions match this review filter.
               </p>
             )}
           </div>
@@ -788,6 +847,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           { key: 'unanswered', label: 'Unanswered' },
           { key: 'answered', label: 'Answered' },
           { key: 'skipped', label: 'Skipped' },
+          { key: 'marked', label: 'Marked' },
         ] as const).map(({ key: k, label }) => (
           <button
             key={k}
