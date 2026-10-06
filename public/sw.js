@@ -4,16 +4,24 @@
 // connections, (2) offline fallback for page navigations, (3) push
 // notification display.
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const SHELL_CACHE = `cliniolab-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `cliniolab-static-${CACHE_VERSION}`;
 const OFFLINE_URL = '/';
+// Routes that must work with no network. /offline is where saved quizzes and
+// flashcards live, so it is precached and used as the offline fallback for
+// any navigation to that route.
+const OFFLINE_ROUTE = '/offline';
+const PRECACHE_URLS = [OFFLINE_URL, OFFLINE_ROUTE];
 
 const CURRENT_CACHES = [SHELL_CACHE, STATIC_CACHE];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll([OFFLINE_URL]))
+    caches.open(SHELL_CACHE).then((cache) =>
+      // allSettled-style: one failed precache must not block install.
+      Promise.all(PRECACHE_URLS.map((url) => cache.add(url).catch(() => {})))
+    )
   );
   self.skipWaiting();
 });
@@ -56,11 +64,26 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(SHELL_CACHE).then((cache) => cache.put(OFFLINE_URL, copy));
+          // Cache each successful navigation under its own path, so any
+          // page the user has visited is available offline. The /offline
+          // route and the homepage are also refreshed by the precache.
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
+          }
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match(OFFLINE_URL)))
+        .catch(() =>
+          caches.match(request).then(
+            (cached) =>
+              cached ||
+              // Only fall back to the offline route for the offline route itself;
+              // other unknown pages fall back to the homepage shell.
+              (url.pathname === OFFLINE_ROUTE
+                ? caches.match(OFFLINE_ROUTE)
+                : caches.match(OFFLINE_URL))
+          )
+        )
     );
     return;
   }
