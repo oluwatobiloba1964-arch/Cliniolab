@@ -1,21 +1,23 @@
 'use client';
+// File: src/components/layout/AbbreviationsTeaser.tsx
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import type { MedicalAbbreviation } from '@/types';
+import { getSiteWidgets } from '@/lib/client/siteWidgets';
 
 export function AbbreviationsTeaser() {
   const [abbreviations, setAbbreviations] = useState<MedicalAbbreviation[]>([]);
   const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
-    fetch('/api/flags/medical_abbreviations')
-      .then((res) => res.json())
-      .then((data) => setEnabled(data.enabled));
-    fetch('/api/abbreviations?random=5')
-      .then((res) => res.json())
-      .then((data) => setAbbreviations(data.abbreviations ?? []));
+    getSiteWidgets()
+      .then((data) => {
+        setEnabled(data.abbreviations.enabled);
+        setAbbreviations(data.abbreviations.items ?? []);
+      })
+      .catch(() => {});
   }, []);
 
   if (!enabled || abbreviations.length === 0) return null;
