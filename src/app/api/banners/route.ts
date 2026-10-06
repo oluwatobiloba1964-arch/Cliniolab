@@ -1,6 +1,10 @@
+// File: src/app/api/banners/route.ts
 import { NextResponse } from 'next/server';
 import { bannerService, featureFlagService } from '@/lib/db';
 import type { BannerPlacement } from '@/types';
+
+// 25 minutes: banners are promotions an admin switches on and off.
+const CC = 'public, max-age=1500, s-maxage=1500, stale-while-revalidate=3000';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -15,13 +19,13 @@ export async function GET(request: Request) {
   if (!enabled) {
     return NextResponse.json(
       { enabled: false, banners: [] },
-      { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+      { headers: { 'Cache-Control': CC } }
     );
   }
 
   const banners = await bannerService.listActiveBanners(placement as BannerPlacement);
   return NextResponse.json(
     { enabled: true, banners },
-    { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+    { headers: { 'Cache-Control': CC } }
   );
 }
