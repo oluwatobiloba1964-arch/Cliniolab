@@ -1145,7 +1145,6 @@ export async function listQuizzesByCategories(
 
   const db = getDb();
   const placeholders = categoryIds.map(() => '?').join(', ');
-  const comment_count_sql = '(SELECT COUNT(*) FROM comments WHERE comments.quiz_id = ranked.id) AS comment_count';
 
   const { results } = await db
     .prepare(
@@ -1168,22 +1167,22 @@ export async function listQuizzesByCategories(
       )
       SELECT
         top_ranked.*,
-        (SELECT COUNT(*)
-         FROM questions
-         WHERE questions.quiz_id = top_ranked.id) AS question_count,
+        COALESCE(qcs.question_count, 0) AS question_count,
         COALESCE(qas.attempt_count, 0) AS attempt_count,
         CASE
           WHEN qas.attempt_count > 0
           THEN qas.percentage_sum / qas.attempt_count
           ELSE NULL
         END AS avg_score,
-        ${includeCommentCount ? comment_count_sql.replace('ranked.id', 'top_ranked.id') : '0 AS comment_count'},
+        ${includeCommentCount ? 'COALESCE(qcs.comment_count, 0) AS comment_count' : '0 AS comment_count'},
         u.display_name AS creator_name,
         u.contact_phone AS creator_contact
       FROM top_ranked
       JOIN users u ON u.id = top_ranked.creator_id
       LEFT JOIN quiz_attempt_stats qas
         ON qas.quiz_id = top_ranked.id
+      LEFT JOIN quiz_content_stats qcs
+        ON qcs.quiz_id = top_ranked.id
       ORDER BY top_ranked.category_id, top_ranked.updated_at DESC`
     )
     .bind(...categoryIds, limit)
