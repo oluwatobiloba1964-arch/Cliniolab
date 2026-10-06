@@ -1,4 +1,5 @@
 'use client';
+// File: src/components/quiz/CategoryQuizSection.tsx
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -14,14 +15,14 @@ export function CategoryQuizSection({ category, initialQuizzes }: { category: Ca
       if (initialQuizzes !== null) setQuizzes(initialQuizzes);
       return;
     }
-    publicFetchJson<{ quizzes?: QuizWithStats[] }>(`/api/quizzes?categoryId=${category.id}&limit=7`, 30_000)
+    publicFetchJson<{ quizzes?: QuizWithStats[] }>(`/api/quizzes?categoryId=${category.id}&limit=4`, 30_000)
       .then((data) => setQuizzes(data.quizzes ?? []))
       .catch(() => setQuizzes([]));
   }, [category.id, initialQuizzes]);
 
   if (quizzes.length === 0) return null; // don't show empty category sections
 
-  const [featured, ...rest] = quizzes;
+  const [featured, ...rest] = quizzes.slice(0, 4);
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-12">
