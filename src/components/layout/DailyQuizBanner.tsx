@@ -1,11 +1,11 @@
-// File: src/components/layout/DailyQuizBanner.tsx
 'use client';
+// File: src/components/layout/DailyQuizBanner.tsx
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import type { QuizWithStats } from '@/types';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { getSiteWidgets } from '@/lib/client/siteWidgets';
 
 export function DailyQuizBanner() {
   const [quiz, setQuiz] = useState<QuizWithStats | null>(null);
@@ -14,11 +14,10 @@ export function DailyQuizBanner() {
   useEffect(() => {
     // Keep the existing single daily-quiz request. This component is purely
     // presentation: no new persistence, D1 query, or Worker invocation.
-    publicFetchJson<{ enabled: boolean; quiz: QuizWithStats | null }>('/api/daily-quiz', 60_000)
-      .then((data) => {
-        setEnabled(data.enabled);
-        setQuiz(data.quiz);
-      });
+    getSiteWidgets().then((data) => {
+      setEnabled(data.dailyQuiz.enabled);
+      setQuiz(data.dailyQuiz.quiz);
+    }).catch(() => {});
   }, []);
 
   if (!enabled || !quiz) return null;
