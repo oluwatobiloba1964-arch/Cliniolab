@@ -7,9 +7,29 @@ import { Card } from '@/components/ui/Card';
 import type { MedicalAbbreviation } from '@/types';
 import { getSiteWidgets } from '@/lib/client/siteWidgets';
 
+const ROTATION_MS = 6 * 60 * 60 * 1000;
+const VISIBLE_COUNT = 3;
+
+/**
+ * Picks which items to show for the current 6-hour window. Everyone visiting
+ * during the same window sees the same set; the set changes at the next window.
+ * Wraps around so the slice always has VISIBLE_COUNT items when enough exist.
+ */
+function pickForCurrentSlot<T>(items: T[]): T[] {
+  if (items.length <= VISIBLE_COUNT) return items;
+  const slot = Math.floor(Date.now() / ROTATION_MS);
+  const start = slot % items.length;
+  const picked: T[] = [];
+  for (let i = 0; i < VISIBLE_COUNT; i++) {
+    picked.push(items[(start + i) % items.length]);
+  }
+  return picked;
+}
+
 export function AbbreviationsTeaser() {
   const [abbreviations, setAbbreviations] = useState<MedicalAbbreviation[]>([]);
   const [enabled, setEnabled] = useState(true);
+  const [visible, setVisible] = useState<MedicalAbbreviation[]>([]);
 
   useEffect(() => {
     getSiteWidgets()
@@ -20,7 +40,28 @@ export function AbbreviationsTeaser() {
       .catch(() => {});
   }, []);
 
-  if (!enabled || abbreviations.length === 0) return null;
+  // Recompute the visible set on mount and then at each rotation boundary.
+  useEffect(() => {
+    setVisible(pickForCurrentSlot(abbreviations));
+    if (abbreviations.length <= VISIBLE_COUNT) return;
+
+    const now = Date.now();
+    const msUntilNext = ROTATION_MS - (now % ROTATION_MS);
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    const timeoutId = setTimeout(() => {
+      setVisible(pickForCurrentSlot(abbreviations));
+      intervalId = setInterval(() => {
+        setVisible(pickForCurrentSlot(abbreviations));
+      }, ROTATION_MS);
+    }, msUntilNext);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [abbreviations]);
+
+  if (!enabled || visible.length === 0) return null;
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-16">
@@ -31,7 +72,7 @@ export function AbbreviationsTeaser() {
         </Link>
       </div>
       <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {abbreviations.map((a) => (
+        {visible.map((a) => (
           <Card key={a.id} className="p-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
               <span
