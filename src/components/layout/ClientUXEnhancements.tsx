@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'Home', icon: '⌂' },
   { href: '/quizzes', label: 'Quizzes', icon: '✓' },
   { href: '/flashcards', label: 'Cards', icon: '▣' },
-  { href: '/resources', label: 'Resources', icon: '▤' },
+  { href: '/blog', label: 'Articles', icon: '✎' },
 ];
 
 export function ClientUXEnhancements() {
