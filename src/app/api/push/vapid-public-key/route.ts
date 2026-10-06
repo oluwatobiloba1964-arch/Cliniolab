@@ -1,4 +1,7 @@
+// File: src/app/api/push/vapid-public-key/route.ts
 import { NextResponse } from 'next/server';
+
+const CC = 'public, max-age=300, s-maxage=300, stale-while-revalidate=600';
 import { getVapidPublicKey } from '@/lib/push/vapidConfig';
 
 /**
@@ -8,5 +11,5 @@ import { getVapidPublicKey } from '@/lib/push/vapidConfig';
  */
 export async function GET() {
   const publicKey = await getVapidPublicKey();
-  return NextResponse.json({ publicKey });
+  return NextResponse.json({ publicKey }, { headers: { 'Cache-Control': CC } });
 }
