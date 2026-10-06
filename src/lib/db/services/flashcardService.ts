@@ -1,3 +1,4 @@
+// File: src/lib/db/services/flashcardService.ts
 import { getDb, generateId, nowIso } from '@/lib/db/client';
 import type { Flashcard, FlashcardInput, FlashcardSet, FlashcardSetWithStats } from '@/types';
 
@@ -297,19 +298,21 @@ export async function listFlashcardSetsByCategories(categoryIds: string[], limit
         JOIN categories c ON c.id = s.category_id
         WHERE c.id IN (${placeholders})
           AND fs.visibility = 'public' AND fs.status = 'published'
+      ),
+      top_ranked AS (
+        SELECT * FROM ranked WHERE category_rank <= ?
       )
-      SELECT ranked.*,
-        (SELECT COUNT(*) FROM flashcards WHERE set_id = ranked.id) as card_count,
-        (SELECT COUNT(*) FROM flashcard_attempts WHERE set_id = ranked.id) as attempt_count,
+      SELECT top_ranked.*,
+        (SELECT COUNT(*) FROM flashcards WHERE set_id = top_ranked.id) as card_count,
+        (SELECT COUNT(*) FROM flashcard_attempts WHERE set_id = top_ranked.id) as attempt_count,
         c.name as category_name,
         s.name as subcategory_name,
         u.display_name as creator_name
-      FROM ranked
-      JOIN subcategories s ON s.id = ranked.subcategory_id
-      JOIN categories c ON c.id = ranked.category_id
-      JOIN users u ON u.id = ranked.creator_id
-      WHERE ranked.category_rank <= ?
-      ORDER BY ranked.category_id, ranked.updated_at DESC`
+      FROM top_ranked
+      JOIN subcategories s ON s.id = top_ranked.subcategory_id
+      JOIN categories c ON c.id = top_ranked.category_id
+      JOIN users u ON u.id = top_ranked.creator_id
+      ORDER BY top_ranked.category_id, top_ranked.updated_at DESC`
     )
     .bind(...categoryIds, limit)
     .all<StatsRow & { category_id: string; category_rank: number }>();
