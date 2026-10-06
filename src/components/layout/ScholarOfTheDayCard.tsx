@@ -1,23 +1,20 @@
-// src/components/layout/ScholarOfTheDayCard.tsx
 'use client';
+// File: src/components/layout/ScholarOfTheDayCard.tsx
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import type { ScholarOfTheDay } from '@/types';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { getSiteWidgets } from '@/lib/client/siteWidgets';
 
 export function ScholarOfTheDayCard() {
   const [scholar, setScholar] = useState<ScholarOfTheDay | null>(null);
   const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      publicFetchJson<{ enabled?: boolean }>('/api/flags/scholar_of_the_day', 60_000),
-      publicFetchJson<{ scholar: ScholarOfTheDay | null }>('/api/scholars/active', 300_000),
-    ])
-      .then(([flag, data]) => {
-        setEnabled(flag.enabled !== false);
-        setScholar(data.scholar);
+    getSiteWidgets()
+      .then((data) => {
+        setEnabled(data.scholar.enabled);
+        setScholar(data.scholar.scholar);
       })
       .catch(() => {});
   }, []);
