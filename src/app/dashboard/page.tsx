@@ -442,6 +442,8 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => setActiveTab('quizzes')}
+          aria-selected={activeTab === 'quizzes'}
+          role="tab"
           className={`-mb-px flex-1 border-b-2 px-4 py-3 text-center font-display text-base font-semibold transition-colors sm:flex-none sm:text-lg ${
             activeTab === 'quizzes'
               ? 'border-pulse-600 text-ink-800'
@@ -453,6 +455,8 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => setActiveTab('flashcards')}
+          aria-selected={activeTab === 'flashcards'}
+          role="tab"
           className={`-mb-px flex-1 border-b-2 px-4 py-3 text-center font-display text-base font-semibold transition-colors sm:flex-none sm:text-lg ${
             activeTab === 'flashcards'
               ? 'border-pulse-600 text-ink-800'
