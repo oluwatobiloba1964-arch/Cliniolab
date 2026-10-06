@@ -1,3 +1,4 @@
+// File: src/app/api/leaderboard/general/route.ts
 import { NextResponse } from 'next/server';
 import { featureFlagService, leaderboardService, siteSettingsService } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth/currentUser';
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
   if (!hasSupabaseAuthCookie) {
     return NextResponse.json(
       { enabled: true, entries, currentUserId: null, currentUserRank: null },
-      { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
+      { headers: { 'Cache-Control': 'public, max-age=1800, s-maxage=1800, stale-while-revalidate=3600' } }
     );
   }
 
