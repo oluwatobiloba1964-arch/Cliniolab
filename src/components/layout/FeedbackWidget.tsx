@@ -1,4 +1,5 @@
 'use client';
+// File: src/components/layout/FeedbackWidget.tsx
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
@@ -47,7 +48,7 @@ export function FeedbackWidget() {
     <>
       <button
         onClick={() => { setOpen(true); setSubmitted(false); }}
-        className="fixed bottom-4 right-4 z-40 rounded-full bg-ink-800 px-4 py-3 text-xs font-medium text-white shadow-lg hover:bg-ink-700"
+        className="fixed bottom-24 right-4 z-40 md:bottom-4 rounded-full bg-ink-800 px-4 py-3 text-xs font-medium text-white shadow-lg hover:bg-ink-700"
       >
         Feedback
       </button>
