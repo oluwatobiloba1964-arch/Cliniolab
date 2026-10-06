@@ -1,5 +1,5 @@
-// File: src/app/HomeClient.tsx
 'use client';
+// File: src/app/HomeClient.tsx
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
