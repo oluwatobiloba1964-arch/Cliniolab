@@ -1,4 +1,7 @@
+// File: src/app/api/creators/[userId]/route.ts
 import { NextResponse } from 'next/server';
+
+const CC = 'public, max-age=300, s-maxage=300, stale-while-revalidate=600';
 import { flashcardService, quizService, userService } from '@/lib/db';
 
 interface RouteParams {
@@ -37,13 +40,16 @@ export async function GET(_request: Request, { params }: RouteParams) {
     .catch(() => ({ setCount: 0, totalAttempts: 0 }));
   const totalAttempts = quizAttempts + flashcardStats.totalAttempts;
 
-  return NextResponse.json({
-    profile,
-    quizzes,
-    stats: {
-      quizCount: quizzes.length,
-      flashcardSetCount: flashcardStats.setCount,
-      totalAttempts,
+  return NextResponse.json(
+    {
+      profile,
+      quizzes,
+      stats: {
+        quizCount: quizzes.length,
+        flashcardSetCount: flashcardStats.setCount,
+        totalAttempts,
+      },
     },
-  });
+    { headers: { 'Cache-Control': CC } }
+  );
 }
