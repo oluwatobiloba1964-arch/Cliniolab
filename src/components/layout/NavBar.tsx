@@ -1,5 +1,5 @@
-// File: src/components/layout/NavBar.tsx
 'use client';
+// File: src/components/layout/NavBar.tsx
 
 import Link from 'next/link';
 import Image from 'next/image';
