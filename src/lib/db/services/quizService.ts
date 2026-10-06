@@ -1162,27 +1162,29 @@ export async function listQuizzesByCategories(
         WHERE s.category_id IN (${placeholders})
           AND q.visibility = 'public'
           AND q.status = 'published'
+      ),
+      top_ranked AS (
+        SELECT * FROM ranked WHERE category_rank <= ?
       )
       SELECT
-        ranked.*,
+        top_ranked.*,
         (SELECT COUNT(*)
          FROM questions
-         WHERE questions.quiz_id = ranked.id) AS question_count,
+         WHERE questions.quiz_id = top_ranked.id) AS question_count,
         COALESCE(qas.attempt_count, 0) AS attempt_count,
         CASE
           WHEN qas.attempt_count > 0
           THEN qas.percentage_sum / qas.attempt_count
           ELSE NULL
         END AS avg_score,
-        ${includeCommentCount ? comment_count_sql : '0 AS comment_count'},
+        ${includeCommentCount ? comment_count_sql.replace('ranked.id', 'top_ranked.id') : '0 AS comment_count'},
         u.display_name AS creator_name,
         u.contact_phone AS creator_contact
-      FROM ranked
-      JOIN users u ON u.id = ranked.creator_id
+      FROM top_ranked
+      JOIN users u ON u.id = top_ranked.creator_id
       LEFT JOIN quiz_attempt_stats qas
-        ON qas.quiz_id = ranked.id
-      WHERE ranked.category_rank <= ?
-      ORDER BY ranked.category_id, ranked.updated_at DESC`
+        ON qas.quiz_id = top_ranked.id
+      ORDER BY top_ranked.category_id, top_ranked.updated_at DESC`
     )
     .bind(...categoryIds, limit)
     .all<
