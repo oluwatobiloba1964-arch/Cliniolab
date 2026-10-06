@@ -1,3 +1,4 @@
+// File: src/lib/db/services/abbreviationService.ts
 import { getDb, generateId, nowIso } from '@/lib/db/client';
 import { normalizeForDedup } from '@/lib/utils/normalizeText';
 import type { MedicalAbbreviation } from '@/types';
@@ -109,13 +110,36 @@ export async function listAbbreviationsPage(
 
 /** A handful of random entries for the homepage teaser widget. Mixes abbreviations and glossary terms unless narrowed. */
 export async function listRandomAbbreviations(limit = 5, kind: Kind = 'all'): Promise<MedicalAbbreviation[]> {
+  // Avoids ORDER BY RANDOM(), which reads the whole table on every call (costly on D1).
+  // Instead we pick a random starting rowid and read forward from it, wrapping around
+  // to the start if needed. Reads only about `limit` rows per call.
   const db = getDb();
   const where = kindWhere(kind);
-  const { results } = await db
-    .prepare(`SELECT * FROM medical_abbreviations${where ? ` WHERE ${where}` : ''} ORDER BY RANDOM() LIMIT ?`)
-    .bind(limit)
+  const andWhere = where ? ` AND ${where}` : '';
+
+  const maxRow = await db
+    .prepare('SELECT MAX(rowid) AS max_rowid FROM medical_abbreviations')
+    .first<{ max_rowid: number | null }>();
+  const maxRowid = maxRow?.max_rowid ?? 0;
+  if (maxRowid <= 0) return [];
+
+  const start = Math.floor(Math.random() * maxRowid) + 1;
+
+  const { results: tail } = await db
+    .prepare(`SELECT * FROM medical_abbreviations WHERE rowid >= ?${andWhere} ORDER BY rowid LIMIT ?`)
+    .bind(start, limit)
     .all<AbbreviationRow>();
-  return results.map(mapAbbreviation);
+
+  let rows = tail;
+  if (rows.length < limit) {
+    const { results: head } = await db
+      .prepare(`SELECT * FROM medical_abbreviations WHERE rowid < ?${andWhere} ORDER BY rowid LIMIT ?`)
+      .bind(start, limit - rows.length)
+      .all<AbbreviationRow>();
+    rows = [...rows, ...head];
+  }
+
+  return rows.map(mapAbbreviation);
 }
 
 export async function createAbbreviation(
