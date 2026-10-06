@@ -86,6 +86,48 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
   const card = cards[current];
   const isLast = current === cards.length - 1;
 
+  // Keyboard shortcuts. Ignores typing fields and interactive controls so
+  // Space/Enter still activate focused buttons and links elsewhere on the page.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable ||
+        target instanceof HTMLButtonElement ||
+        target instanceof HTMLAnchorElement
+      ) {
+        return;
+      }
+      if (finished) return;
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        setFlipped((value) => !value);
+      } else if (event.key === 'ArrowLeft') {
+        if (current > 0) {
+          event.preventDefault();
+          setCurrent((c) => c - 1);
+          setFlipped(false);
+        }
+      } else if (event.key === 'ArrowRight') {
+        if (flipped) {
+          event.preventDefault();
+          if (current === cards.length - 1) {
+            setFinished(true);
+            if (draftId) clearDraft(DRAFT_NAMESPACE, draftId);
+          } else {
+            setCurrent((c) => c + 1);
+            setFlipped(false);
+          }
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [current, flipped, finished, cards.length, draftId]);
+
   // Persist progress after every change. Cleared once the session
   // finishes, same as Study Mode's draft.
   useEffect(() => {
@@ -157,6 +199,9 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
             <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Session complete</p>
             <h2 className="mt-2 font-display text-3xl font-semibold text-ink-900">Nice work.</h2>
             <p className="mt-2 text-sm text-ink-500">You finished every card in this study session.</p>
+            <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-pulse-100 bg-white px-3 py-1.5 text-xs font-semibold text-pulse-700 shadow-sm">
+              {knownPercent}% marked as known
+            </div>
             <div className="mx-auto mt-6 h-3 max-w-sm overflow-hidden rounded-full bg-ink-100">
               <div className="h-full rounded-full bg-pulse-500 transition-all duration-700" style={{ width: `${knownPercent}%` }} />
             </div>
@@ -231,6 +276,17 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
           <p className="mt-6 text-xs text-ink-400">{flipped ? 'Choose how well you knew it' : 'Tap to reveal the answer'}</p>
         </Card>
       </button>
+
+      <div className="mt-3 flex justify-center">
+        <Button
+          variant="secondary"
+          onClick={() => setFlipped((value) => !value)}
+          aria-label={flipped ? 'Show card front' : 'Reveal card answer'}
+        >
+          {flipped ? '↺ Show front' : '↻ Reveal answer'}
+        </Button>
+      </div>
+      <p className="mt-2 text-center text-[11px] text-ink-400">Space/Enter to flip · ←/→ to navigate</p>
 
       <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:justify-between">
         <Button variant="secondary" onClick={goPrevious} disabled={current === 0}>
