@@ -1,9 +1,11 @@
 'use client';
+// File: src/components/layout/BannerSlot.tsx
 
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import type { Banner, BannerPlacement } from '@/types';
+import { getSiteWidgets } from '@/lib/client/siteWidgets';
 
 interface BannerSlotProps {
   placement: BannerPlacement;
@@ -33,10 +35,10 @@ export function BannerSlot({ placement }: BannerSlotProps) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/banners?placement=${placement}`)
-      .then((res) => (res.ok ? res.json() : { enabled: false, banners: [] }))
+    getSiteWidgets()
       .then((data) => {
-        if (!cancelled) setBanners(data.enabled ? (data.banners ?? []) : []);
+        const slot = data.banners[placement];
+        if (!cancelled) setBanners(slot.enabled ? (slot.banners ?? []) : []);
       })
       .catch(() => {})
       .finally(() => {
