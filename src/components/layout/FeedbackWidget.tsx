@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { getSiteWidgets } from '@/lib/client/siteWidgets';
 import type { FeedbackCategory } from '@/types';
 
 export function FeedbackWidget() {
@@ -15,8 +15,8 @@ export function FeedbackWidget() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    publicFetchJson<{ enabled?: boolean }>('/api/flags/feedback_widget', 60_000)
-      .then((data) => setEnabled(data.enabled !== false))
+    getSiteWidgets()
+      .then((data) => setEnabled(data.flags.feedback_widget !== false))
       .catch(() => setEnabled(true));
   }, []);
 
@@ -48,7 +48,7 @@ export function FeedbackWidget() {
     <>
       <button
         onClick={() => { setOpen(true); setSubmitted(false); }}
-        className="fixed bottom-24 right-4 z-40 md:bottom-4 rounded-full bg-ink-800 px-4 py-3 text-xs font-medium text-white shadow-lg hover:bg-ink-700"
+        className="fixed bottom-4 right-4 z-40 rounded-full bg-ink-800 px-4 py-3 text-xs font-medium text-white shadow-lg hover:bg-ink-700"
       >
         Feedback
       </button>
