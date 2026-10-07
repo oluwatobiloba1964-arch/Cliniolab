@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlashcardRunner, type FlashcardRunnerCard } from './FlashcardRunner';
 import { FlashcardLearn } from './FlashcardLearn';
 import { FlashcardMatch } from './FlashcardMatch';
