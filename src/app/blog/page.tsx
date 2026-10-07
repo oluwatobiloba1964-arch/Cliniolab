@@ -1,3 +1,4 @@
+import { PageTools } from '@/components/layout/PageTools';
 // src/app/blog/page.tsx
 import Link from 'next/link';
 import { BlogPostCard } from '@/components/cms/BlogPostCard';
@@ -16,6 +17,7 @@ export default async function BlogPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-16">
+      <PageTools reading />
       <h1 className="font-display text-3xl font-semibold text-ink-800">Blog</h1>
       <p className="mt-2 text-ink-500">
         Clinical tips, exam prep guidance, and news for nursing and clinical students.

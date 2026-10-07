@@ -165,6 +165,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   const [result, setResult] = useState<AttemptResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  useEffect(() => { document.body.classList.toggle('focus-session', focusMode); return () => document.body.classList.remove('focus-session'); }, [focusMode]);
   const [resultFilter, setResultFilter] = useState<'all' | 'correct' | 'incorrect' | 'marked' | 'skipped'>('all');
   const [copiedExplanationId, setCopiedExplanationId] = useState<string | null>(null);
   // Whether "Practice with flashcards" has been launched from the results
@@ -895,7 +897,12 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className={`${focusMode ? 'quiz-focus-mode' : ''} mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12`}>
+      <div className="mb-3 flex items-center justify-end">
+        <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">
+          {focusMode ? 'Exit focus mode' : 'Focus mode'}
+        </button>
+      </div>
       <div className="sticky top-16 z-20 -mx-4 border-b border-ink-100 bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
         <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
         <span>Question {current + 1} of {questions.length}</span>

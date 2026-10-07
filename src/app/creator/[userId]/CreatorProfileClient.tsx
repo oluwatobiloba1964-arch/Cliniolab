@@ -1,5 +1,6 @@
 'use client';
 
+import { PageTools } from '@/components/layout/PageTools';
 import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -62,6 +63,7 @@ export function CreatorProfileClient({
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
+      <PageTools reading />
       <Card className="p-6 sm:p-8">
         <div className="flex flex-col items-center text-center sm:flex-row sm:items-start sm:gap-6 sm:text-left">
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-ink-100 sm:h-24 sm:w-24">

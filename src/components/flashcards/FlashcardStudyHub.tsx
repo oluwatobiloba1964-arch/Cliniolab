@@ -29,6 +29,8 @@ export function FlashcardStudyHub({ cards, title, onDone, onComplete, draftId, s
   const { flags } = usePublicConfig();
   const [mode, setMode] = useState<StudyMode>('flip');
   const [runKey, setRunKey] = useState(0);
+  const [focusMode, setFocusMode] = useState(false);
+  useEffect(() => { document.body.classList.toggle('focus-session', focusMode); return () => document.body.classList.remove('focus-session'); }, [focusMode]);
 
   const modes: { key: StudyMode; label: string }[] = [{ key: 'flip', label: 'Flip' }];
   if (!flipOnly) {
@@ -40,7 +42,12 @@ export function FlashcardStudyHub({ cards, title, onDone, onComplete, draftId, s
   const active = modes.some((m) => m.key === mode) ? mode : 'flip';
 
   return (
-    <div>
+    <div className={focusMode ? 'study-focus-mode' : ''}>
+      <div className="mx-auto flex max-w-xl justify-end px-6 pt-4">
+        <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">
+          {focusMode ? 'Exit focus mode' : 'Focus mode'}
+        </button>
+      </div>
       {modes.length > 1 && (
         <div className="mx-auto flex max-w-xl gap-1 overflow-x-auto px-6 pt-6">
           {modes.map((m) => (

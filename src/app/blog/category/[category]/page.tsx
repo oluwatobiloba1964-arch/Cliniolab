@@ -1,5 +1,6 @@
 'use client';
 
+import { PageTools } from '@/components/layout/PageTools';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { BlogPostCard } from '@/components/cms/BlogPostCard';
@@ -58,6 +59,7 @@ export default function BlogCategoryPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-16">
+      <PageTools reading />
       <h1 className="font-display text-3xl font-semibold text-ink-800">{categoryName}</h1>
 
       {/* Subcategory nav — pinned right under the heading, above the post

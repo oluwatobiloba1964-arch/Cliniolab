@@ -1,5 +1,6 @@
 'use client';
 
+import { PageTools } from '@/components/layout/PageTools';
 import { useEffect, useState } from 'react';
 import { QuizCard } from '@/components/quiz/QuizCard';
 import { LeaderboardList } from '@/components/quiz/LeaderboardList';
@@ -62,6 +63,7 @@ export function SubcategoryClient({
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-16">
+      <PageTools focus />
       {category && <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">{category.name}</p>}
       <h1 className="mt-2 font-display text-3xl font-semibold text-ink-800">
         {subcategory?.name ?? 'Category not found'}

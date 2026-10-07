@@ -1,5 +1,6 @@
 'use client';
 
+import { PageTools } from '@/components/layout/PageTools';
 import { useEffect, useState } from 'react';
 import { LeaderboardList } from '@/components/quiz/LeaderboardList';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -35,6 +36,7 @@ export default function LeaderboardPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
+      <PageTools focus />
       <h1 className="font-display text-3xl font-semibold text-ink-800">Leaderboard</h1>
 
       <div className="mt-6 flex flex-wrap gap-2">

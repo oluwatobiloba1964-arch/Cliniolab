@@ -1,5 +1,6 @@
 'use client';
 
+import { PageTools } from '@/components/layout/PageTools';
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { QuizCard } from '@/components/quiz/QuizCard';
@@ -76,6 +77,7 @@ export default function CategoryGroupPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-16">
+      <PageTools focus />
       <h1 className="font-display text-3xl font-semibold text-ink-800">
         {category?.name ?? 'Loading…'}
       </h1>

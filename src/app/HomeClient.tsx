@@ -152,6 +152,53 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
     .find(Boolean) ?? null;
   const featuredFlashcard = flashcardSets[0] ?? null;
 
+  // Frontend-only recommendation pool. It deliberately reuses the single
+  // homepage payload already loaded above, so this adds no API/database work.
+  const recommendedCategoryMatches = categories.filter((category) => {
+    const value = `${category.name} ${category.slug}`.toLowerCase();
+    return value.includes('nursing') || value.includes('clinical-practice') || value.includes('clinical practice') || value.includes('clinical-specialist') || value.includes('clinical specialist') || value.includes('clinical special');
+  });
+  const recommendedQuizPool = recommendedCategoryMatches
+    .flatMap((category) => homepageData?.quizzesByCategory?.[category.id] ?? [])
+    .filter((quiz, index, list) => list.findIndex((item) => item.id === quiz.id) === index)
+    .sort((a, b) => {
+      const aExam = a.mode === 'exam' ? 1 : 0;
+      const bExam = b.mode === 'exam' ? 1 : 0;
+      if (aExam !== bExam) return bExam - aExam;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    })
+    .slice(0, 6);
+  const recommendedBlogCategories = blogCategories.filter((category) => {
+    const value = `${category.name} ${category.slug}`.toLowerCase();
+    return value.includes('nursing') || value.includes('clinical-practice') || value.includes('clinical practice') || value.includes('clinical-specialist') || value.includes('clinical specialist') || value.includes('clinical special');
+  });
+  const recommendedBlogPool = recommendedBlogCategories
+    .flatMap((category) => homepageData?.blogsByCategory?.[category.id] ?? [])
+    .filter((post, index, list) => post.status === 'published' && list.findIndex((item) => item.id === post.id) === index)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 3);
+
+  // Recover unfinished quiz sessions from the existing browser-only draft
+  // namespace. No new persistence or network request is introduced.
+  const [resumeItems, setResumeItems] = useState<QuizWithStats[]>([]);
+  useEffect(() => {
+    try {
+      const found: QuizWithStats[] = [];
+      const prefixes = ['cliniolab:draft:attempt:', 'cliniolab:draft:study:'];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (!key) continue;
+        const prefix = prefixes.find((candidate) => key.startsWith(candidate));
+        if (!prefix) continue;
+        const id = key.slice(prefix.length);
+        if (!id || found.some((q) => q.id === id)) continue;
+        const quiz = Object.values(homepageData?.quizzesByCategory ?? {}).flat().find((q) => q.id === id);
+        if (quiz) found.push(quiz);
+      }
+      setResumeItems(found.slice(0, 3));
+    } catch {}
+  }, [homepageData]);
+
   return (
     <div className="bg-white">
       {/* Hero */}
@@ -330,6 +377,32 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
         </section>
       )}
 
+      {resumeItems.length > 0 && (
+        <section className="mx-auto max-w-7xl px-6 pb-10 sm:pb-14">
+          <div className="rounded-2xl border border-pulse-100 bg-pulse-50/40 p-5 sm:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-pulse-600">Continue studying</p>
+                <h2 className="mt-1 font-display text-2xl font-semibold text-ink-900">Pick up where you left off</h2>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold text-ink-500 shadow-sm">Saved on this device</span>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {resumeItems.map((quiz) => (
+                <Link key={quiz.id} href={`/quizzes/${quiz.id}`} className="group rounded-xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="line-clamp-2 font-display font-semibold text-ink-800 group-hover:text-pulse-700">{quiz.title}</h3>
+                    <span className="shrink-0 text-pulse-600">→</span>
+                  </div>
+                  <p className="mt-2 text-xs text-ink-400">{quiz.questionCount} questions · {quiz.mode === 'exam' ? 'Exam' : quiz.mode === 'study' ? 'Study' : 'Quiz'} mode</p>
+                  <p className="mt-3 text-xs font-semibold text-pulse-600">Continue session</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Learning path */}
       <section className="mx-auto max-w-7xl px-6 py-12 sm:py-16">
         <div className="rounded-3xl bg-ink-900 p-6 text-white sm:p-8 lg:p-10">
@@ -414,24 +487,48 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-400">Practice</p>
                 <h2 className="mt-1 font-display text-2xl font-semibold text-ink-900 sm:text-3xl">Quiz &amp; exam practice</h2>
+                <p className="mt-2 max-w-2xl text-sm text-ink-500">Recommended from Nursing, Clinical Practice and Clinical Specialist, with the newest relevant content surfaced first.</p>
               </div>
               <Link href="/quizzes" className="text-sm font-semibold text-pulse-600 hover:text-pulse-700">Browse all quizzes →</Link>
             </div>
-            {featuredQuiz && (
-              <div className="mt-6 overflow-hidden rounded-2xl border border-pulse-100 bg-white shadow-sm">
-                <div className="h-1 bg-pulse-500" />
-                <div className="p-5 sm:p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-pulse-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-pulse-700">Recommended practice</span>
-                        <span className="rounded-full bg-ink-50 px-2.5 py-1 text-[10px] font-semibold text-ink-500">{featuredQuiz.questionCount} questions</span>
-                      </div>
-                      <h3 className="mt-3 font-display text-xl font-semibold text-ink-900">{featuredQuiz.title}</h3>
-                      <p className="mt-1 text-sm text-ink-500">{featuredQuiz.difficulty ?? 'Practice'} level · A focused session to keep your recall sharp.</p>
+
+            {recommendedQuizPool.length > 0 ? (
+              <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {recommendedQuizPool.map((quiz, index) => (
+                  <Link key={quiz.id} href={`/quizzes/${quiz.id}`} className="group rounded-2xl border border-ink-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-pulse-200 hover:shadow-lg">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="rounded-full bg-pulse-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-pulse-700">{quiz.mode === 'exam' ? 'Exam / CBT' : 'Recommended'}</span>
+                      <span className="text-xs font-semibold text-ink-400">{quiz.questionCount} Qs</span>
                     </div>
-                    <Link href={`/quizzes/${featuredQuiz.id}`}><Button>Start practice →</Button></Link>
+                    <h3 className="mt-4 line-clamp-2 font-display text-lg font-semibold text-ink-900 group-hover:text-pulse-700">{quiz.title}</h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-500">{quiz.description || 'A focused practice session selected from the clinical learning categories.'}</p>
+                    <div className="mt-4 flex items-center justify-between text-xs">
+                      <span className="text-ink-400">{quiz.categoryName || 'Clinical practice'} · {quiz.difficulty}</span>
+                      <span className="font-semibold text-pulse-600">Start →</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : featuredQuiz ? (
+              <div className="mt-6 rounded-2xl border border-pulse-100 bg-white p-6 shadow-sm">
+                <span className="rounded-full bg-pulse-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-pulse-700">Recommended practice</span>
+                <h3 className="mt-3 font-display text-xl font-semibold text-ink-900">{featuredQuiz.title}</h3>
+                <p className="mt-1 text-sm text-ink-500">{featuredQuiz.questionCount} questions · {featuredQuiz.difficulty} level</p>
+                <Link className="mt-4 inline-flex" href={`/quizzes/${featuredQuiz.id}`}><Button>Start practice →</Button></Link>
+              </div>
+            ) : null}
+
+            {recommendedBlogPool.length > 0 && (
+              <div className="mt-8 border-t border-ink-100 pt-7">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-400">New clinical content</p>
+                    <h3 className="mt-1 font-display text-xl font-semibold text-ink-900">Latest from your practice categories</h3>
                   </div>
+                  <Link href="/blog" className="text-sm font-semibold text-pulse-600 hover:text-pulse-700">All articles →</Link>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  {recommendedBlogPool.map((post) => <CompactBlogPostCard key={post.id} post={post} />)}
                 </div>
               </div>
             )}
