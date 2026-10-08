@@ -31,8 +31,8 @@ export async function PUT(request: Request) {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 3650) {
       return NextResponse.json({ error: `${field} must be a number from 0 to 3650 (0 = never delete)` }, { status: 400 });
     }
-    if (v !== 0 && v < 7) {
-      return NextResponse.json({ error: `${field} must be at least 7 days (or 0 to never delete)` }, { status: 400 });
+    if (v !== 0 && v < 1) {
+      return NextResponse.json({ error: `${field} must be at least 1 day (or 0 to never delete)` }, { status: 400 });
     }
   }
 
