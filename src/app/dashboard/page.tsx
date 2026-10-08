@@ -1,3 +1,4 @@
+// src/app/dashboard/page.tsx
 // File: src/app/dashboard/page.tsx
 'use client';
 
@@ -26,6 +27,8 @@ export default function DashboardPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [copiedQuizId, setCopiedQuizId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'quizzes' | 'flashcards'>('quizzes');
+  const [quizPage, setQuizPage] = useState(1);
+  const QUIZZES_PER_PAGE = 30;
 
   // Which quiz's "go private" access-mode picker is currently open, and the
   // password field's contents while it's open (for either first-time set
@@ -237,6 +240,12 @@ export default function DashboardPage() {
   const hasStudyActivity = (stats?.totalAttempts ?? 0) > 0 || myFlashcardSets.length > 0;
   const nextStudyAction = (stats?.totalAttempts ?? 0) > 0 ? 'Continue practising' : 'Start your first quiz';
   const masteryLabel = studyProgress >= 80 ? 'Strong foundation' : studyProgress >= 60 ? 'Building confidence' : studyProgress > 0 ? 'Keep building' : 'Ready to begin';
+  const quizPageCount = Math.max(1, Math.ceil(myQuizzes.length / QUIZZES_PER_PAGE));
+  const safeQuizPage = Math.min(quizPage, quizPageCount);
+  const paginatedQuizzes = myQuizzes.slice(
+    (safeQuizPage - 1) * QUIZZES_PER_PAGE,
+    safeQuizPage * QUIZZES_PER_PAGE
+  );
 
   if (!user) {
     return (
@@ -481,7 +490,7 @@ export default function DashboardPage() {
               {deleteError}
             </p>
           )}
-          {myQuizzes.map((quiz) => (
+          {paginatedQuizzes.map((quiz) => (
             <Card key={quiz.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="font-medium text-ink-800">{quiz.title}</p>
@@ -659,6 +668,24 @@ export default function DashboardPage() {
           ))}
           {myQuizzes.length === 0 && (
             <p className="text-sm text-ink-400">You haven&apos;t created any quizzes yet.</p>
+          )}
+          {myQuizzes.length > QUIZZES_PER_PAGE && (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-100 bg-white p-3">
+              <p className="text-xs text-ink-500">
+                Showing {(safeQuizPage - 1) * QUIZZES_PER_PAGE + 1}–{Math.min(safeQuizPage * QUIZZES_PER_PAGE, myQuizzes.length)} of {myQuizzes.length} quizzes
+              </p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" disabled={safeQuizPage === 1} onClick={() => setQuizPage((page) => Math.max(1, page - 1))}>
+                  Previous
+                </Button>
+                <span className="min-w-20 text-center text-xs font-medium text-ink-600">
+                  Page {safeQuizPage} of {quizPageCount}
+                </span>
+                <Button size="sm" variant="secondary" disabled={safeQuizPage === quizPageCount} onClick={() => setQuizPage((page) => Math.min(quizPageCount, page + 1))}>
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </div>
 
