@@ -1,3 +1,4 @@
+// src/app/flashcards/bulk-upload/page.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -129,7 +130,7 @@ function validateHeaders(header: string[]): string[] {
   const unknown = header.filter((h) => h.trim() && !known.has(h.trim().toLowerCase()));
   if (unknown.length > 0) {
     warnings.push(
-      `Unrecognized column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. Check for typos — these will be ignored.`
+      `Unrecognized column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. Check for typos - these will be ignored.`
     );
   }
   return warnings;
@@ -200,16 +201,26 @@ function rowsToFlashcardInputs(
     }
 
     const pricing = (meta.pricing.trim().toLowerCase() || 'free') as 'free' | 'paid';
+    const visibility = (meta.visibility.trim().toLowerCase() || 'public') as 'public' | 'private';
     const priceNaira = meta.price_naira.trim() ? Number(meta.price_naira.trim()) : undefined;
-    if (pricing === 'paid' && (!priceNaira || priceNaira <= 0)) {
-      warnings.push(`Set "${title}": pricing is "paid" but price_naira is missing/invalid, skipped.`);
+
+    if (!['free', 'paid'].includes(pricing)) {
+      warnings.push(`Set "${title}": invalid pricing "${meta.pricing}", skipped.`);
+      continue;
+    }
+    if (!['public', 'private'].includes(visibility)) {
+      warnings.push(`Set "${title}": invalid visibility "${meta.visibility}", skipped.`);
+      continue;
+    }
+    if (pricing === 'paid' && (!priceNaira || !Number.isFinite(priceNaira ?? NaN) || priceNaira <= 0)) {
+      warnings.push(`Set "${title}": pricing is "paid" but price_naira is missing or invalid, skipped.`);
       continue;
     }
 
     sets.push({
       subcategoryId,
       title,
-      visibility: (meta.visibility.trim().toLowerCase() as 'public' | 'private') || 'public',
+      visibility,
       pricing,
       priceKobo: pricing === 'paid' && priceNaira ? Math.round(priceNaira * 100) : undefined,
       cards: cardRows.map((r) => ({
@@ -296,31 +307,67 @@ export default function FlashcardBulkUploadPage() {
     const unresolvedMap = new Map<string, { category: string; subcategory: string; setTitles: string[] }>();
 
     for (const draft of drafts) {
-      const subId = lookup.get((draft.subcategory ?? '').trim().toLowerCase());
+      const title = (draft.title ?? '').trim();
+      const subcategoryName = (draft.subcategory ?? '').trim();
+      const subId = draft.subcategoryId || lookup.get(subcategoryName.toLowerCase());
+      if (!title) {
+        warns.push('A flashcard set is missing a title and was skipped.');
+        continue;
+      }
       if (!subId) {
         const cat = (draft.category ?? '').trim();
-        if (!cat) {
-          warns.push(`Set "${draft.title}": subcategory "${draft.subcategory}" not recognized and no category given. Skipped.`);
+        if (!cat || !subcategoryName) {
+          warns.push(`Set "${title}": subcategory is missing or not recognized, and no category was given. Skipped.`);
           continue;
         }
-        const key = `${cat.toLowerCase()}\u0000${draft.subcategory.toLowerCase()}`;
+        const key = `${cat.toLowerCase()}\u0000${subcategoryName.toLowerCase()}`;
         const entry = unresolvedMap.get(key);
-        if (entry) entry.setTitles.push(draft.title);
-        else unresolvedMap.set(key, { category: cat, subcategory: draft.subcategory, setTitles: [draft.title] });
+        if (entry) entry.setTitles.push(title);
+        else unresolvedMap.set(key, { category: cat, subcategory: subcategoryName, setTitles: [title] });
         continue;
       }
-      if (!draft.cards?.length) {
-        warns.push(`Set "${draft.title}": no cards, skipped.`);
+      if (!Array.isArray(draft.cards) || draft.cards.length === 0) {
+        warns.push(`Set "${title}": no cards, skipped.`);
         continue;
       }
+
+      const visibility = (draft.visibility ?? 'public') as 'public' | 'private';
+      const pricing = (draft.pricing ?? 'free') as 'free' | 'paid';
+      if (!['public', 'private'].includes(visibility)) {
+        warns.push(`Set "${title}": invalid visibility, skipped.`);
+        continue;
+      }
+      if (!['free', 'paid'].includes(pricing)) {
+        warns.push(`Set "${title}": invalid pricing, skipped.`);
+        continue;
+      }
+      const priceNaira = draft.priceNaira;
+      if (pricing === 'paid' && (!Number.isFinite(priceNaira ?? NaN) || (priceNaira ?? 0) <= 0)) {
+        warns.push(`Set "${title}": paid sets require a positive priceNaira, skipped.`);
+        continue;
+      }
+
+      const cards = draft.cards.map((card, index) => ({
+        front: String(card?.front ?? '').trim(),
+        back: String(card?.back ?? '').trim(),
+        explanation: card?.explanation ? String(card.explanation).trim() || undefined : undefined,
+        index,
+      }));
+      const invalidCard = cards.find((card) => !card.front || !card.back);
+      if (invalidCard) {
+        warns.push(`Set "${title}": card ${invalidCard.index + 1} is missing a front or back, skipped.`);
+        continue;
+      }
+
       sets.push({
         subcategoryId: subId,
-        title: draft.title,
+        title,
         description: draft.description,
-        visibility: draft.visibility ?? 'public',
-        pricing: draft.pricing ?? 'free',
-        priceKobo: draft.pricing === 'paid' && draft.priceNaira ? Math.round(draft.priceNaira * 100) : undefined,
-        cards: draft.cards,
+        visibility,
+        pricing,
+        priceKobo: pricing === 'paid' ? Math.round((priceNaira as number) * 100) : undefined,
+        shuffleCards: draft.shuffleCards,
+        cards: cards.map(({ index: _index, ...card }) => card),
       });
     }
     return { sets, warns, unresolved: Array.from(unresolvedMap.values()) };
@@ -514,7 +561,7 @@ export default function FlashcardBulkUploadPage() {
             {unresolvedSubcategories.map((u, i) => (
               <li key={i}>
                 <span className="font-medium text-ink-800">{u.category}</span> {'>'} {u.subcategory}
-                {' — '}
+                {' - '}
                 {u.setTitles.length} set{u.setTitles.length === 1 ? '' : 's'} ({u.setTitles.join(', ')})
               </li>
             ))}
@@ -539,7 +586,7 @@ export default function FlashcardBulkUploadPage() {
       {parsedSets.length > 0 && (
         <Card className="mt-6 p-6">
           <h2 className="font-display text-lg font-semibold text-ink-800">
-            Preview — {parsedSets.length} flashcard set{parsedSets.length === 1 ? '' : 's'} ready to upload
+            Preview - {parsedSets.length} flashcard set{parsedSets.length === 1 ? '' : 's'} ready to upload
           </h2>
           <div className="mt-4 space-y-3">
             {parsedSets.map((s, i) => (
