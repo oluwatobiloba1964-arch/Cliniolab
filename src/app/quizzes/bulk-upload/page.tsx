@@ -1,3 +1,4 @@
+// src/app/quizzes/bulk-upload/page.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -12,7 +13,7 @@ import type { QuizInput, QuizMode, QuizDifficulty, QuestionType, QuestionOption 
 // ---------------------------------------------------------------------------
 // CSV shape: one row per QUESTION. Rows sharing the same quiz_title are
 // grouped into a single quiz. Quiz-level columns (mode, time limit, etc.)
-// are read from the first row seen for that title — repeat them on every
+// are read from the first row seen for that title - repeat them on every
 // row for that quiz so the sheet stays easy to skim in a spreadsheet.
 //
 // Columns:
@@ -32,7 +33,7 @@ import type { QuizInput, QuizMode, QuizDifficulty, QuestionType, QuestionOption 
 // - category: only needed if "subcategory" doesn't already exist on
 //   Cliniolab. When both are new, both get created together (see
 //   "Add new categories?" step during upload). Leave blank if
-//   "subcategory" already exists — the existing one is matched as before.
+//   "subcategory" already exists - the existing one is matched as before.
 // ---------------------------------------------------------------------------
 
 const CSV_HEADERS = [
@@ -155,7 +156,7 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
 
 /**
  * Reads any supported spreadsheet (xlsx, xls, ods, csv) with SheetJS and
- * returns the first sheet as a plain grid of strings — same shape the old
+ * returns the first sheet as a plain grid of strings - same shape the old
  * CSV-only parser produced, so the rest of the pipeline doesn't change.
  */
 async function parseSpreadsheet(file: File): Promise<string[][]> {
@@ -175,7 +176,7 @@ async function parseSpreadsheet(file: File): Promise<string[][]> {
 
 /**
  * Checks the header row against the expected columns and returns
- * human-readable warnings for anything missing, misspelled, or extra —
+ * human-readable warnings for anything missing, misspelled, or extra -
  * this is what lets a quiz maker see exactly what to fix instead of
  * silently getting empty/skipped rows.
  */
@@ -194,26 +195,39 @@ function validateHeaders(header: string[]): string[] {
   const unknown = header.filter((h) => h.trim() && !known.has(h.trim().toLowerCase()));
   if (unknown.length > 0) {
     warnings.push(
-      `Unrecognized column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. Check for typos — these will be ignored.`
+      `Unrecognized column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. Check for typos - these will be ignored.`
     );
   }
 
   return warnings;
 }
 
+function normalizeText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 function buildQuestionInput(cols: Record<string, string>): {
-  type: QuestionType;
-  prompt: string;
-  options?: QuestionOption[];
-  correctAnswer: string;
-  explanation?: string;
-  incorrectRationale?: string;
+  input: {
+    type: QuestionType;
+    prompt: string;
+    options?: QuestionOption[];
+    correctAnswer: string;
+    explanation?: string;
+    incorrectRationale?: string;
+  } | null;
+  error?: string;
 } {
-  const type = (cols.question_type || 'mcq').trim() as QuestionType;
+  const type = (cols.question_type || 'mcq').trim().toLowerCase() as QuestionType;
   const prompt = (cols.prompt || '').trim();
   const correctAnswer = (cols.correct_answer || '').trim();
   const explanation = cols.explanation?.trim() || undefined;
   const incorrectRationale = cols.incorrect_rationale?.trim() || undefined;
+
+  if (!prompt) return { input: null, error: 'missing prompt' };
+  if (!['mcq', 'true_false', 'fill_blank'].includes(type)) {
+    return { input: null, error: `invalid question_type "${type}"` };
+  }
+  if (!correctAnswer) return { input: null, error: 'missing correct_answer' };
 
   if (type === 'mcq') {
     const options: QuestionOption[] = ['option_1', 'option_2', 'option_3', 'option_4']
@@ -221,18 +235,35 @@ function buildQuestionInput(cols: Record<string, string>): {
       .filter((text): text is string => !!text)
       .map((text) => ({ id: crypto.randomUUID(), text }));
 
-    const matched = options.find((o) => o.text === correctAnswer);
+    if (options.length < 2) return { input: null, error: 'MCQ needs at least 2 options' };
+
+    const duplicateOptions = new Set(options.map((o) => normalizeText(o.text)));
+    if (duplicateOptions.size !== options.length) {
+      return { input: null, error: 'MCQ options must be unique' };
+    }
+
+    const matched = options.find((o) => normalizeText(o.text) === normalizeText(correctAnswer));
+    if (!matched) {
+      return { input: null, error: 'correct_answer must match one of the MCQ options' };
+    }
+
     return {
-      type,
-      prompt,
-      options,
-      correctAnswer: matched ? matched.id : correctAnswer,
-      explanation,
-      incorrectRationale,
+      input: {
+        type,
+        prompt,
+        options,
+        correctAnswer: matched.id,
+        explanation,
+        incorrectRationale,
+      },
     };
   }
 
-  return { type, prompt, correctAnswer, explanation, incorrectRationale };
+  if (type === 'true_false' && !['true', 'false'].includes(normalizeText(correctAnswer))) {
+    return { input: null, error: 'true_false correct_answer must be True or False' };
+  }
+
+  return { input: { type, prompt, correctAnswer, explanation, incorrectRationale } };
 }
 
 /**
@@ -303,27 +334,55 @@ function rowsToQuizInputs(
       continue;
     }
 
-    const mode = (meta.mode.trim() || 'quiz') as QuizMode;
+    const mode = (meta.mode.trim().toLowerCase() || 'quiz') as QuizMode;
+    const difficulty = (meta.difficulty.trim().toLowerCase() || 'medium') as QuizDifficulty;
     const minutesRaw = meta.time_limit_minutes.trim();
     const minutes = minutesRaw ? Number(minutesRaw) : undefined;
-    const timeLimitSeconds = minutes && minutes > 0 ? minutes * 60 : undefined;
+    const timeLimitSeconds = minutes !== undefined && Number.isFinite(minutes) && minutes > 0
+      ? Math.round(minutes * 60)
+      : undefined;
 
+    if (!['study', 'quiz', 'exam'].includes(mode)) {
+      warnings.push(`Quiz "${title}": invalid mode "${meta.mode}", skipped.`);
+      continue;
+    }
+    if (!['easy', 'medium', 'hard'].includes(difficulty)) {
+      warnings.push(`Quiz "${title}": invalid difficulty "${meta.difficulty}", skipped.`);
+      continue;
+    }
+    if (minutesRaw && timeLimitSeconds === undefined) {
+      warnings.push(`Quiz "${title}": time_limit_minutes must be a positive number, skipped.`);
+      continue;
+    }
     if (mode === 'exam' && !timeLimitSeconds) {
       warnings.push(`Quiz "${title}": exam mode requires time_limit_minutes, skipped.`);
       continue;
     }
 
+    const questions: QuizInput['questions'] = [];
+    let invalidQuestion = false;
+    qRows.forEach((row, rowIndex) => {
+      const built = buildQuestionInput(row);
+      if (!built.input) {
+        warnings.push(`Quiz "${title}", question ${rowIndex + 1}: ${built.error}; skipped.`);
+        invalidQuestion = true;
+        return;
+      }
+      questions.push(built.input);
+    });
+    if (invalidQuestion || questions.length === 0) continue;
+
     quizzes.push({
       subcategoryId,
       title,
       mode,
-      difficulty: (meta.difficulty.trim() || 'medium') as QuizDifficulty,
+      difficulty,
       visibility: 'public',
       timeLimitSeconds,
       antiCheatEnabled: false,
       retakePolicy: 'unlimited',
       pricing: 'free',
-      questions: qRows.map(buildQuestionInput),
+      questions,
     });
   }
 
@@ -423,7 +482,7 @@ export default function BulkUploadPage() {
 
   // Autosave the preview as soon as there's something worth protecting.
   // Cleared on successful publish or explicit cancel (see handleSubmit /
-  // the Cancel button below) — never on a plain reload, which is exactly
+  // the Cancel button below) - never on a plain reload, which is exactly
   // the case this exists to survive.
   useEffect(() => {
     if (parsedQuizzes.length === 0) {
@@ -456,7 +515,7 @@ export default function BulkUploadPage() {
         if (!Array.isArray(drafts)) throw new Error('JSON must be an array or { "quizzes": [...] }');
         applyJsonDrafts(drafts, lookup);
       } else {
-        // Handles .xlsx, .xls, .ods, and .csv — all read the same way via SheetJS.
+        // Handles .xlsx, .xls, .ods, and .csv - all read the same way via SheetJS.
         const rows = await parseSpreadsheet(file);
         if (rows.length < 2) {
           throw new Error(
@@ -488,25 +547,110 @@ export default function BulkUploadPage() {
   /** Same idea as applyRows, but for parsed JSON quiz drafts (category/subcategory as plain names instead of a pre-resolved subcategoryId). */
   function applyJsonDrafts(drafts: JsonQuizDraft[], lookup: Map<string, string>) {
     const quizzes: QuizInput[] = [];
+    const warnings: string[] = [];
     const unresolvedMap = new Map<string, { category: string; subcategory: string; quizTitles: string[] }>();
 
     for (const draft of drafts) {
-      const subcategoryName = (draft.subcategoryId ? '' : draft.subcategory || '').trim();
+      const title = (draft.title ?? '').trim();
+      if (!title) {
+        continue;
+      }
+
+      const subcategoryName = (draft.subcategory || '').trim();
       const subcategoryId = draft.subcategoryId || lookup.get(subcategoryName.toLowerCase());
 
       if (!subcategoryId) {
         const categoryName = (draft.category || '').trim();
-        if (!categoryName) continue; // can't auto-create or resolve; drop silently like before
+        if (!categoryName || !subcategoryName) {
+          continue;
+        }
         const key = `${categoryName.toLowerCase()}\u0000${subcategoryName.toLowerCase()}`;
         const entry = unresolvedMap.get(key);
-        if (entry) entry.quizTitles.push(draft.title);
-        else unresolvedMap.set(key, { category: categoryName, subcategory: subcategoryName, quizTitles: [draft.title] });
+        if (entry) entry.quizTitles.push(title);
+        else unresolvedMap.set(key, { category: categoryName, subcategory: subcategoryName, quizTitles: [title] });
         continue;
       }
 
+      if (!Array.isArray(draft.questions) || draft.questions.length === 0) {
+        continue;
+      }
+
+      const questions: QuizInput['questions'] = [];
+      let invalid = false;
+
+      for (const [questionIndex, rawQuestion] of draft.questions.entries()) {
+        const type = String(rawQuestion?.type ?? 'mcq').trim().toLowerCase() as QuestionType;
+        const prompt = String(rawQuestion?.prompt ?? '').trim();
+        const correctAnswer = String(rawQuestion?.correctAnswer ?? '').trim();
+
+        if (!prompt || !correctAnswer || !['mcq', 'true_false', 'fill_blank'].includes(type)) {
+          warnings.push(`Quiz "${title}", question ${questionIndex + 1}: invalid type, prompt, or correctAnswer; skipped.`);
+          invalid = true;
+          break;
+        }
+
+        if (type === 'mcq') {
+          const rawOptions: unknown[] = Array.isArray(rawQuestion.options) ? (rawQuestion.options as unknown[]) : [];
+          const options: QuestionOption[] = rawOptions
+            .map((option) => {
+              if (typeof option === 'string') {
+                const text = option.trim();
+                return text ? { id: crypto.randomUUID(), text } : null;
+              }
+              if (option && typeof option === 'object') {
+                const text = String(option.text ?? '').trim();
+                return text ? { id: String(option.id ?? crypto.randomUUID()), text } : null;
+              }
+              return null;
+            })
+            .filter((option): option is QuestionOption => option !== null);
+
+          if (options.length < 2) {
+            warnings.push(`Quiz "${title}", question ${questionIndex + 1}: MCQ needs at least 2 options.`);
+            invalid = true;
+            break;
+          }
+
+          const unique = new Set(options.map((option) => normalizeText(option.text)));
+          if (unique.size !== options.length) {
+            warnings.push(`Quiz "${title}", question ${questionIndex + 1}: MCQ options must be unique.`);
+            invalid = true;
+            break;
+          }
+
+          const matched = options.find(
+            (option) => option.id === correctAnswer || normalizeText(option.text) === normalizeText(correctAnswer)
+          );
+          if (!matched) {
+            warnings.push(`Quiz "${title}", question ${questionIndex + 1}: correctAnswer must match an option.`);
+            invalid = true;
+            break;
+          }
+
+          questions.push({
+            ...rawQuestion,
+            type,
+            prompt,
+            options,
+            correctAnswer: matched.id,
+          });
+        } else if (type === 'true_false') {
+          if (!['true', 'false'].includes(normalizeText(correctAnswer))) {
+            warnings.push(`Quiz "${title}", question ${questionIndex + 1}: true_false correctAnswer must be True or False.`);
+            invalid = true;
+            break;
+          }
+          questions.push({ ...rawQuestion, type, prompt, correctAnswer });
+        } else {
+          questions.push({ ...rawQuestion, type, prompt, correctAnswer });
+        }
+      }
+
+      if (invalid) continue;
+
       quizzes.push({
         subcategoryId,
-        title: draft.title,
+        title,
         description: draft.description,
         mode: draft.mode,
         difficulty: draft.difficulty,
@@ -524,12 +668,13 @@ export default function BulkUploadPage() {
         allowFlagging: draft.allowFlagging,
         defaultMark: draft.defaultMark,
         showMarks: draft.showMarks,
-        questions: draft.questions,
+        leaderboardEnabled: draft.leaderboardEnabled,
+        questions,
       } satisfies QuizInput);
     }
 
     setParsedQuizzes(quizzes);
-    setWarnings([]);
+    setWarnings(warnings);
     const unresolved = Array.from(unresolvedMap.values());
     if (unresolved.length > 0) {
       setPendingJsonDrafts(drafts);
@@ -542,8 +687,8 @@ export default function BulkUploadPage() {
 
   /**
    * Creates every unresolved (category, subcategory) pair via the resolve
-   * API — reusing an existing category/subcategory by name instead of
-   * duplicating it (see getOrCreateCategory/getOrCreateSubcategory) — then
+   * API - reusing an existing category/subcategory by name instead of
+   * duplicating it (see getOrCreateCategory/getOrCreateSubcategory) - then
    * re-runs grouping against the now-complete subcategory list so the
    * quizzes that were waiting on them get included without a re-upload.
    */
@@ -654,7 +799,7 @@ export default function BulkUploadPage() {
         return;
       }
       if (data.needsConfirmation) {
-        // Duplicates were found and nothing was inserted yet — show the
+        // Duplicates were found and nothing was inserted yet - show the
         // report and let the admin decide whether to proceed anyway.
         setDuplicateReport(data.duplicates);
         return;
@@ -687,7 +832,7 @@ export default function BulkUploadPage() {
       <h1 className="font-display text-3xl font-semibold text-ink-800">Upload many quizzes</h1>
       <p className="mt-2 text-ink-500">
         Create several quizzes at once from a spreadsheet, instead of building them one by
-        one. Download the template, fill it in, upload it — that's it. If you close the tab
+        one. Download the template, fill it in, upload it - that's it. If you close the tab
         before publishing, your preview is saved and picks back up when you return.
       </p>
 
@@ -697,14 +842,14 @@ export default function BulkUploadPage() {
         <ol className="ml-4 list-decimal space-y-2 text-sm text-ink-600">
           <li>
             Download the template below and open it in Excel, Google Sheets, Numbers, or any
-            spreadsheet app. Row 1 (the headers) must stay exactly as it is — don't rename,
+            spreadsheet app. Row 1 (the headers) must stay exactly as it is - don't rename,
             reorder, or delete columns.
           </li>
           <li>
             Each row is one <strong>question</strong>. Start your questions on row 2. Give every
             question for the same quiz the exact same{' '}
             <code className="rounded bg-ink-50 px-1">quiz_title</code> (spelled identically,
-            including capitalization) — that's how rows get grouped into one quiz.
+            including capitalization) - that's how rows get grouped into one quiz.
           </li>
           <li>
             <code className="rounded bg-ink-50 px-1">question_type</code> must be one of{' '}
@@ -726,20 +871,20 @@ export default function BulkUploadPage() {
           </li>
           <li>
             Set <code className="rounded bg-ink-50 px-1">time_limit_minutes</code> if you want a
-            timer — required for exam mode, optional for quiz mode, ignored for study mode.
+            timer - required for exam mode, optional for quiz mode, ignored for study mode.
           </li>
           <li>
             Fill <code className="rounded bg-ink-50 px-1">subcategory</code> with an existing
             subcategory name from Cliniolab (e.g. "Cardiology", "Exam Prep") if you know it
             already exists. If it doesn&apos;t exist yet, also fill in{' '}
             <code className="rounded bg-ink-50 px-1">category</code> (e.g. "Medicine",
-            "Nursing") — you&apos;ll be offered a one-click option to create both before your
+            "Nursing") - you&apos;ll be offered a one-click option to create both before your
             quizzes are published. A subcategory name can safely repeat under different
             categories (e.g. "Basics" under both Cardiology and Respiratory) without creating
             duplicates.
           </li>
           <li>
-            <code className="rounded bg-ink-50 px-1">difficulty</code> is optional —{' '}
+            <code className="rounded bg-ink-50 px-1">difficulty</code> is optional -{' '}
             <strong>easy</strong>, <strong>medium</strong>, or <strong>hard</strong>. Leave it
             blank and it defaults to medium.{' '}
             <code className="rounded bg-ink-50 px-1">explanation</code> is optional too, and
@@ -747,7 +892,7 @@ export default function BulkUploadPage() {
           </li>
           <li>
             Save the file and upload it below. You'll get a preview with any problem rows
-            called out before anything is published — nothing goes live until you hit Publish.
+            called out before anything is published - nothing goes live until you hit Publish.
           </li>
         </ol>
         <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -808,7 +953,7 @@ export default function BulkUploadPage() {
             {unresolvedSubcategories.map((u, i) => (
               <li key={i}>
                 <span className="font-medium text-ink-800">{u.category}</span> {'>'} {u.subcategory}
-                {' — '}
+                {' - '}
                 {u.quizTitles.length} quiz{u.quizTitles.length === 1 ? '' : 'zes'} ({u.quizTitles.join(', ')})
               </li>
             ))}
@@ -835,7 +980,7 @@ export default function BulkUploadPage() {
       {parsedQuizzes.length > 0 && (
         <Card className="mt-6 p-6">
           <h2 className="font-display text-lg font-semibold text-ink-800">
-            Preview — {parsedQuizzes.length} quiz{parsedQuizzes.length === 1 ? '' : 'zes'} ready to
+            Preview - {parsedQuizzes.length} quiz{parsedQuizzes.length === 1 ? '' : 'zes'} ready to
             upload
           </h2>
           <div className="mt-4 space-y-3">
@@ -901,10 +1046,43 @@ export default function BulkUploadPage() {
           {duplicateReport && (
             <div className="mt-4 rounded-md border border-flag-300 bg-flag-50 p-4">
               <p className="text-sm font-medium text-flag-700">
-                Some quizzes/questions above look like duplicates of content already in these
-                subcategories (or repeated within this file). Nothing has been uploaded yet.
-                Fix the file and re-upload, or publish anyway if these are intentional.
+                Duplicate content was detected. Nothing has been published. Review the exact
+                content below, then fix the file or click Publish anyway if the duplicates are intentional.
               </p>
+              {duplicateReport.duplicateTitleIndexes.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-flag-700">Duplicate quiz titles</p>
+                  <ul className="mt-1 space-y-1 text-sm text-ink-700">
+                    {duplicateReport.duplicateTitleIndexes.map((index) => (
+                      <li key={`title-${index}`} className="rounded border border-flag-200 bg-white px-3 py-2">
+                        {parsedQuizzes[index]?.title ?? `Quiz ${index + 1}`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {Object.entries(duplicateReport.duplicateQuestionsByQuizIndex).map(([quizIndex, duplicates]) => {
+                const quiz = parsedQuizzes[Number(quizIndex)];
+                return (
+                  <div key={`questions-${quizIndex}`} className="mt-3">
+                    <p className="text-xs font-semibold text-flag-700">
+                      Duplicate questions in {quiz?.title ?? `Quiz ${Number(quizIndex) + 1}`}
+                    </p>
+                    <ul className="mt-1 space-y-1">
+                      {duplicates.map((dq, index) => (
+                        <li key={`${quizIndex}-${index}`} className="rounded border border-flag-200 bg-white px-3 py-2 text-sm text-ink-700">
+                          <span className="font-medium">Question:</span> {dq.prompt}
+                          <span className="mt-1 block text-xs text-ink-400">
+                            {dq.reason === 'already_in_subcategory'
+                              ? 'This exact question already exists in this subcategory.'
+                              : 'This exact question appears more than once in this upload.'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
             </div>
           )}
 
