@@ -34,7 +34,7 @@ export const DEFAULT_RETENTION: RetentionSettings = {
 };
 
 const SETTINGS_KEY = 'data_retention';
-const MIN_DAYS = 7; // floor so a typo cannot wipe data the user is still looking at
+const MIN_DAYS = 0; // no floor; 0 already means "never delete" via the explicit check above
 const MAX_DAYS = 3650;
 
 /** Email types hasEmailBeenSent reads back; deleting these would cause duplicate sends. */
