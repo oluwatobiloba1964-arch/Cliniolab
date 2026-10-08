@@ -1,14 +1,16 @@
+// src/app/categories/group/[categorySlug]/page.tsx
 'use client';
 
 import { PageTools } from '@/components/layout/PageTools';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { QuizCard } from '@/components/quiz/QuizCard';
 import { FlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import { LeaderboardList } from '@/components/quiz/LeaderboardList';
 import { Pagination } from '@/components/ui/Pagination';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import type { Category, FlashcardSetWithStats, LeaderboardEntry, QuizWithStats } from '@/types';
+import type { Category, FlashcardSetWithStats, LeaderboardEntry, QuizWithStats, Subcategory } from '@/types';
 
 const PAGE_SIZE = 25;
 
@@ -17,6 +19,7 @@ export default function CategoryGroupPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const [category, setCategory] = useState<Category | null>(null);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [tab, setTab] = useState<'quizzes' | 'flashcards'>(
     searchParams.get('tab') === 'flashcards' ? 'flashcards' : 'quizzes'
   );
@@ -36,6 +39,9 @@ export default function CategoryGroupPage() {
       .then((data) => {
         const cat = (data.categories as Category[]).find((c) => c.slug === params.categorySlug) ?? null;
         setCategory(cat);
+        setSubcategories(
+          (data.subcategories as Subcategory[] | undefined)?.filter((sub) => sub.categoryId === cat?.id) ?? []
+        );
         if (cat) {
           fetch(`/api/leaderboard/category/${cat.id}`)
             .then((res) => res.json())
@@ -82,6 +88,20 @@ export default function CategoryGroupPage() {
         {category?.name ?? 'Loading…'}
       </h1>
       {category?.description && <p className="mt-2 text-ink-500">{category.description}</p>}
+
+      {subcategories.length > 0 && (
+        <div className="mt-5 flex flex-wrap gap-2" aria-label={`${category?.name ?? 'Category'} subcategories`}>
+          {subcategories.map((sub) => (
+            <Link
+              key={sub.id}
+              href={`/categories/${sub.slug}?category=${category?.slug ?? ''}`}
+              className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 transition-colors hover:border-pulse-200 hover:bg-pulse-50 hover:text-pulse-700"
+            >
+              {sub.name}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 flex gap-2 border-b border-ink-100">
         <button
