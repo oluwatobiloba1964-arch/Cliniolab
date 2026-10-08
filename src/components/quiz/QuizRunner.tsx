@@ -1,3 +1,4 @@
+// src/components/quiz/QuizRunner.tsx
 'use client';
 // File: src/components/quiz/QuizRunner.tsx
 
@@ -315,6 +316,49 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   }, [hasTimer, result]);
 
   const question = questions[current];
+
+  // Desktop keyboard controls. These are purely local UI shortcuts and do
+  // not create any network/database work. Ignore them while the user is
+  // typing in a form control so normal text entry is never interrupted.
+  useEffect(() => {
+    if (result || submitting || !question) return;
+
+    function handleQuizKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) return;
+
+      if (event.key >= '1' && event.key <= '4' && question.options?.length) {
+        const option = question.options[Number(event.key) - 1];
+        if (option) {
+          event.preventDefault();
+          setAnswerAndUnskip(question.id, option.id);
+        }
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        setCurrent((c) => Math.max(0, c - 1));
+        return;
+      }
+
+      if (event.key === 'ArrowRight' || event.key === 'Enter') {
+        event.preventDefault();
+        setCurrent((c) => Math.min(questions.length - 1, c + 1));
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'm') {
+        event.preventDefault();
+        toggleMarkForReview(question.id);
+      }
+    }
+
+    window.addEventListener('keydown', handleQuizKeyDown);
+    return () => window.removeEventListener('keydown', handleQuizKeyDown);
+  }, [question, questions.length, result, submitting]);
+
   const progressPercent = useMemo(
     () => Math.round(((current + 1) / questions.length) * 100),
     [current, questions.length]
