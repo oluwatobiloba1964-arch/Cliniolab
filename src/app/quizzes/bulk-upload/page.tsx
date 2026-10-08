@@ -598,8 +598,9 @@ export default function BulkUploadPage() {
                 return text ? { id: crypto.randomUUID(), text } : null;
               }
               if (option && typeof option === 'object') {
-                const text = String(option.text ?? '').trim();
-                return text ? { id: String(option.id ?? crypto.randomUUID()), text } : null;
+                const opt = option as { id?: unknown; text?: unknown };
+                const text = String(opt.text ?? '').trim();
+                return text ? { id: String(opt.id ?? crypto.randomUUID()), text } : null;
               }
               return null;
             })
