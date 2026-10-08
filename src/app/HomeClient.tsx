@@ -1,3 +1,4 @@
+// src/app/HomeClient.tsx
 'use client';
 // File: src/app/HomeClient.tsx
 
@@ -154,18 +155,33 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
 
   // Frontend-only recommendation pool. It deliberately reuses the single
   // homepage payload already loaded above, so this adds no API/database work.
+  // The homepage practice strip is intentionally limited to these three
+  // learning categories. It reuses the quizzes already loaded by
+  // /api/homepage-data, so changing the selection/order adds no request, D1
+  // read, or Worker/Vercel invocation.
   const recommendedCategoryMatches = categories.filter((category) => {
-    const value = `${category.name} ${category.slug}`.toLowerCase();
-    return value.includes('nursing') || value.includes('clinical-practice') || value.includes('clinical practice') || value.includes('clinical-specialist') || value.includes('clinical specialist') || value.includes('clinical special');
+    const value = `${category.name} ${category.slug}`.toLowerCase().replace(/_/g, '-');
+    return (
+      value.includes('nursing') ||
+      value.includes('clinical-practice') ||
+      value.includes('clinical practice') ||
+      value.includes('clinical-specialist') ||
+      value.includes('clinical specialist') ||
+      value.includes('clinical-special')
+    );
   });
+
+  // Show the newest quiz first, regardless of whether it is a Quiz, Study, or
+  // Exam mode. The three categories can each contribute their latest quizzes,
+  // while duplicates are removed if a quiz is ever associated with more than
+  // one matched category.
   const recommendedQuizPool = recommendedCategoryMatches
     .flatMap((category) => homepageData?.quizzesByCategory?.[category.id] ?? [])
     .filter((quiz, index, list) => list.findIndex((item) => item.id === quiz.id) === index)
     .sort((a, b) => {
-      const aExam = a.mode === 'exam' ? 1 : 0;
-      const bExam = b.mode === 'exam' ? 1 : 0;
-      if (aExam !== bExam) return bExam - aExam;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      const aDate = new Date(a.createdAt).getTime();
+      const bDate = new Date(b.createdAt).getTime();
+      return bDate - aDate;
     })
     .slice(0, 6);
   const recommendedBlogCategories = blogCategories.filter((category) => {
