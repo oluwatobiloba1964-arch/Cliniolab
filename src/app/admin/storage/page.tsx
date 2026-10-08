@@ -1,3 +1,4 @@
+// src/app/admin/storage/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -197,8 +198,8 @@ export default function AdminStoragePage() {
     <div>
       <h1 className="font-display text-2xl font-semibold text-ink-800">Storage &amp; Cleanup</h1>
       <p className="mt-2 text-ink-500">
-        Keeps the database and image storage from filling up. A weekly cron job applies these
-        windows automatically; the buttons below do the same thing on demand if the cron did not run.
+        Keeps the database and image storage from filling up. A scheduled cron job applies these
+        windows automatically, on whatever interval it is set to run; the buttons below do the same thing on demand if the cron did not run.
       </p>
 
       <Card className="mt-6 space-y-5 p-5">
@@ -206,17 +207,17 @@ export default function AdminStoragePage() {
         {numberField(
           'Quiz answer details',
           'attemptAnswersDays',
-          'Per-question answers of past attempts. Scores, the leaderboard, and history are never deleted. Minimum 7, or 0 to keep forever. Default 60.'
+          'Per-question answers of past attempts. Scores, the leaderboard, and history are never deleted. 0 keeps forever. Default 60.'
         )}
         {numberField(
           'Email log',
           'emailLogDays',
-          'Record of emails sent. Welcome and certificate records are always kept. Minimum 7, or 0 to keep forever. Default 365.'
+          'Record of emails sent. Welcome and certificate records are always kept. 0 keeps forever. Default 365.'
         )}
         {numberField(
           'Banner daily stats',
           'bannerStatsDays',
-          'Daily impression/click totals. These are tiny, so 0 (keep forever) is fine. Minimum 7, or 0 to keep forever.'
+          'Daily impression/click totals. These are tiny, so 0 (keep forever) is fine.'
         )}
         <div>
           <Button size="sm" onClick={save} disabled={saving}>
@@ -225,7 +226,7 @@ export default function AdminStoragePage() {
           {saved && (
             <p role="status" className="mt-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
               {'\u2713'} Saved. Quiz answers older than {settings.attemptAnswersDays === 0 ? '(never deleted)' : `${settings.attemptAnswersDays} days`} will be
-              removed by the weekly cleanup.
+              removed on the next cleanup run.
             </p>
           )}
           {error && <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-critical-500">{'\u2717'} {error}</p>}
