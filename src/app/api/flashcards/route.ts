@@ -1,3 +1,4 @@
+// src/app/api/flashcards/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
@@ -89,18 +90,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  if (!input.title || !input.subcategoryId || !input.cards?.length) {
+  if (!input.title?.trim() || !input.subcategoryId || !Array.isArray(input.cards) || input.cards.length === 0) {
     return NextResponse.json(
       { error: 'title, subcategoryId, and at least one card are required' },
       { status: 400 }
     );
+  }
+  if (!['public', 'private', 'guest'].includes(input.visibility)) {
+    return NextResponse.json({ error: 'Invalid flashcard visibility' }, { status: 400 });
+  }
+  if (input.pricing !== undefined && input.pricing !== 'free' && input.pricing !== 'paid') {
+    return NextResponse.json({ error: 'Invalid flashcard pricing' }, { status: 400 });
   }
   for (const card of input.cards) {
     if (!card.front?.trim() || !card.back?.trim()) {
       return NextResponse.json({ error: 'Each card needs a front and a back' }, { status: 400 });
     }
   }
-  if (input.pricing === 'paid' && (!input.priceKobo || input.priceKobo <= 0)) {
+  if (input.pricing === 'paid' && (!Number.isFinite(input.priceKobo ?? NaN) || (input.priceKobo ?? 0) <= 0)) {
     return NextResponse.json({ error: 'priceKobo is required for a paid flashcard set' }, { status: 400 });
   }
 
