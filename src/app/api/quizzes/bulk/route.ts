@@ -1,3 +1,4 @@
+// src/app/api/quizzes/bulk/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
@@ -39,11 +40,70 @@ export async function POST(request: Request) {
   }
 
   for (const [index, quiz] of body.quizzes.entries()) {
-    if (!quiz.title || !quiz.subcategoryId || !quiz.questions?.length) {
+    if (!quiz.title?.trim() || !quiz.subcategoryId || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
       return NextResponse.json(
         { error: `Quiz at index ${index} is missing title, subcategoryId, or questions` },
         { status: 400 }
       );
+    }
+
+    if (!['study', 'quiz', 'exam'].includes(quiz.mode) || !['easy', 'medium', 'hard'].includes(quiz.difficulty)) {
+      return NextResponse.json(
+        { error: `Quiz at index ${index} has an invalid mode or difficulty` },
+        { status: 400 }
+      );
+    }
+
+    if (quiz.mode === 'exam' && (!Number.isFinite(quiz.timeLimitSeconds ?? NaN) || (quiz.timeLimitSeconds ?? 0) <= 0)) {
+      return NextResponse.json(
+        { error: `Quiz at index ${index}: exam mode requires a positive time limit` },
+        { status: 400 }
+      );
+    }
+
+    for (const [questionIndex, question] of quiz.questions.entries()) {
+      if (!question.prompt?.trim() || !question.correctAnswer?.trim()) {
+        return NextResponse.json(
+          { error: `Quiz at index ${index}, question ${questionIndex + 1} is missing prompt or correctAnswer` },
+          { status: 400 }
+        );
+      }
+
+      if (!['mcq', 'true_false', 'fill_blank'].includes(question.type)) {
+        return NextResponse.json(
+          { error: `Quiz at index ${index}, question ${questionIndex + 1} has an invalid question type` },
+          { status: 400 }
+        );
+      }
+
+      if (question.type === 'mcq') {
+        if (!Array.isArray(question.options) || question.options.length < 2) {
+          return NextResponse.json(
+            { error: `Quiz at index ${index}, question ${questionIndex + 1}: MCQ needs at least 2 options` },
+            { status: 400 }
+          );
+        }
+        const optionIds = new Set(question.options.map((option) => option?.id));
+        if (optionIds.size !== question.options.length || question.options.some((option) => !option?.id || !option.text?.trim())) {
+          return NextResponse.json(
+            { error: `Quiz at index ${index}, question ${questionIndex + 1}: MCQ options are invalid` },
+            { status: 400 }
+          );
+        }
+        if (!optionIds.has(question.correctAnswer)) {
+          return NextResponse.json(
+            { error: `Quiz at index ${index}, question ${questionIndex + 1}: correctAnswer must reference an option` },
+            { status: 400 }
+          );
+        }
+      }
+
+      if (question.type === 'true_false' && !['true', 'false'].includes(String(question.correctAnswer).trim().toLowerCase())) {
+        return NextResponse.json(
+          { error: `Quiz at index ${index}, question ${questionIndex + 1}: true_false correctAnswer must be True or False` },
+          { status: 400 }
+        );
+      }
     }
   }
 
