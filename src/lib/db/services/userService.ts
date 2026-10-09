@@ -104,6 +104,22 @@ export async function adminListUsers(): Promise<AppUser[]> {
   return results.map(mapUser);
 }
 
+export async function adminListUsersPage(
+  page: number,
+  pageSize: number
+): Promise<{ users: AppUser[]; total: number }> {
+  const db = getDb();
+  const offset = (page - 1) * pageSize;
+  const [{ results }, countRow] = await Promise.all([
+    db
+      .prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?')
+      .bind(pageSize, offset)
+      .all<UserRow>(),
+    db.prepare('SELECT COUNT(*) as count FROM users').first<{ count: number }>(),
+  ]);
+  return { users: results.map(mapUser), total: countRow?.count ?? 0 };
+}
+
 /**
  * Saves a creator's bank details for future payouts, entered as free text
  * with no provider verification. Since there's no verified bankCode, these
