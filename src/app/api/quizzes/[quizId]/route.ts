@@ -41,8 +41,22 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
   }
 
-  let questions = await quizService.getQuizQuestions(quizId);
+  const { searchParams } = new URL(request.url);
   const isOwnerOrModerator = isOwnerOrStaff(user.role, quiz.creatorId, user.id);
+
+  // ?preview=1 is used by the quiz detail page's initial mount-time load,
+  // which only needs quiz metadata (title, owner, pricing) to render the
+  // page shell and the owner's Delete option. It skips getQuizQuestions()
+  // and hasUserAttemptedQuiz() entirely, since pulling every question row
+  // (and checking attempt history) for a page view that may never result
+  // in "Start" being clicked was reading rows on every single quiz page
+  // visit, not just actual attempts. The real "Start" flow still calls
+  // this route without ?preview to get the full question set.
+  if (searchParams.get('preview') === '1') {
+    return NextResponse.json({ quiz, questions: [], hasAttempted: false });
+  }
+
+  let questions = await quizService.getQuizQuestions(quizId);
 
   // ?missedOnly=1 narrows the question set down to whatever the user got
   // wrong on their most recent recorded attempt of this quiz, derived
@@ -50,7 +64,6 @@ export async function GET(request: Request, { params }: RouteParams) {
   // questions" storage. If they have no recorded attempt (or missed
   // nothing), this returns the full set unchanged so "Retake missed" never
   // produces a confusing empty quiz.
-  const { searchParams } = new URL(request.url);
   if (searchParams.get('missedOnly') === '1') {
     const missedIds = new Set(await attemptService.getMissedQuestionIds(quizId, user.id));
     if (missedIds.size > 0) {
