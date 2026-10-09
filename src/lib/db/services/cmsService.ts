@@ -123,33 +123,41 @@ export async function getPostsByCategoryId(blogCategoryId: string, limit?: numbe
 }
 
 
-/** Public homepage feed: fetch a small, bounded slice for every category in one D1 statement. */
+/**
+ * Public homepage feed: fetch a small, bounded slice for every category.
+ *
+ * Previously this ran a single statement using ROW_NUMBER() OVER
+ * (PARTITION BY blog_category_id ...) in a CTE. That window function has
+ * to rank every published post across every category before the outer
+ * "WHERE category_rank <= ?" can discard rows, so D1 billed a full table
+ * scan of blog_posts on every homepage load regardless of the LIMIT.
+ *
+ * Running one indexed, already-LIMITed query per category in parallel
+ * lets each query use idx_blog_posts_category directly and read at most
+ * `limit` rows per category instead of scanning the whole table.
+ */
 export async function getPostsByCategoryIds(categoryIds: string[], limit = 7): Promise<Record<string, BlogPost[]>> {
   const grouped: Record<string, BlogPost[]> = {};
   if (!categoryIds.length) return grouped;
   const db = getDb();
-  const placeholders = categoryIds.map(() => '?').join(', ');
-  const { results } = await db
-    .prepare(
-      `WITH ranked AS (
-        SELECT bp.*, ROW_NUMBER() OVER (
-          PARTITION BY bp.blog_category_id
-          ORDER BY bp.is_pinned DESC, bp.updated_at DESC
-        ) AS category_rank
-        FROM blog_posts bp
-        WHERE bp.status = 'published' AND bp.blog_category_id IN (${placeholders})
-      )
-      SELECT * FROM ranked WHERE category_rank <= ?
-      ORDER BY blog_category_id, is_pinned DESC, updated_at DESC`
-    )
-    .bind(...categoryIds, limit)
-    .all<BlogRow>();
 
-  for (const id of categoryIds) grouped[id] = [];
-  for (const row of results) {
-    if (!row.blog_category_id) continue;
-    (grouped[row.blog_category_id] ??= []).push(mapBlog(row));
-  }
+  const perCategory = await Promise.all(
+    categoryIds.map((categoryId) =>
+      db
+        .prepare(
+          `SELECT * FROM blog_posts
+           WHERE status = 'published' AND blog_category_id = ?
+           ORDER BY is_pinned DESC, updated_at DESC
+           LIMIT ?`
+        )
+        .bind(categoryId, limit)
+        .all<BlogRow>()
+    )
+  );
+
+  categoryIds.forEach((id, i) => {
+    grouped[id] = perCategory[i].results.map(mapBlog);
+  });
   return grouped;
 }
 
