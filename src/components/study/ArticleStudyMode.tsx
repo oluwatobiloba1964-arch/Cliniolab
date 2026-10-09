@@ -1,3 +1,4 @@
+// File: src/components/study/ArticleStudyMode.tsx
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -28,7 +29,7 @@ export function ArticleStudyMode({ postId, title, content, slug }: { postId: str
     return sentences.slice(0, 4).join(' ').slice(0, 900) || 'Read the article and use the recall prompts below to test your understanding.';
   }, [text]);
   const recallPrompts = useMemo(() => {
-    const htmlHeadings = Array.from(content.matchAll(/<h[23][^>]*>(.*?)<\/h[23]>/gis)).map((match) => plainText(match[1])).filter(Boolean);
+    const htmlHeadings = Array.from(content.matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi)).map((match) => plainText(match[1])).filter(Boolean);
     const markdownHeadings = Array.from(content.matchAll(/^\s{0,3}#{2,3}\s+(.+)$/gm)).map((match) => plainText(match[1])).filter(Boolean);
     const headings = htmlHeadings.length ? htmlHeadings : markdownHeadings;
     const prompts = headings.slice(0, 6).map((heading) => `What are the key points about ${heading}?`);
