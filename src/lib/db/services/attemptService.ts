@@ -1,3 +1,4 @@
+// src/lib/db/services/attemptService.ts
 import { getDb, generateId, nowIso } from '@/lib/db/client';
 import { getQuizById, getQuizQuestions } from '@/lib/db/services/quizService';
 import type { AttemptResult, AttemptSubmission, QuizAttempt } from '@/types';
@@ -320,6 +321,57 @@ export async function getAttemptsByQuiz(quizId: string): Promise<QuizAttempt[]> 
     .bind(quizId)
     .all<AttemptRow>();
   return results.map(mapAttempt);
+}
+
+export interface QuizAttemptWithTaker {
+  id: string;
+  userId: string;
+  displayName: string | null;
+  email: string;
+  score: number;
+  totalQuestions: number;
+  percentage: number;
+  timeTakenSeconds: number | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+interface AttemptWithTakerRow extends AttemptRow {
+  display_name: string | null;
+  email: string;
+}
+
+/**
+ * Attempts on a quiz, joined with the taker's name/email, for the quiz
+ * creator's "people who attempted this" view. Since unlimited-retake
+ * quizzes only ever persist the first attempt (see submitAttempt), this
+ * is already one row per person who has taken the quiz.
+ */
+export async function getAttemptsByQuizWithTakers(quizId: string): Promise<QuizAttemptWithTaker[]> {
+  const db = getDb();
+  const { results } = await db
+    .prepare(
+      `SELECT a.*, u.display_name, u.email
+       FROM quiz_attempts a
+       JOIN users u ON u.id = a.user_id
+       WHERE a.quiz_id = ?
+       ORDER BY a.started_at DESC`
+    )
+    .bind(quizId)
+    .all<AttemptWithTakerRow>();
+
+  return results.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    displayName: row.display_name,
+    email: row.email,
+    score: row.score,
+    totalQuestions: row.total_questions,
+    percentage: row.total_questions > 0 ? (row.score / row.total_questions) * 100 : 0,
+    timeTakenSeconds: row.time_taken_seconds,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+  }));
 }
 
 /**
