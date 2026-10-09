@@ -1133,6 +1133,21 @@ export async function getQuizzesWithStatsByIds(
   }));
 }
 
+/**
+ * Public homepage feed: fetch a small, bounded slice of quizzes for every
+ * category.
+ *
+ * Previously this ran a single statement using ROW_NUMBER() OVER
+ * (PARTITION BY s.category_id ...) in a CTE. That window function has to
+ * rank every public, published quiz across every category (after the
+ * join to subcategories) before the outer "WHERE category_rank <= ?" can
+ * discard rows, so D1 billed a full scan of quizzes x subcategories on
+ * every homepage load regardless of the LIMIT.
+ *
+ * Running one indexed, already-LIMITed query per category in parallel
+ * reads at most `limit` quizzes per category instead of ranking the
+ * whole table.
+ */
 export async function listQuizzesByCategories(
   categoryIds: string[],
   limit = 7,
@@ -1144,67 +1159,50 @@ export async function listQuizzesByCategories(
   if (!categoryIds.length) return grouped;
 
   const db = getDb();
-  const placeholders = categoryIds.map(() => '?').join(', ');
 
-  const { results } = await db
-    .prepare(
-      `WITH ranked AS (
-        SELECT
-          q.*,
-          s.category_id,
-          ROW_NUMBER() OVER (
-            PARTITION BY s.category_id
-            ORDER BY q.updated_at DESC
-          ) AS category_rank
-        FROM quizzes q
-        JOIN subcategories s ON s.id = q.subcategory_id
-        WHERE s.category_id IN (${placeholders})
-          AND q.visibility = 'public'
-          AND q.status = 'published'
-      ),
-      top_ranked AS (
-        SELECT * FROM ranked WHERE category_rank <= ?
-      )
-      SELECT
-        top_ranked.*,
-        COALESCE(qcs.question_count, 0) AS question_count,
-        COALESCE(qas.attempt_count, 0) AS attempt_count,
-        CASE
-          WHEN qas.attempt_count > 0
-          THEN qas.percentage_sum / qas.attempt_count
-          ELSE NULL
-        END AS avg_score,
-        ${includeCommentCount ? 'COALESCE(qcs.comment_count, 0) AS comment_count' : '0 AS comment_count'},
-        u.display_name AS creator_name,
-        u.contact_phone AS creator_contact
-      FROM top_ranked
-      JOIN users u ON u.id = top_ranked.creator_id
-      LEFT JOIN quiz_attempt_stats qas
-        ON qas.quiz_id = top_ranked.id
-      LEFT JOIN quiz_content_stats qcs
-        ON qcs.quiz_id = top_ranked.id
-      ORDER BY top_ranked.category_id, top_ranked.updated_at DESC`
+  const perCategory = await Promise.all(
+    categoryIds.map((categoryId) =>
+      db
+        .prepare(
+          `SELECT
+            q.*,
+            COALESCE(qcs.question_count, 0) AS question_count,
+            COALESCE(qas.attempt_count, 0) AS attempt_count,
+            CASE
+              WHEN qas.attempt_count > 0
+              THEN qas.percentage_sum / qas.attempt_count
+              ELSE NULL
+            END AS avg_score,
+            ${includeCommentCount ? 'COALESCE(qcs.comment_count, 0) AS comment_count' : '0 AS comment_count'},
+            u.display_name AS creator_name,
+            u.contact_phone AS creator_contact
+          FROM quizzes q
+          JOIN subcategories s ON s.id = q.subcategory_id
+          JOIN users u ON u.id = q.creator_id
+          LEFT JOIN quiz_attempt_stats qas ON qas.quiz_id = q.id
+          LEFT JOIN quiz_content_stats qcs ON qcs.quiz_id = q.id
+          WHERE s.category_id = ?
+            AND q.visibility = 'public'
+            AND q.status = 'published'
+          ORDER BY q.updated_at DESC
+          LIMIT ?`
+        )
+        .bind(categoryId, limit)
+        .all<
+          QuizRow & {
+            question_count: number;
+            attempt_count: number;
+            avg_score: number | null;
+            comment_count: number;
+            creator_name: string | null;
+            creator_contact: string | null;
+          }
+        >()
     )
-    .bind(...categoryIds, limit)
-    .all<
-      QuizRow & {
-        category_id: string;
-        category_rank: number;
-        question_count: number;
-        attempt_count: number;
-        avg_score: number | null;
-        comment_count: number;
-        creator_name: string | null;
-        creator_contact: string | null;
-      }
-    >();
+  );
 
-  for (const id of categoryIds) {
-    grouped[id] = [];
-  }
-
-  for (const row of results) {
-    (grouped[row.category_id] ??= []).push({
+  categoryIds.forEach((categoryId, i) => {
+    grouped[categoryId] = perCategory[i].results.map((row) => ({
       ...mapQuiz(row),
       questionCount: row.question_count,
       attemptCount: row.attempt_count,
@@ -1212,8 +1210,8 @@ export async function listQuizzesByCategories(
       commentCount: row.comment_count,
       creatorName: row.creator_name ?? 'Anonymous',
       creatorContact: row.creator_contact,
-    });
-  }
+    }));
+  });
 
   return grouped;
 }
