@@ -14,8 +14,20 @@ import { RelatedStudyMaterials } from '@/components/quiz/RelatedStudyMaterials';
 import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
 import { Button } from '@/components/ui/Button';
 import { Card, DifficultyBadge } from '@/components/ui/Card';
-import { clearDraft } from '@/lib/localDraft';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import type { Quiz, QuizQuestion, QuizWithStats } from '@/types';
+
+// Caches the full "Start" payload (quiz + questions) so repeat Start
+// clicks on the same quiz - same session or a later visit - can skip the
+// question-fetching server round trip entirely. Keyed by quiz.updatedAt:
+// if the quiz was edited since this was cached, the stamp won't match and
+// we fall through to a normal server fetch, so edits are never silently
+// missed.
+interface CachedQuizPayload {
+  updatedAt: string;
+  quiz: Quiz;
+  questions: Omit<QuizQuestion, 'correctAnswer'>[];
+}
 
 const MODE_LABELS: Record<Quiz['mode'], string> = {
   study: 'Study Mode',
@@ -157,6 +169,25 @@ export function QuizDetailClient({
         window.history.replaceState({}, '', newUrl);
       }
 
+      // A cache hit is only safe for the plain, unnarrowed quiz-mode
+      // fetch: "missedOnly" depends on live attempt history (inherently
+      // fresh, and cheap - it reads a question id list, not every
+      // question row) and study-mode questions are cached separately
+      // below since they carry different fields. For a cache hit,
+      // hasAttempted is correctly true (not merely assumed) - a cached
+      // payload only exists because this browser already started this
+      // quiz before.
+      if (!missedOnly) {
+        const cached = loadDraft<CachedQuizPayload>('questions-cache', quizId);
+        if (cached && quiz && cached.updatedAt === quiz.updatedAt && cached.quiz.mode !== 'study') {
+          setQuiz(cached.quiz);
+          setQuestions(cached.questions);
+          setHasAttempted(true);
+          setStarted(true);
+          return;
+        }
+      }
+
       // Peek at the quiz's mode first via the normal endpoint (which
       // never leaks correctAnswer), then only hit the study-only endpoint
       // if the quiz is actually in Study Mode.
@@ -189,6 +220,16 @@ export function QuizDetailClient({
       } else {
         setQuiz(data.quiz);
         setQuestions(data.questions);
+        // Only cache the plain, unnarrowed fetch - a "missedOnly" response
+        // is a subset of questions and would silently truncate a later
+        // full retake if cached under the same key.
+        if (!missedOnly) {
+          saveDraft<CachedQuizPayload>('questions-cache', quizId, {
+            updatedAt: data.quiz.updatedAt,
+            quiz: data.quiz,
+            questions: data.questions,
+          });
+        }
       }
       setHasAttempted(!!data.hasAttempted);
       setStarted(true);
