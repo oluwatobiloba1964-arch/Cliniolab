@@ -59,12 +59,18 @@ export default function DashboardPage() {
   const [attemptsList, setAttemptsList] = useState<QuizAttemptTaker[]>([]);
   const [loadingAttempts, setLoadingAttempts] = useState(false);
   const [attemptsError, setAttemptsError] = useState<string | null>(null);
+  const [attemptsSort, setAttemptsSort] = useState<'score' | 'date'>('score');
+
+  const sortedAttemptsList = [...attemptsList].sort((a, b) =>
+    attemptsSort === 'score' ? b.percentage - a.percentage : b.startedAt.localeCompare(a.startedAt)
+  );
 
   async function viewAttempts(quizId: string, title: string) {
     setAttemptsQuizId(quizId);
     setAttemptsQuizTitle(title);
     setAttemptsList([]);
     setAttemptsError(null);
+    setAttemptsSort('score');
     setLoadingAttempts(true);
     try {
       const res = await fetch(`/api/quizzes/${quizId}/attempts`);
@@ -837,6 +843,33 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-4">
+              {!loadingAttempts && !attemptsError && attemptsList.length > 0 && (
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="text-xs text-ink-400">Sort by:</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttemptsSort('score')}
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                      attemptsSort === 'score'
+                        ? 'bg-pulse-100 text-pulse-700'
+                        : 'text-ink-500 hover:bg-ink-50'
+                    }`}
+                  >
+                    Highest score
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAttemptsSort('date')}
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                      attemptsSort === 'date'
+                        ? 'bg-pulse-100 text-pulse-700'
+                        : 'text-ink-500 hover:bg-ink-50'
+                    }`}
+                  >
+                    Most recent
+                  </button>
+                </div>
+              )}
               {loadingAttempts && <p className="text-sm text-ink-400">Loading…</p>}
               {attemptsError && (
                 <p className="text-sm text-critical-500">{attemptsError}</p>
@@ -846,7 +879,7 @@ export default function DashboardPage() {
               )}
               {!loadingAttempts && attemptsList.length > 0 && (
                 <ul className="divide-y divide-ink-100">
-                  {attemptsList.map((a) => (
+                  {sortedAttemptsList.map((a) => (
                     <li key={a.id} className="flex items-center justify-between gap-3 py-2.5">
                       <div>
                         <p className="text-sm font-medium text-ink-800">{a.displayName ?? a.email}</p>
