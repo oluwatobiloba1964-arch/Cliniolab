@@ -1,7 +1,7 @@
 // src/lib/db/services/attemptService.ts
 import { getDb, generateId, nowIso } from '@/lib/db/client';
 import { getQuizById, getQuizQuestions } from '@/lib/db/services/quizService';
-import type { AttemptResult, AttemptSubmission, QuizAttempt } from '@/types';
+import type { AttemptResult, AttemptSubmission, Quiz, QuizAttempt } from '@/types';
 import { resolveEffectiveCorrectAnswer } from '@/lib/quizAnswers';
 
 interface AttemptRow {
@@ -40,41 +40,61 @@ export class RetakeNotAllowedError extends Error {
 /**
  * Checks whether a user is allowed to attempt a quiz right now, based on
  * the quiz's anti-cheat/retake settings. Throws RetakeNotAllowedError if not.
+ *
+ * Takes the already-fetched quiz rather than re-querying it, since the
+ * caller (submitAttempt) needs the same row immediately after - fetching
+ * it twice per submission was an avoidable duplicate read.
+ *
+ * The attempt-history query is also split by policy instead of pulling
+ * every started_at row ever recorded for this user+quiz: daily_limit only
+ * needs rows from today (and only needs to know whether it's hit the
+ * limit, not the full list), and cooldown only needs the single most
+ * recent row. For a long-lived unlimited... no, for a long-lived
+ * daily_limit/cooldown quiz with a very active user this was growing
+ * unbounded on every submission.
  */
-async function assertRetakeAllowed(quizId: string, userId: string): Promise<void> {
-  const quiz = await getQuizById(quizId);
-  if (!quiz) throw new Error('Quiz not found');
+async function assertRetakeAllowed(quiz: Quiz, userId: string): Promise<void> {
   if (!quiz.antiCheatEnabled || quiz.retakePolicy === 'unlimited') return;
 
   const db = getDb();
-  const { results } = await db
-    .prepare(
-      'SELECT started_at FROM quiz_attempts WHERE quiz_id = ? AND user_id = ? ORDER BY started_at DESC'
-    )
-    .bind(quizId, userId)
-    .all<{ started_at: string }>();
-
-  if (results.length === 0) return;
 
   switch (quiz.retakePolicy) {
-    case 'single':
-      throw new RetakeNotAllowedError('This quiz allows only one attempt.');
+    case 'single': {
+      const existing = await db
+        .prepare('SELECT id FROM quiz_attempts WHERE quiz_id = ? AND user_id = ? LIMIT 1')
+        .bind(quiz.id, userId)
+        .first<{ id: string }>();
+      if (existing) throw new RetakeNotAllowedError('This quiz allows only one attempt.');
+      return;
+    }
     case 'daily_limit': {
       const limit = quiz.retakeLimit ?? 1;
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      const attemptsToday = results.filter(
-        (r) => new Date(r.started_at).getTime() >= todayStart.getTime()
-      ).length;
-      if (attemptsToday >= limit) {
+      const { results } = await db
+        .prepare(
+          `SELECT started_at FROM quiz_attempts
+           WHERE quiz_id = ? AND user_id = ? AND started_at >= ?
+           ORDER BY started_at DESC
+           LIMIT ?`
+        )
+        .bind(quiz.id, userId, todayStart.toISOString(), limit + 1)
+        .all<{ started_at: string }>();
+      if (results.length >= limit) {
         throw new RetakeNotAllowedError(`Daily attempt limit (${limit}) reached for this quiz.`);
       }
       return;
     }
     case 'cooldown': {
       const cooldownSeconds = quiz.retakeLimit ?? 3600;
-      const lastAttempt = new Date(results[0].started_at).getTime();
-      const elapsedSeconds = (Date.now() - lastAttempt) / 1000;
+      const lastAttempt = await db
+        .prepare(
+          'SELECT started_at FROM quiz_attempts WHERE quiz_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT 1'
+        )
+        .bind(quiz.id, userId)
+        .first<{ started_at: string }>();
+      if (!lastAttempt) return;
+      const elapsedSeconds = (Date.now() - new Date(lastAttempt.started_at).getTime()) / 1000;
       if (elapsedSeconds < cooldownSeconds) {
         const waitMinutes = Math.ceil((cooldownSeconds - elapsedSeconds) / 60);
         throw new RetakeNotAllowedError(`Please wait ${waitMinutes} more minute(s) before retaking.`);
@@ -118,10 +138,10 @@ export async function submitAttempt(
   userId: string,
   submission: AttemptSubmission
 ): Promise<AttemptResult> {
-  await assertRetakeAllowed(submission.quizId, userId);
-
   const quiz = await getQuizById(submission.quizId);
   if (!quiz) throw new Error('Quiz not found');
+
+  await assertRetakeAllowed(quiz, userId);
 
   const allQuestions = await getQuizQuestions(submission.quizId);
   if (allQuestions.length === 0) throw new Error('Quiz has no questions');
