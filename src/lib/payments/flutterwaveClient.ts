@@ -15,6 +15,7 @@
  *   mode). Either way, admin always sees and acts on the request.
  */
 
+// File: src/lib/payments/flutterwaveClient.ts
 import { getDb, nowIso } from '@/lib/db/client';
 
 const FLUTTERWAVE_API_URL = 'https://api.flutterwave.com/v3';
@@ -32,7 +33,10 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 function base64ToBytes(value: string): Uint8Array {
-  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
 
 async function getCredentialEncryptionKey(): Promise<CryptoKey> {
