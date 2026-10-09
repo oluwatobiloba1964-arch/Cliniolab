@@ -7,13 +7,23 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { FLASHCARD_DRAFT_NAMESPACE } from '@/components/flashcards/FlashcardRunner';
 import { FlashcardStudyHub } from '@/components/flashcards/FlashcardStudyHub';
 import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
-import { loadDraft } from '@/lib/localDraft';
+import { loadDraft, saveDraft } from '@/lib/localDraft';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { CreatorProfileCard } from '@/components/creator/CreatorProfileCard';
 import type { Flashcard, FlashcardSet } from '@/types';
+
+// Caches the full { set, cards } payload so a later visit to the same set
+// can skip re-fetching every card from the server. Keyed by set.updatedAt:
+// a cheap ?preview=1 call (no cards) checks whether the set has changed
+// since caching before deciding whether the cache is still good.
+interface CachedFlashcardPayload {
+  updatedAt: string;
+  set: FlashcardSet;
+  cards: Flashcard[];
+}
 
 function formatNaira(kobo: number): string {
   return `₦${(kobo / 100).toLocaleString('en-NG')}`;
@@ -33,9 +43,46 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/flashcards/${setId}`)
-      .then(async (res) => {
+    let cancelled = false;
+
+    async function load() {
+      setFetching(true);
+      try {
+        // Lightweight freshness check first - no cards, just the set row
+        // (including updatedAt) and the purchase/visibility gating that
+        // has to run fresh every visit regardless of any cache.
+        const previewRes = await fetch(`/api/flashcards/${setId}?preview=1`);
+        const previewData = await previewRes.json();
+        if (cancelled) return;
+
+        if (previewRes.status === 402) {
+          setSet(previewData.set ?? null);
+          setRequiresPurchase(true);
+          return;
+        }
+        if (!previewRes.ok) {
+          setError(previewData.error ?? 'Failed to load flashcard set');
+          return;
+        }
+
+        // Cache hit: the set hasn't changed since we last fetched its
+        // cards, so reuse them instead of re-fetching. Safe on every
+        // retry/reopen of this set, including after finishing a study
+        // session, since nothing about the cards themselves changes
+        // between attempts - only quiz_attempts-style history would, and
+        // flashcards don't grade/gate on that the way quizzes do.
+        const cached = loadDraft<CachedFlashcardPayload>('cards-cache', setId);
+        if (cached && cached.updatedAt === previewData.set.updatedAt) {
+          setSet(cached.set);
+          setCards(cached.cards);
+          if (loadDraft(FLASHCARD_DRAFT_NAMESPACE, setId)) setStarted(true);
+          return;
+        }
+
+        const res = await fetch(`/api/flashcards/${setId}`);
         const data = await res.json();
+        if (cancelled) return;
+
         if (res.status === 402) {
           setSet(data.set ?? null);
           setRequiresPurchase(true);
@@ -47,13 +94,25 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
         }
         setSet(data.set);
         setCards(data.cards ?? []);
+        saveDraft<CachedFlashcardPayload>('cards-cache', setId, {
+          updatedAt: data.set.updatedAt,
+          set: data.set,
+          cards: data.cards ?? [],
+        });
         // Resume straight into the runner if a saved session exists for
         // this set (e.g. tab was closed mid-study).
         if (loadDraft(FLASHCARD_DRAFT_NAMESPACE, setId)) setStarted(true);
-      })
-      .catch(() => setError('Network error while loading flashcard set'))
-      .finally(() => setFetching(false));
-    setFetching(true);
+      } catch {
+        if (!cancelled) setError('Network error while loading flashcard set');
+      } finally {
+        if (!cancelled) setFetching(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setId, user]);
 
