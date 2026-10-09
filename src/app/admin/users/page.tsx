@@ -6,18 +6,26 @@ import type { AppUser, UserRole } from '@/types';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
-  function load() {
-    fetch('/api/admin/users')
+  function load(targetPage = page) {
+    fetch(`/api/admin/users?page=${targetPage}`)
       .then((res) => res.json())
-      .then((data) => setUsers(data.users ?? []));
+      .then((data) => {
+        setUsers(data.users ?? []);
+        setPage(data.page ?? targetPage);
+        setTotalPages(data.totalPages ?? 1);
+        setTotal(data.total ?? 0);
+      });
   }
 
-  useEffect(load, []);
+  useEffect(() => load(1), []);
 
   async function changeRole(userId: string, role: UserRole) {
     const res = await fetch(`/api/admin/users/${userId}/role`, {
@@ -25,7 +33,7 @@ export default function AdminUsersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role }),
     });
-    if (res.ok) load();
+    if (res.ok) load(page);
   }
 
   async function deleteUser(userId: string) {
@@ -41,7 +49,7 @@ export default function AdminUsersPage() {
       }
       if (data.warning) setWarning(data.warning);
       setConfirmingId(null);
-      load();
+      load(page);
     } finally {
       setDeletingId(null);
     }
@@ -116,6 +124,32 @@ export default function AdminUsersPage() {
         ))}
         {users.length === 0 && <p className="text-sm text-ink-400">No users yet.</p>}
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <p className="text-xs text-ink-400">
+            Page {page} of {totalPages} · {total} users
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => load(page - 1)}
+              disabled={page <= 1}
+              className="rounded-md border border-ink-100 px-3 py-1.5 text-xs text-ink-600 hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => load(page + 1)}
+              disabled={page >= totalPages}
+              className="rounded-md border border-ink-100 px-3 py-1.5 text-xs text-ink-600 hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
