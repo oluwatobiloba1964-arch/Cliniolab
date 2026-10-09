@@ -9,7 +9,7 @@ interface RouteParams {
   params: Promise<{ setId: string }>;
 }
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export async function GET(request: Request, { params }: RouteParams) {
   const enabled = await featureFlagService.isFeatureEnabled('flashcards');
   if (!enabled) return NextResponse.json({ error: 'Flashcards are currently disabled' }, { status: 403 });
 
@@ -40,6 +40,15 @@ export async function GET(_request: Request, { params }: RouteParams) {
         { status: 402 }
       );
     }
+  }
+
+  // ?preview=1 skips getFlashcardsBySetId entirely (the query that scales
+  // with card count). The client uses this as a cheap freshness check
+  // against its localStorage cache: if set.updatedAt still matches what
+  // was cached, it reuses the cached cards instead of re-fetching them.
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get('preview') === '1') {
+    return NextResponse.json({ set, cards: [] });
   }
 
   const cards = await flashcardService.getFlashcardsBySetId(setId);
