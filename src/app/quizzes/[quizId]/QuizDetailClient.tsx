@@ -66,10 +66,12 @@ export function QuizDetailClient({
   const [hasAttempted, setHasAttempted] = useState(false);
 
   // Lightweight preview load so the owner sees a Delete option before
-  // committing to "Start" (which pulls full question sets).
+  // committing to "Start" (which pulls full question sets). ?preview=1
+  // tells the server to skip fetching questions and attempt history for
+  // this call, since this fires on every page view, not just attempts.
   useEffect(() => {
     if (!user) return;
-    fetch(`/api/quizzes/${quizId}`)
+    fetch(`/api/quizzes/${quizId}?preview=1`)
       .then((res) => res.json())
       .then((data) => {
         if (data.quiz) setQuiz((prev) => prev ?? data.quiz);
