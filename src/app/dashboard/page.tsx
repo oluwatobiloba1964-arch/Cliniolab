@@ -13,6 +13,19 @@ import { ShareButton } from '@/components/quiz/ShareButton';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 
+interface QuizAttemptTaker {
+  id: string;
+  userId: string;
+  displayName: string | null;
+  email: string;
+  score: number;
+  totalQuestions: number;
+  percentage: number;
+  timeTakenSeconds: number | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -39,6 +52,34 @@ export default function DashboardPage() {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [savingAccess, setSavingAccess] = useState(false);
   const [passwordChangeQuizId, setPasswordChangeQuizId] = useState<string | null>(null);
+
+  // Which quiz's "people who attempted this" list is currently open.
+  const [attemptsQuizId, setAttemptsQuizId] = useState<string | null>(null);
+  const [attemptsQuizTitle, setAttemptsQuizTitle] = useState<string>('');
+  const [attemptsList, setAttemptsList] = useState<QuizAttemptTaker[]>([]);
+  const [loadingAttempts, setLoadingAttempts] = useState(false);
+  const [attemptsError, setAttemptsError] = useState<string | null>(null);
+
+  async function viewAttempts(quizId: string, title: string) {
+    setAttemptsQuizId(quizId);
+    setAttemptsQuizTitle(title);
+    setAttemptsList([]);
+    setAttemptsError(null);
+    setLoadingAttempts(true);
+    try {
+      const res = await fetch(`/api/quizzes/${quizId}/attempts`);
+      const data = await res.json();
+      if (!res.ok) {
+        setAttemptsError(data.error ?? 'Failed to load attempts');
+        return;
+      }
+      setAttemptsList(data.attempts ?? []);
+    } catch {
+      setAttemptsError('Network error while loading attempts. Please try again.');
+    } finally {
+      setLoadingAttempts(false);
+    }
+  }
 
   async function copyShareLink(quizId: string, shareSlug: string) {
     const url = `${window.location.origin}/quizzes/shared/${shareSlug}`;
@@ -595,6 +636,9 @@ export default function DashboardPage() {
                 <Link href={`/quizzes/${quiz.id}/edit`}>
                   <Button size="sm" variant="secondary">Edit</Button>
                 </Link>
+                <Button size="sm" variant="secondary" onClick={() => viewAttempts(quiz.id, quiz.title)}>
+                  View attempts
+                </Button>
                 {quiz.visibility === 'public' && (
                   <ShareButton
                     url={typeof window !== 'undefined' ? `${window.location.origin}/quizzes/${quiz.id}` : ''}
@@ -771,6 +815,53 @@ export default function DashboardPage() {
                 </Card>
               </Link>
             ))}
+          </div>
+        </div>
+      )}
+
+      {attemptsQuizId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display text-lg font-semibold text-ink-800">People who attempted</h3>
+                <p className="text-xs text-ink-400">{attemptsQuizTitle}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttemptsQuizId(null)}
+                className="rounded-md px-2 py-1 text-sm text-ink-400 hover:bg-ink-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4">
+              {loadingAttempts && <p className="text-sm text-ink-400">Loading…</p>}
+              {attemptsError && (
+                <p className="text-sm text-critical-500">{attemptsError}</p>
+              )}
+              {!loadingAttempts && !attemptsError && attemptsList.length === 0 && (
+                <p className="text-sm text-ink-400">No one has attempted this quiz yet.</p>
+              )}
+              {!loadingAttempts && attemptsList.length > 0 && (
+                <ul className="divide-y divide-ink-100">
+                  {attemptsList.map((a) => (
+                    <li key={a.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-medium text-ink-800">{a.displayName ?? a.email}</p>
+                        <p className="text-xs text-ink-400">
+                          {new Date(a.startedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-ink-700">
+                        {a.score}/{a.totalQuestions} ({Math.round(a.percentage)}%)
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}
