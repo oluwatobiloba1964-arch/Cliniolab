@@ -186,7 +186,7 @@ export function QuizDetailClient({
       if (!missedOnly) {
         const cached = loadDraft<CachedQuizPayload>('questions-cache', quizId);
         if (cached && quiz && cached.updatedAt === quiz.updatedAt && cached.quiz.mode !== 'study') {
-          const cachedQuiz = cached.quiz.timeLimitMode === 'user_choice' && cached.quiz.mode !== 'study'
+          const cachedQuiz = cached.quiz.timeLimitMode === 'user_choice'
             ? { ...cached.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
             : cached.quiz;
           setQuiz(cachedQuiz);
