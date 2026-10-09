@@ -11,6 +11,9 @@ export interface PublicConfig {
     flashcardLearn: boolean;
     flashcardMatch: boolean;
     flashcardTest: boolean;
+    smartRevisionQueue: boolean;
+    articleStudyMode: boolean;
+    topicKnowledgeMaps: boolean;
   };
   theme: ThemeSetting;
   offline: OfflineSetting;
@@ -27,6 +30,9 @@ const FALLBACK: PublicConfig = {
     flashcardLearn: true,
     flashcardMatch: true,
     flashcardTest: true,
+    smartRevisionQueue: true,
+    articleStudyMode: true,
+    topicKnowledgeMaps: true,
   },
   theme: platformSettingsService.DEFAULT_THEME,
   offline: platformSettingsService.DEFAULT_OFFLINE,
@@ -58,6 +64,9 @@ export async function GET() {
         flashcardLearn: on('flashcard_learn_mode'),
         flashcardMatch: on('flashcard_match_mode'),
         flashcardTest: on('flashcard_test_mode'),
+        smartRevisionQueue: on('smart_revision_queue'),
+        articleStudyMode: on('article_study_mode'),
+        topicKnowledgeMaps: on('topic_knowledge_maps'),
       },
       theme,
       offline,

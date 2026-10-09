@@ -15,7 +15,135 @@
  *   mode). Either way, admin always sees and acts on the request.
  */
 
+import { getDb, nowIso } from '@/lib/db/client';
+
 const FLUTTERWAVE_API_URL = 'https://api.flutterwave.com/v3';
+
+interface FlutterwaveCredentialRow {
+  value: string;
+}
+type CredentialPayload = { secretKey?: unknown; webhookHash?: unknown };
+type EncryptedCredentialPayload = { encrypted: true; iv: string; payload: string };
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
+async function getCredentialEncryptionKey(): Promise<CryptoKey> {
+  const secret = process.env.FLUTTERWAVE_CREDENTIALS_ENCRYPTION_KEY;
+  if (!secret || secret.trim().length < 32) {
+    throw new FlutterwaveError('Set FLUTTERWAVE_CREDENTIALS_ENCRYPTION_KEY to a random secret of at least 32 characters before saving Flutterwave credentials in Admin.');
+  }
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+  return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+async function encryptAdminCredentials(credentials: CredentialPayload): Promise<string> {
+  const key = await getCredentialEncryptionKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cleartext = new TextEncoder().encode(JSON.stringify(credentials));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, cleartext);
+  const payload: EncryptedCredentialPayload = {
+    encrypted: true,
+    iv: bytesToBase64(iv),
+    payload: bytesToBase64(new Uint8Array(encrypted)),
+  };
+  return JSON.stringify(payload);
+}
+
+async function decodeAdminCredentials(value: string): Promise<CredentialPayload> {
+  const parsed = JSON.parse(value) as CredentialPayload | EncryptedCredentialPayload;
+  if ('encrypted' in parsed && parsed.encrypted === true) {
+    const key = await getCredentialEncryptionKey();
+    const cleartext = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: base64ToBytes(parsed.iv) },
+      key,
+      base64ToBytes(parsed.payload),
+    );
+    return JSON.parse(new TextDecoder().decode(cleartext)) as CredentialPayload;
+  }
+  // Backward compatibility for values saved by earlier versions. New writes
+  // are encrypted, and re-saving an old value encrypts it at rest.
+  return parsed as CredentialPayload;
+}
+
+async function getAdminCredentials(): Promise<{ secretKey?: string; webhookHash?: string }> {
+  try {
+    const row = await getDb()
+      .prepare('SELECT value FROM site_settings WHERE key = ?')
+      .bind('flutterwave_credentials')
+      .first<FlutterwaveCredentialRow>();
+    if (row?.value) {
+      const parsed = await decodeAdminCredentials(row.value);
+      return {
+        secretKey: typeof parsed.secretKey === 'string' && parsed.secretKey.trim() ? parsed.secretKey.trim() : undefined,
+        webhookHash: typeof parsed.webhookHash === 'string' && parsed.webhookHash.trim() ? parsed.webhookHash.trim() : undefined,
+      };
+    }
+  } catch {
+    // Keep env-based deployment working if the settings row/table is unavailable.
+  }
+  return {};
+}
+
+/** Admin-saved credentials take precedence; environment variables are the fallback. */
+export async function getFlutterwaveWebhookHash(): Promise<string | undefined> {
+  const admin = await getAdminCredentials();
+  return admin.webhookHash || process.env.FLUTTERWAVE_WEBHOOK_HASH || undefined;
+}
+
+export async function getFlutterwaveCredentialStatus(): Promise<{
+  secretKeyConfigured: boolean;
+  secretKeySource: 'admin' | 'environment' | 'missing';
+  webhookHashConfigured: boolean;
+  webhookHashSource: 'admin' | 'environment' | 'missing';
+}> {
+  const admin = await getAdminCredentials();
+  const secretKeySource = admin.secretKey ? 'admin' : process.env.FLUTTERWAVE_SECRET_KEY ? 'environment' : 'missing';
+  const webhookHashSource = admin.webhookHash ? 'admin' : process.env.FLUTTERWAVE_WEBHOOK_HASH ? 'environment' : 'missing';
+  return {
+    secretKeyConfigured: secretKeySource !== 'missing',
+    secretKeySource,
+    webhookHashConfigured: webhookHashSource !== 'missing',
+    webhookHashSource,
+  };
+}
+
+/** Save or clear admin-managed credentials. Never return these secret values to the browser. */
+export async function saveFlutterwaveCredentials(input: {
+  secretKey?: string;
+  webhookHash?: string;
+  clearSecretKey?: boolean;
+  clearWebhookHash?: boolean;
+}): Promise<void> {
+  const db = getDb();
+  const row = await db.prepare('SELECT value FROM site_settings WHERE key = ?')
+    .bind('flutterwave_credentials').first<FlutterwaveCredentialRow>();
+  let current: { secretKey?: string; webhookHash?: string } = {};
+  try { if (row?.value) current = await decodeAdminCredentials(row.value) as typeof current; } catch { current = {}; }
+
+  const next = { ...current };
+  if (input.clearSecretKey) delete next.secretKey;
+  else if (typeof input.secretKey === 'string' && input.secretKey.trim()) next.secretKey = input.secretKey.trim();
+  if (input.clearWebhookHash) delete next.webhookHash;
+  else if (typeof input.webhookHash === 'string' && input.webhookHash.trim()) next.webhookHash = input.webhookHash.trim();
+
+  if (!next.secretKey && !next.webhookHash) {
+    await db.prepare('DELETE FROM site_settings WHERE key = ?').bind('flutterwave_credentials').run();
+    return;
+  }
+  const encryptedValue = await encryptAdminCredentials(next);
+  await db.prepare(
+    `INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).bind('flutterwave_credentials', encryptedValue, nowIso()).run();
+}
 
 // FIX (Vercel Hobby duration budget): no timeout existed on this call at
 // all — a hung Flutterwave response (e.g. during a checkout or a payout
@@ -27,9 +155,10 @@ const FLUTTERWAVE_TIMEOUT_MS = 15_000;
 
 export class FlutterwaveError extends Error {}
 
-function getSecretKey(): string {
-  const key = process.env.FLUTTERWAVE_SECRET_KEY;
-  if (!key) throw new FlutterwaveError('Missing FLUTTERWAVE_SECRET_KEY environment variable.');
+async function getSecretKey(): Promise<string> {
+  const admin = await getAdminCredentials();
+  const key = admin.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
+  if (!key) throw new FlutterwaveError('Flutterwave secret key is not configured. Add it in Admin > Payments or set FLUTTERWAVE_SECRET_KEY.');
   return key;
 }
 
@@ -46,7 +175,7 @@ async function flutterwaveRequest<T>(
     res = await fetch(`${FLUTTERWAVE_API_URL}${path}`, {
       method,
       headers: {
-        Authorization: `Bearer ${getSecretKey()}`,
+        Authorization: `Bearer ${await getSecretKey()}`,
         'Content-Type': 'application/json',
       },
       body: body ? JSON.stringify(body) : undefined,

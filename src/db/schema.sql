@@ -51,6 +51,7 @@ CREATE TABLE quizzes (
   share_slug TEXT UNIQUE,
   link_expires_at TEXT,                     -- null = no expiry (public quizzes)
   time_limit_seconds INTEGER,               -- exam mode
+  time_limit_mode TEXT NOT NULL DEFAULT 'fixed', -- fixed | user_choice
   shuffle_questions INTEGER NOT NULL DEFAULT 0,
   shuffle_options INTEGER NOT NULL DEFAULT 0,
   anti_cheat_enabled INTEGER NOT NULL DEFAULT 0,

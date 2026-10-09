@@ -26,6 +26,7 @@ interface QuizRow {
   password_hash: string | null;
   password_salt: string | null;
   time_limit_seconds: number | null;
+  time_limit_mode?: string | null;
   shuffle_questions: number;
   shuffle_options: number;
   anti_cheat_enabled: number;
@@ -71,6 +72,7 @@ function mapQuiz(row: QuizRow): Quiz {
     accessMode: (row.access_mode as QuizAccessMode) ?? 'link',
     hasPassword: !!row.password_hash,
     timeLimitSeconds: row.time_limit_seconds,
+    timeLimitMode: row.time_limit_mode === 'user_choice' ? 'user_choice' : 'fixed',
     shuffleQuestions: row.shuffle_questions === 1,
     shuffleOptions: row.shuffle_options === 1,
     antiCheatEnabled: row.anti_cheat_enabled === 1,
@@ -246,11 +248,11 @@ export async function createQuiz(
     .prepare(
       `INSERT INTO quizzes (
         id, subcategory_id, creator_id, title, description, mode, difficulty,
-        visibility, share_slug, link_expires_at, time_limit_seconds,
+        visibility, share_slug, link_expires_at, time_limit_seconds, time_limit_mode,
         shuffle_questions, shuffle_options,
         anti_cheat_enabled, retake_policy, retake_limit, status, pricing, price_kobo,
         allow_flagging, default_mark, show_marks, leaderboard_enabled, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       id,
@@ -264,6 +266,7 @@ export async function createQuiz(
       shareSlug,
       linkExpiresAt,
       input.timeLimitSeconds ?? null,
+      input.timeLimitMode === 'user_choice' ? 'user_choice' : 'fixed',
       input.shuffleQuestions ? 1 : 0,
       input.shuffleOptions ? 1 : 0,
       input.antiCheatEnabled ? 1 : 0,
@@ -319,6 +322,7 @@ export async function createQuiz(
     accessMode: 'link',
     hasPassword: false,
     timeLimitSeconds: input.timeLimitSeconds ?? null,
+    timeLimitMode: input.timeLimitMode === 'user_choice' ? 'user_choice' : 'fixed',
     shuffleQuestions: input.shuffleQuestions ?? false,
     shuffleOptions: input.shuffleOptions ?? false,
     antiCheatEnabled: input.antiCheatEnabled,
@@ -356,7 +360,7 @@ export async function updateQuiz(
     .prepare(
       `UPDATE quizzes SET
         subcategory_id = ?, title = ?, description = ?, mode = ?, difficulty = ?,
-        time_limit_seconds = ?, shuffle_questions = ?, shuffle_options = ?,
+        time_limit_seconds = ?, time_limit_mode = ?, shuffle_questions = ?, shuffle_options = ?,
         anti_cheat_enabled = ?, retake_policy = ?, retake_limit = ?,
         pricing = ?, price_kobo = ?, allow_flagging = ?, default_mark = ?,
         show_marks = ?, leaderboard_enabled = ?, updated_at = ?
@@ -369,6 +373,7 @@ export async function updateQuiz(
       input.mode,
       input.difficulty,
       input.timeLimitSeconds ?? null,
+      input.timeLimitMode === 'user_choice' ? 'user_choice' : 'fixed',
       input.shuffleQuestions ? 1 : 0,
       input.shuffleOptions ? 1 : 0,
       input.antiCheatEnabled ? 1 : 0,
@@ -499,6 +504,7 @@ export async function updateQuiz(
     shareSlug,
     linkExpiresAt,
     timeLimitSeconds: input.timeLimitSeconds ?? null,
+    timeLimitMode: input.timeLimitMode === 'user_choice' ? 'user_choice' : 'fixed',
     shuffleQuestions: input.shuffleQuestions ?? false,
     shuffleOptions: input.shuffleOptions ?? false,
     antiCheatEnabled: input.antiCheatEnabled,

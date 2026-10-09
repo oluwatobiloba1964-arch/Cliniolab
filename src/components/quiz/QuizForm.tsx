@@ -85,6 +85,7 @@ export function QuizForm({
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(
     initialQuiz?.timeLimitSeconds ? Math.round(initialQuiz.timeLimitSeconds / 60) : 20
   );
+  const [timeLimitMode, setTimeLimitMode] = useState<'fixed' | 'user_choice'>(initialQuiz?.timeLimitMode ?? 'fixed');
   const [shuffleQuestions, setShuffleQuestions] = useState(initialQuiz?.shuffleQuestions ?? false);
   const [shuffleOptions, setShuffleOptions] = useState(initialQuiz?.shuffleOptions ?? false);
   const [visibility, setVisibility] = useState<QuizVisibility>(initialQuiz?.visibility ?? 'public');
@@ -201,6 +202,7 @@ export function QuizForm({
       linkExpiry: visibility === 'private' ? linkExpiry : undefined,
       customExpiryDate: visibility === 'private' && linkExpiry === 'custom' ? customExpiryDate : undefined,
       timeLimitSeconds: timerEnabled ? timeLimitMinutes * 60 : undefined,
+      timeLimitMode: timerEnabled ? timeLimitMode : 'fixed',
       shuffleQuestions,
       shuffleOptions,
       antiCheatEnabled,
@@ -320,14 +322,36 @@ export function QuizForm({
               </p>
             )}
             {timerEnabled && (
-              <input
-                type="number"
-                min={1}
-                value={timeLimitMinutes}
-                onChange={(e) => setTimeLimitMinutes(Number(e.target.value))}
-                placeholder="Minutes"
-                className="mt-2 w-32 rounded-md border border-ink-100 px-4 py-2 text-sm focus:border-pulse-400 focus:outline-none"
-              />
+              <div className="mt-3 space-y-3 rounded-lg border border-ink-100 bg-ink-50/50 p-4">
+                <div>
+                  <label className="text-sm font-medium text-ink-700">Who sets the timer?</label>
+                  <select
+                    value={timeLimitMode}
+                    onChange={(e) => setTimeLimitMode(e.target.value as 'fixed' | 'user_choice')}
+                    className="mt-1 block w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm focus:border-pulse-400 focus:outline-none"
+                  >
+                    <option value="fixed">Use my time limit for everyone</option>
+                    <option value="user_choice">Let each user choose a custom time before starting</option>
+                  </select>
+                  <p className="mt-1 text-xs text-ink-400">
+                    {timeLimitMode === 'fixed'
+                      ? 'Everyone gets the same time limit you set below.'
+                      : 'The value below is a suggested starting point. Each learner can change their time before the timer begins.'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-ink-700">{timeLimitMode === 'fixed' ? 'Time limit (minutes)' : 'Suggested time (minutes)'}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={600}
+                    value={timeLimitMinutes}
+                    onChange={(e) => setTimeLimitMinutes(Math.max(1, Math.min(600, Number(e.target.value) || 1)))}
+                    placeholder="Minutes"
+                    className="mt-1 w-36 rounded-md border border-ink-100 bg-white px-4 py-2 text-sm focus:border-pulse-400 focus:outline-none"
+                  />
+                </div>
+              </div>
             )}
           </div>
         )}

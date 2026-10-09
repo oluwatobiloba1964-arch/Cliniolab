@@ -10,6 +10,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import { ShareButton } from '@/components/quiz/ShareButton';
+import { LocalStudyToolkit } from '@/components/study/LocalStudyToolkit';
+import { LocalClinicalPractice } from '@/components/study/LocalClinicalPractice';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 
@@ -319,6 +321,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <LocalStudyToolkit />
+      <LocalClinicalPractice />
+
       <section className="mt-6 grid gap-5 lg:grid-cols-[1.45fr_0.8fr]">
         <Card className="overflow-hidden p-0">
           <div className="bg-gradient-to-br from-pulse-50 via-white to-ink-50 p-6 sm:p-7">
@@ -361,7 +366,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Link href="/quizzes" className="group rounded-xl border border-ink-100 bg-white p-4 transition hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
                 <span className="text-xl">📝</span>
                 <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Practise</p>
@@ -376,6 +381,16 @@ export default function DashboardPage() {
                 <span className="text-xl">🎯</span>
                 <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Daily practice</p>
                 <p className="mt-1 text-xs leading-5 text-ink-400">Keep your daily learning habit going with a quick quiz.</p>
+              </Link>
+              <Link href="/study/revision" className="group rounded-xl border border-ink-100 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
+                <span className="text-xl">🔁</span>
+                <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Smart revision</p>
+                <p className="mt-1 text-xs leading-5 text-ink-400">Prioritise missed questions and due flashcards stored on this device.</p>
+              </Link>
+              <Link href="/study/maps" className="group rounded-xl border border-ink-100 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
+                <span className="text-xl">🗺️</span>
+                <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Knowledge maps</p>
+                <p className="mt-1 text-xs leading-5 text-ink-400">Connect foundational topics to clinical learning and exam practice.</p>
               </Link>
             </div>
 

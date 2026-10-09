@@ -1,0 +1,42 @@
+Cliniolab merged update (updated files only)
+
+Included changes
+- Merged the five Flutterwave payment/configuration files from the supplied Flutterwave update into the latest Cliniolab-main (79) source snapshot.
+- Added creator timer policy for timed quizzes: fixed creator-set limit or user-selected custom limit before starting. The quiz taker choice is applied locally to the attempt; it does not trigger an extra API request.
+- Added a browser-only Study Space on the dashboard: personal revision tasks, notes, focus timer, daily goal, streak and milestones. These are stored in localStorage and do not create database reads or server invocations.
+- Added a local Clinical Practice Lab with unfolding-style clinical scenarios, OSCE station checklists and clinical calculation drills. The content and answers are bundled in the frontend and do not call an API or database.
+- Added local spaced-repetition scheduling to flashcard ratings: Again (10 minutes), Hard (1 day), Good (3 days), Easy (7 days). Schedules are stored in localStorage.
+- Improved homepage quick actions with a dashboard/study-space shortcut for signed-in users while preserving the existing homepage section arrangement.
+
+Required database migration for creator timer policy
+Apply this migration to the existing D1 database before deploying the code:
+  src/db/migrations/2026-10-add-quiz-user-selectable-timer.sql
+
+It adds one nullable-compatible policy column with a default of 'fixed'. Existing quizzes retain their current fixed timer behavior. This is the only new database schema requirement in this update. Quiz creation/editing uses the existing save request; no additional request is introduced by the timer setting.
+
+Environment
+The Flutterwave environment variables are shown in .env.example:
+  FLUTTERWAVE_SECRET_KEY=
+  FLUTTERWAVE_WEBHOOK_HASH=
+  FLUTTERWAVE_CREDENTIALS_ENCRYPTION_KEY=
+Admin-managed Flutterwave settings are included in the merged payment UI and routes. The encryption key must be a random secret of at least 32 characters; new admin-saved credentials are encrypted with AES-GCM before being stored. Never commit live secrets to source control. Existing legacy admin-saved credentials remain readable for compatibility until they are saved again, at which point they are encrypted.
+
+Validation status
+- TypeScript transpile syntax checks passed for the modified TS/TSX files.
+- A full Next.js build could not be completed in this environment because dependency installation did not finish and the local Next.js executable was unavailable.
+- Apply the D1 migration and run the project build/deployment checks in the project's normal environment before production rollout.
+
+## Local learning tools update (2026-10)
+
+Added three optional learning features controlled through Admin > Feature flags:
+- Learning Tools: Smart Revision Queue (`smart_revision_queue`)
+- Learning Tools: Article Study Mode (`article_study_mode`)
+- Learning Tools: Topic Knowledge Maps (`topic_knowledge_maps`)
+
+The tools run in the browser. The revision queue reads existing local missed-question records, existing spaced-repetition schedules, and unfinished tasks from the existing local study toolkit. Article Study Mode provides a local summary, recall prompts, saved-for-revision state, and an understood marker. Topic Knowledge Maps use bundled topic relationships and store topic status in the existing local study toolkit record.
+
+No tables or columns are added. Apply `src/db/migrations/2026-10-add-local-learning-feature-flags.sql` once to seed the three rows in the existing `feature_flags` table so the existing Admin > Feature flags controls can manage them. Normal use of the tools adds no database reads, writes, API routes, or Worker/Vercel invocations. The existing public-config request already reads the feature flag map, so the three flags are included in that same read. Changing a sitewide toggle uses the existing admin feature-flag endpoint and updates the existing table.
+
+Account-synced bookmarks are not fetched by the Smart Revision Queue because doing so would require a database-backed request. The queue includes bookmark data only if it is already present in local browser storage. Saved article topics and topic-map progress reuse `cliniolab_local_study_toolkit_v1`, avoiding a separate tracking store. Local progress does not sync across devices and may be lost if browser site data is cleared.
+
+Validation: TypeScript/TSX syntax transpilation passed for all changed source files. Full TypeScript type-check and Next.js build could not be verified because the available `node_modules/@types` folders are incomplete in this environment.

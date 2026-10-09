@@ -14,6 +14,7 @@ import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import { RelatedPosts } from '@/components/cms/RelatedPosts';
 import { CommentThread } from '@/components/quiz/CommentThread';
 import { TableOfContents } from '@/components/blog/TableOfContents';
+import { ArticleStudyMode } from '@/components/study/ArticleStudyMode';
 import { extractTableOfContents, MIN_HEADINGS_FOR_TOC } from '@/lib/utils/tableOfContents';
 import { useBlogSubcategoryName } from '@/lib/hooks/useBlogSubcategoryName';
 import { useBlogCategorySlug } from '@/lib/hooks/useBlogCategorySlug';
@@ -192,7 +193,7 @@ export function BlogPostClient({ slug }: { slug: string }) {
 }
 
 function BlogPostBody({ post }: { post: BlogPost }) {
-  const { authorBox } = usePublicConfig();
+  const { authorBox, flags } = usePublicConfig();
   const subcategoryName = useBlogSubcategoryName(post.blogCategoryId, post.blogSubcategoryId);
   const categorySlug = useBlogCategorySlug(post.blogCategoryId);
   const isRaw = isFullRawDocument(post.content);
@@ -260,6 +261,8 @@ function BlogPostBody({ post }: { post: BlogPost }) {
           <span>{new Date(post.createdAt).toLocaleDateString()}</span>
         </div>
       </div>
+
+      {flags.articleStudyMode && <ArticleStudyMode postId={post.id} title={post.title} content={post.content} slug={post.slug} />}
 
       {/* Post body: full raw HTML documents render edge-to-edge (up to a
           generous max width) via the shared sandboxed iframe, so a pasted

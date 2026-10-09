@@ -76,6 +76,9 @@ export function QuizDetailClient({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [hasAttempted, setHasAttempted] = useState(false);
+  const [customTimeLimitMinutes, setCustomTimeLimitMinutes] = useState(
+    previewStats?.timeLimitSeconds ? Math.round(previewStats.timeLimitSeconds / 60) : 20
+  );
 
   // Lightweight preview load so the owner sees a Delete option before
   // committing to "Start" (which pulls full question sets). ?preview=1
@@ -86,7 +89,10 @@ export function QuizDetailClient({
     fetch(`/api/quizzes/${quizId}?preview=1`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.quiz) setQuiz((prev) => prev ?? data.quiz);
+        if (data.quiz) {
+          setQuiz((prev) => prev ?? data.quiz);
+          if (data.quiz.timeLimitSeconds) setCustomTimeLimitMinutes(Math.max(1, Math.min(600, Math.round(data.quiz.timeLimitSeconds / 60))));
+        }
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,7 +186,10 @@ export function QuizDetailClient({
       if (!missedOnly) {
         const cached = loadDraft<CachedQuizPayload>('questions-cache', quizId);
         if (cached && quiz && cached.updatedAt === quiz.updatedAt && cached.quiz.mode !== 'study') {
-          setQuiz(cached.quiz);
+          const cachedQuiz = cached.quiz.timeLimitMode === 'user_choice' && cached.quiz.mode !== 'study'
+            ? { ...cached.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
+            : cached.quiz;
+          setQuiz(cachedQuiz);
           setQuestions(cached.questions);
           setHasAttempted(true);
           setStarted(true);
@@ -218,7 +227,10 @@ export function QuizDetailClient({
         setQuiz(studyData.quiz);
         setStudyQuestions(studyData.questions);
       } else {
-        setQuiz(data.quiz);
+        const quizForAttempt = data.quiz.timeLimitMode === 'user_choice' && data.quiz.mode !== 'study'
+          ? { ...data.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
+          : data.quiz;
+        setQuiz(quizForAttempt);
         setQuestions(data.questions);
         // Only cache the plain, unnarrowed fetch - a "missedOnly" response
         // is a subset of questions and would silently truncate a later
@@ -491,6 +503,27 @@ export function QuizDetailClient({
             <Button variant="danger" size="sm" onClick={handleDelete} disabled={deleting}>
               {deleting ? 'Deleting…' : 'Delete permanently'}
             </Button>
+          </div>
+        )}
+
+        {(quiz ?? previewStats)?.timeLimitMode === 'user_choice' && (quiz ?? previewStats)?.mode !== 'study' && !requiresPurchase && (
+          <div className="mt-5 rounded-xl border border-pulse-100 bg-pulse-50/50 p-4">
+            <label htmlFor="custom-quiz-time" className="block text-sm font-semibold text-ink-800">Choose your time before starting</label>
+            <p className="mt-1 text-xs leading-5 text-ink-500">The creator allows a custom timer for this quiz. Your countdown starts when you begin.</p>
+            <div className="mt-3 flex items-center gap-3">
+              <input
+                id="custom-quiz-time"
+                type="number"
+                min={1}
+                max={600}
+                value={customTimeLimitMinutes}
+                onChange={(event) => setCustomTimeLimitMinutes(Math.max(1, Math.min(600, Number(event.target.value) || 1)))}
+                className="w-28 rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800 focus:border-pulse-400 focus:outline-none"
+                aria-describedby="custom-quiz-time-help"
+              />
+              <span className="text-sm text-ink-600">minutes</span>
+            </div>
+            <p id="custom-quiz-time-help" className="mt-2 text-xs text-ink-400">Choose between 1 and 600 minutes. Default suggestion: {Math.round(((quiz ?? previewStats)?.timeLimitSeconds ?? 1200) / 60)} minutes.</p>
           </div>
         )}
 

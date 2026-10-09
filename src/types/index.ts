@@ -54,6 +54,7 @@ export interface Subcategory {
 // ============================================
 
 export type QuizMode = 'study' | 'quiz' | 'exam';
+export type QuizTimeLimitMode = 'fixed' | 'user_choice';
 export type QuizDifficulty = 'easy' | 'medium' | 'hard';
 export type QuizVisibility = 'public' | 'private' | 'guest';
 export type QuizStatus = 'draft' | 'published' | 'archived';
@@ -84,6 +85,8 @@ export interface Quiz {
   /** True when a password is currently set (never expose the hash to clients). */
   hasPassword: boolean;
   timeLimitSeconds: number | null;
+  /** Fixed creator-selected limit or allow each learner to choose a limit before starting. */
+  timeLimitMode?: QuizTimeLimitMode;
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
   antiCheatEnabled: boolean;
@@ -153,6 +156,7 @@ export interface QuizInput {
   linkExpiry?: LinkExpiryOption;
   customExpiryDate?: string; // ISO, required when linkExpiry === 'custom'
   timeLimitSeconds?: number;
+  timeLimitMode?: QuizTimeLimitMode;
   shuffleQuestions?: boolean;
   shuffleOptions?: boolean;
   antiCheatEnabled: boolean;
@@ -423,7 +427,10 @@ export type FeatureFlagKey =
   | 'author_box'
   | 'flashcard_learn_mode'
   | 'flashcard_match_mode'
-  | 'flashcard_test_mode';
+  | 'flashcard_test_mode'
+  | 'smart_revision_queue'
+  | 'article_study_mode'
+  | 'topic_knowledge_maps';
 
 export interface FeatureFlag {
   key: FeatureFlagKey;

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { flashcardPurchaseService, payoutRequestService, quizPurchaseService, resourceService } from '@/lib/db';
-import { verifyTransaction, verifyTransfer } from '@/lib/payments/flutterwaveClient';
+import { getFlutterwaveWebhookHash, verifyTransaction, verifyTransfer } from '@/lib/payments/flutterwaveClient';
 
 /**
  * Flutterwave signs every webhook with a plain secret-hash string (not
@@ -25,7 +25,7 @@ import { verifyTransaction, verifyTransfer } from '@/lib/payments/flutterwaveCli
  * functions no-op if already in that terminal state.
  */
 export async function POST(request: Request) {
-  const secretHash = process.env.FLUTTERWAVE_WEBHOOK_HASH;
+  const secretHash = await getFlutterwaveWebhookHash();
   const signature = request.headers.get('verif-hash');
 
   if (!secretHash || !signature || signature !== secretHash) {

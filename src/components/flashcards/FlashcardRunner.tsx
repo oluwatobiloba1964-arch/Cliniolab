@@ -53,6 +53,13 @@ interface FlashcardDraft {
   reviewIds: string[];
 }
 
+type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
+type CardReviewSchedule = Record<string, { dueAt: string; intervalDays: number; rating: ReviewRating; reviewedAt: string }>;
+
+function scheduleStorageKey(draftId?: string, title?: string) {
+  return `cliniolab:spaced-repetition:${draftId || title || 'flashcard-deck'}`;
+}
+
 export const FLASHCARD_DRAFT_NAMESPACE = 'flashcards';
 const DRAFT_NAMESPACE = FLASHCARD_DRAFT_NAMESPACE;
 
@@ -82,6 +89,10 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
   const [knownIds, setKnownIds] = useState<Set<string>>(new Set(initialDraft?.knownIds ?? []));
   const [reviewIds, setReviewIds] = useState<Set<string>>(new Set(initialDraft?.reviewIds ?? []));
   const [finished, setFinished] = useState(false);
+  const [reviewSchedule, setReviewSchedule] = useState<CardReviewSchedule>(() => {
+    if (typeof window === 'undefined') return {};
+    try { return JSON.parse(window.localStorage.getItem(scheduleStorageKey(draftId, title)) || '{}') as CardReviewSchedule; } catch { return {}; }
+  });
 
   const card = cards[current];
   const isLast = current === cards.length - 1;
@@ -162,18 +173,24 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
     setFlipped(false);
   }
 
-  function markKnown() {
-    setKnownIds((prev) => new Set(prev).add(card.id));
-    setReviewIds((prev) => {
-      const next = new Set(prev);
-      next.delete(card.id);
-      return next;
-    });
-    goNext();
-  }
-
-  function markReview() {
-    setReviewIds((prev) => new Set(prev).add(card.id));
+  function rateCard(rating: ReviewRating) {
+    const intervals: Record<ReviewRating, number> = { again: 0, hard: 1, good: 3, easy: 7 };
+    const due = new Date();
+    if (rating === 'again') due.setMinutes(due.getMinutes() + 10);
+    else due.setDate(due.getDate() + intervals[rating]);
+    const nextSchedule = {
+      ...reviewSchedule,
+      [card.id]: { dueAt: due.toISOString(), intervalDays: intervals[rating], rating, reviewedAt: new Date().toISOString() },
+    };
+    setReviewSchedule(nextSchedule);
+    try { window.localStorage.setItem(scheduleStorageKey(draftId, title), JSON.stringify(nextSchedule)); } catch {}
+    if (rating === 'good' || rating === 'easy') {
+      setKnownIds((prev) => new Set(prev).add(card.id));
+      setReviewIds((prev) => { const next = new Set(prev); next.delete(card.id); return next; });
+    } else {
+      setReviewIds((prev) => new Set(prev).add(card.id));
+      setKnownIds((prev) => { const next = new Set(prev); next.delete(card.id); return next; });
+    }
     goNext();
   }
 
@@ -214,7 +231,14 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
                 <p className="font-mono text-2xl font-semibold text-flag-500">{reviewIds.size}</p>
                 <p className="mt-1 text-xs text-ink-400">Review again</p>
               </div>
+              <div className="rounded-xl border border-ink-100 bg-white p-3 shadow-sm">
+                <p className="font-mono text-2xl font-semibold text-ink-800">{Object.keys(reviewSchedule).length}</p>
+                <p className="mt-1 text-xs text-ink-400">Cards scheduled</p>
+              </div>
             </div>
+          </div>
+          <div className="px-6 pt-4 text-center">
+            <p className="text-xs text-ink-500">Spaced repetition schedules your next review locally on this device.</p>
           </div>
           <div className="p-6 text-center">
           <div className="flex flex-wrap justify-center gap-2">
@@ -293,11 +317,11 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
           ← Previous
         </Button>
         {flipped ? (
-          <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex">
-            <Button variant="secondary" onClick={markReview}>
-              Review again
-            </Button>
-            <Button onClick={markKnown}>I knew this ✓</Button>
+          <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:flex-wrap sm:justify-end">
+            <Button variant="secondary" onClick={() => rateCard('again')}>Again · 10 min</Button>
+            <Button variant="secondary" onClick={() => rateCard('hard')}>Hard · 1 day</Button>
+            <Button variant="secondary" onClick={() => rateCard('good')}>Good · 3 days</Button>
+            <Button onClick={() => rateCard('easy')}>Easy · 7 days</Button>
           </div>
         ) : (
           <Button onClick={() => setFlipped(true)}>Reveal answer →</Button>
