@@ -138,8 +138,12 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
     }
   }
 
-  const allArticles = Object.values<BlogPost[]>(homepageData?.blogsByCategory ?? {})
-    .flat()
+  const allArticles = Object.entries<BlogPost[]>(homepageData?.blogsByCategory ?? {})
+    .filter(([categoryId]) => {
+      const category = blogCategories.find((c) => c.id === categoryId);
+      return !category || (category.slug !== JOB_CATEGORY_SLUG && category.slug !== SCHOLARSHIP_CATEGORY_SLUG);
+    })
+    .flatMap(([, posts]) => posts)
     .filter((post) => post.status === 'published');
   const latestArticle = allArticles
     .slice()
