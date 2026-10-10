@@ -185,3 +185,12 @@ export async function deleteItem(id: string): Promise<void> {
   const db = getDb();
   await db.prepare('DELETE FROM clinical_practice_items WHERE id = ?').bind(id).run();
 }
+
+/** Permanently removes several items from the bank in one batch. Returns how many existed and were deleted. */
+export async function deleteItems(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const db = getDb();
+  const statement = db.prepare('DELETE FROM clinical_practice_items WHERE id = ?');
+  await db.batch(ids.map((id) => statement.bind(id)));
+  return ids.length;
+}
