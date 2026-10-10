@@ -151,3 +151,37 @@ export async function createItemsBulk(kind: ClinicalPracticeKind, drafts: NewIte
   await db.batch(statements);
   return createdIds;
 }
+
+export interface ClinicalPracticeItemSummary {
+  id: string;
+  kind: ClinicalPracticeKind;
+  title: string; // case/osce: its title; calculation: its prompt (truncated)
+  isActive: boolean;
+  updatedAt: string;
+}
+
+/** Lists items for one kind, newest first, for the admin manage view. */
+export async function listItemsByKind(kind: ClinicalPracticeKind): Promise<ClinicalPracticeItemSummary[]> {
+  const db = getDb();
+  const { results } = await db
+    .prepare('SELECT id, kind, payload, is_active, updated_at FROM clinical_practice_items WHERE kind = ? ORDER BY updated_at DESC')
+    .bind(kind)
+    .all<{ id: string; kind: ClinicalPracticeKind; payload: string; is_active: number; updated_at: string }>();
+  return results.map((row) => {
+    const payload = JSON.parse(row.payload) as { title?: string; prompt?: string };
+    const title = payload.title ?? payload.prompt ?? '(untitled)';
+    return {
+      id: row.id,
+      kind: row.kind,
+      title: title.length > 90 ? `${title.slice(0, 87)}...` : title,
+      isActive: row.is_active === 1,
+      updatedAt: row.updated_at,
+    };
+  });
+}
+
+/** Permanently removes one item from the bank. */
+export async function deleteItem(id: string): Promise<void> {
+  const db = getDb();
+  await db.prepare('DELETE FROM clinical_practice_items WHERE id = ?').bind(id).run();
+}
