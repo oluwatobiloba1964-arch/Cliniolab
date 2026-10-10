@@ -1,3 +1,4 @@
+// File: src/app/api/admin/users/[userId]/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { getSupabaseServiceRoleClient } from '@/lib/auth/supabaseServiceRoleClient';
@@ -31,6 +32,10 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   const targetUser = await userService.getUserById(userId);
   if (!targetUser) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  if (currentUser.role !== 'admin' && targetUser.role === 'admin') {
+    return NextResponse.json({ error: 'Only admins can delete an admin account' }, { status: 403 });
   }
 
   // D1 first: this is where the money-owed / pending-payout guard lives,
