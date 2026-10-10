@@ -1,3 +1,4 @@
+// File: src/app/api/admin/users/[userId]/role/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
@@ -24,6 +25,21 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
   if (!['user', 'moderator', 'admin'].includes(body.role)) {
     return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+  }
+
+  // Moderators can manage ordinary users but must not be able to grant admin,
+  // change another admin's role, or touch their own role (self-escalation).
+  if (user.role !== 'admin') {
+    if (body.role === 'admin') {
+      return NextResponse.json({ error: 'Only admins can grant the admin role' }, { status: 403 });
+    }
+    if (userId === user.id) {
+      return NextResponse.json({ error: 'You cannot change your own role' }, { status: 403 });
+    }
+    const target = await userService.getUserById(userId);
+    if (target?.role === 'admin') {
+      return NextResponse.json({ error: 'Only admins can change another admin\'s role' }, { status: 403 });
+    }
   }
 
   await userService.setUserRole(userId, body.role);
