@@ -14,6 +14,7 @@ const links = [
   { href: '/admin/quizzes', label: 'Quizzes' },
   { href: '/admin/blog', label: 'Blog' },
   { href: '/admin/abbreviations', label: 'Abbreviations' },
+  { href: '/admin/clinical-practice', label: 'Clinical Practice' },
   { href: '/admin/resources', label: 'Books & Past Questions' },
   { href: '/admin/pages', label: 'Site Pages' },
   { href: '/admin/homepage-video', label: 'Homepage Video' },
