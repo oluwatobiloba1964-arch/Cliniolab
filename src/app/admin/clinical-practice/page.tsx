@@ -24,6 +24,48 @@ type Kind = 'case' | 'calculation' | 'osce';
 
 const KIND_LABELS: Record<Kind, string> = { case: 'Clinical cases', calculation: 'Calculations', osce: 'OSCE stations' };
 
+const PAGE_SIZE = 50;
+
+// Admin "existing items" list is cached in localStorage per kind, keyed to
+// today's Lagos-local date. First load of the day hits the API; every
+// later visit (and every tab switch) on the same day reads the cache
+// instead, until a delete/upload invalidates it or the date rolls over.
+const EXISTING_CACHE_PREFIX = 'cliniolab_admin_clinical_practice_cache_v1';
+
+interface ExistingItem { id: string; title: string; isActive: boolean; updatedAt: string }
+interface ExistingCache { date: string; items: ExistingItem[] }
+
+function todayLagosKey() {
+  // Lightweight local-date key; doesn't need to be exact to the minute,
+  // just stable within a calendar day for cache invalidation purposes.
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
+}
+
+function readExistingCache(kind: Kind): ExistingItem[] | null {
+  try {
+    const raw = localStorage.getItem(`${EXISTING_CACHE_PREFIX}_${kind}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ExistingCache;
+    if (parsed.date !== todayLagosKey()) return null;
+    return parsed.items;
+  } catch {
+    return null;
+  }
+}
+
+function writeExistingCache(kind: Kind, items: ExistingItem[]) {
+  try {
+    const payload: ExistingCache = { date: todayLagosKey(), items };
+    localStorage.setItem(`${EXISTING_CACHE_PREFIX}_${kind}`, JSON.stringify(payload));
+  } catch {}
+}
+
+function clearExistingCache(kind: Kind) {
+  try {
+    localStorage.removeItem(`${EXISTING_CACHE_PREFIX}_${kind}`);
+  } catch {}
+}
+
 const CASE_HEADERS = ['title', 'setting', 'prompt', 'optionA', 'optionB', 'optionC', 'optionD', 'correctOption', 'feedbackA', 'feedbackB', 'feedbackC', 'feedbackD', 'keyPoint'];
 const CALC_HEADERS = ['prompt', 'answer', 'unit', 'tolerance', 'explanation'];
 const OSCE_HEADERS = ['title', 'steps'];
@@ -172,24 +214,66 @@ export default function ClinicalPracticeAdminPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<{ createdCount: number; skippedRows: number[] } | null>(null);
 
-  const [existingItems, setExistingItems] = useState<{ id: string; title: string; isActive: boolean; updatedAt: string }[]>([]);
+  const [existingItems, setExistingItems] = useState<ExistingItem[]>([]);
   const [existingLoading, setExistingLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [page, setPage] = useState(0);
 
-  function loadExisting(forKind: Kind) {
+  function loadExisting(forKind: Kind, opts: { force?: boolean } = {}) {
+    if (!opts.force) {
+      const cached = readExistingCache(forKind);
+      if (cached) {
+        setExistingItems(cached);
+        setExistingLoading(false);
+        return;
+      }
+    }
     setExistingLoading(true);
     fetch(`/api/clinical-practice/manage?kind=${forKind}`)
       .then((res) => (res.ok ? res.json() : { items: [] }))
-      .then((data) => setExistingItems(data.items ?? []))
+      .then((data) => {
+        const items: ExistingItem[] = data.items ?? [];
+        setExistingItems(items);
+        writeExistingCache(forKind, items);
+      })
       .catch(() => setExistingItems([]))
       .finally(() => setExistingLoading(false));
   }
 
   useEffect(() => {
+    setSelectedIds(new Set());
+    setPage(0);
     loadExisting(kind);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind]);
+
+  const totalPages = Math.max(1, Math.ceil(existingItems.length / PAGE_SIZE));
+  const pagedItems = existingItems.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const pagedIds = pagedItems.map((item) => item.id);
+  const allOnPageSelected = pagedIds.length > 0 && pagedIds.every((id) => selectedIds.has(id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllOnPage() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) {
+        pagedIds.forEach((id) => next.delete(id));
+      } else {
+        pagedIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
 
   async function handleDelete(id: string, title: string) {
     if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
@@ -201,11 +285,46 @@ export default function ClinicalPracticeAdminPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `Delete failed (status ${res.status}).`);
       }
-      setExistingItems((prev) => prev.filter((item) => item.id !== id));
+      const nextItems = existingItems.filter((item) => item.id !== id);
+      setExistingItems(nextItems);
+      writeExistingCache(kind, nextItems);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Delete failed.');
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected ${KIND_LABELS[kind].toLowerCase()}? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch('/api/clinical-practice/manage/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Bulk delete failed (status ${res.status}).`);
+      }
+      const deleted = new Set(ids);
+      const nextItems = existingItems.filter((item) => !deleted.has(item.id));
+      setExistingItems(nextItems);
+      writeExistingCache(kind, nextItems);
+      setSelectedIds(new Set());
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Bulk delete failed.');
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -328,7 +447,8 @@ export default function ClinicalPracticeAdminPage() {
     setEntries([]);
     setFileName(null);
     setSubmitting(false);
-    loadExisting(kind);
+    clearExistingCache(kind);
+    loadExisting(kind, { force: true });
   }
 
   if (loading) return null;
@@ -459,37 +579,97 @@ export default function ClinicalPracticeAdminPage() {
       )}
 
       <Card className="mt-8 p-6">
-        <h2 className="font-display text-lg font-semibold text-ink-800">
-          Existing {KIND_LABELS[kind].toLowerCase()} in the bank
-        </h2>
-        <p className="mt-1 text-sm text-ink-500">
-          Delete an item to remove it from the pool future daily sets are picked from. Items currently shown in
-          today&rsquo;s set stay visible to anyone already on the page until they reload.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-ink-800">
+              Existing {KIND_LABELS[kind].toLowerCase()} in the bank
+            </h2>
+            <p className="mt-1 text-sm text-ink-500">
+              Delete items to remove them from the pool future daily sets are picked from. Items currently shown in
+              today&rsquo;s set stay visible to anyone already on the page until they reload.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              clearExistingCache(kind);
+              loadExisting(kind, { force: true });
+            }}
+            disabled={existingLoading}
+          >
+            Refresh list
+          </Button>
+        </div>
         {deleteError && <p className="mt-2 text-sm text-critical-500">{deleteError}</p>}
         {existingLoading ? (
           <p className="mt-4 text-sm text-ink-400">Loading…</p>
         ) : existingItems.length === 0 ? (
           <p className="mt-4 text-sm text-ink-400">No {KIND_LABELS[kind].toLowerCase()} in the bank yet.</p>
         ) : (
-          <div className="mt-4 max-h-96 space-y-2 overflow-y-auto">
-            {existingItems.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-ink-100 p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-ink-700">{item.title}</p>
-                  <p className="text-xs text-ink-400">{item.id}</p>
-                </div>
+          <>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm text-ink-600">
+                <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAllOnPage} />
+                Select all on this page
+              </label>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-ink-400">{selectedIds.size} selected</span>
                 <Button
                   variant="danger"
                   size="sm"
-                  disabled={deletingId === item.id}
-                  onClick={() => handleDelete(item.id, item.title)}
+                  disabled={selectedIds.size === 0 || bulkDeleting}
+                  onClick={handleBulkDelete}
                 >
-                  {deletingId === item.id ? 'Deleting…' : 'Delete'}
+                  {bulkDeleting ? 'Deleting…' : `Delete selected (${selectedIds.size})`}
                 </Button>
               </div>
-            ))}
-          </div>
+            </div>
+            <div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
+              {pagedItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-ink-100 p-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => toggleSelected(item.id)}
+                      aria-label={`Select ${item.title}`}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-ink-700">{item.title}</p>
+                      <p className="text-xs text-ink-400">{item.id}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={deletingId === item.id || bulkDeleting}
+                    onClick={() => handleDelete(item.id, item.title)}
+                  >
+                    {deletingId === item.id ? 'Deleting…' : 'Delete'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                  Previous
+                </Button>
+                <span className="text-xs text-ink-400">
+                  Page {page + 1} of {totalPages} &middot; {existingItems.length} total
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </Card>
     </div>
