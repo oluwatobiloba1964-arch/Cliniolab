@@ -14,6 +14,7 @@ import { CategoryFlashcardSection } from '@/components/flashcards/CategoryFlashc
 import { FlashcardSetCard, FeaturedFlashcardSetCard, CompactFlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import { DailyQuizBanner } from '@/components/layout/DailyQuizBanner';
 import { GuestPracticeSection } from '@/components/guest/GuestPracticeSection';
+import { LocalClinicalPractice } from '@/components/study/LocalClinicalPractice';
 import { BannerSlot } from '@/components/layout/BannerSlot';
 import { ScholarOfTheDayCard } from '@/components/layout/ScholarOfTheDayCard';
 import { AbbreviationsTeaser } from '@/components/layout/AbbreviationsTeaser';
@@ -472,6 +473,10 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       )}
 
       <GuestPracticeSection />
+
+      <div className="mx-auto max-w-7xl px-6 py-10 sm:py-14">
+        <LocalClinicalPractice />
+      </div>
 
       <div className="chart-strip mx-auto max-w-7xl text-ink-200" aria-hidden />
 
