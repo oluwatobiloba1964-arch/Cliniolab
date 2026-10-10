@@ -47,3 +47,4 @@ export * as platformSettingsService from './services/platformSettingsService';
 export * as contributorService from './services/contributorService';
 export * as guestService from './services/guestService';
 export * as dataCleanService from './services/dataCleanService';
+export * as clinicalPracticeService from './services/clinicalPracticeService';
