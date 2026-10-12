@@ -9,13 +9,28 @@
   --font-plex-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 
+/* Deliberately NOT smooth by default. Every intentional scroll in the app
+   (table of contents, back-to-top, admin "scroll to top" buttons) already
+   passes behavior: 'smooth' directly in its JS call, so this CSS property
+   adds nothing for those. What it *did* do is animate every involuntary
+   scroll correction too - most noticeably the browser's native "scroll
+   anchoring", which nudges the viewport to compensate whenever content
+   above it changes height (e.g. a loading skeleton swapping for real
+   homepage data). With smooth scrolling on, that correction becomes a
+   slow, very visible slide down the page instead of an instant, barely
+   perceptible jump - which is the "page goes down on load" behavior. */
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 
 body {
   @apply bg-paper text-ink-800 antialiased;
   font-family: var(--font-inter);
+  /* Stop the browser from auto-adjusting scroll position to compensate for
+     content that resizes above the current viewport (async sections
+     popping in as homepage/API data loads). Without this, the page can
+     silently scroll itself down as that content arrives. */
+  overflow-anchor: none;
 }
 
 h1, h2, h3, h4 {
