@@ -48,17 +48,40 @@ export function ClientUXEnhancements() {
       }
       if (event.key === 'Escape') setPaletteOpen(false);
     };
-    const onOnline = () => setOffline(false);
+    // Mobile Chrome's online/offline events AND navigator.onLine are both
+    // unreliable across network switches (wifi<->cellular) and while the
+    // tab is backgrounded - either can report "online" when there's no
+    // real route to the internet, or simply not fire, leaving the
+    // "Offline" pill stuck even once the connection is back. So instead of
+    // trusting those signals alone, verify real connectivity with a tiny
+    // no-store network probe whenever we think the state may have changed.
+    let probeToken = 0;
+    const probeConnectivity = async () => {
+      if (!navigator.onLine) {
+        setOffline(true);
+        return;
+      }
+      const token = ++probeToken;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        await fetch('/favicon.ico', { method: 'HEAD', cache: 'no-store', signal: controller.signal });
+        clearTimeout(timeout);
+        if (token === probeToken) setOffline(false);
+      } catch {
+        if (token === probeToken) setOffline(true);
+      }
+    };
+    const onOnline = () => probeConnectivity();
     const onOffline = () => setOffline(true);
-    // Mobile Chrome's online/offline events are unreliable across network
-    // switches (wifi<->cellular) and while the tab is backgrounded - the
-    // event can simply not fire, leaving the "Offline" pill stuck even
-    // once the connection is back. Re-sync against navigator.onLine
-    // whenever the tab regains focus/visibility as a fallback.
-    const resync = () => setOffline(!navigator.onLine);
+    const resync = () => probeConnectivity();
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') resync();
     };
+    // Fallback poll in case none of the above events fire for a while -
+    // this is what actually makes the pill disappear once you're back
+    // online even if the browser never sends an 'online' event.
+    const pollId = window.setInterval(resync, 15000);
     const onBeforeInstall = (event: Event) => { event.preventDefault(); setInstallEvent(event); };
     setReadingPage(window.location.pathname.startsWith('/blog/'));
     try {
@@ -83,7 +106,7 @@ export function ClientUXEnhancements() {
     window.addEventListener('focus', resync);
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    setOffline(!navigator.onLine);
+    probeConnectivity();
     return () => {
       window.removeEventListener('scroll', update);
       window.removeEventListener('keydown', onKey);
@@ -92,6 +115,7 @@ export function ClientUXEnhancements() {
       window.removeEventListener('focus', resync);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.clearInterval(pollId);
     };
   }, []);
 
