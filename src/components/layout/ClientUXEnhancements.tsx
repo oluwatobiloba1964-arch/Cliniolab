@@ -50,6 +50,15 @@ export function ClientUXEnhancements() {
     };
     const onOnline = () => setOffline(false);
     const onOffline = () => setOffline(true);
+    // Mobile Chrome's online/offline events are unreliable across network
+    // switches (wifi<->cellular) and while the tab is backgrounded - the
+    // event can simply not fire, leaving the "Offline" pill stuck even
+    // once the connection is back. Re-sync against navigator.onLine
+    // whenever the tab regains focus/visibility as a fallback.
+    const resync = () => setOffline(!navigator.onLine);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') resync();
+    };
     const onBeforeInstall = (event: Event) => { event.preventDefault(); setInstallEvent(event); };
     setReadingPage(window.location.pathname.startsWith('/blog/'));
     try {
@@ -71,6 +80,8 @@ export function ClientUXEnhancements() {
     window.addEventListener('keydown', onKey);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
+    window.addEventListener('focus', resync);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
     setOffline(!navigator.onLine);
     return () => {
@@ -78,6 +89,8 @@ export function ClientUXEnhancements() {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      window.removeEventListener('focus', resync);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('beforeinstallprompt', onBeforeInstall);
     };
   }, []);
