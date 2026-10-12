@@ -70,7 +70,7 @@ export function LocalStudyExtras() {
     const next = { ...readLocalStudy<Toolkit>(), ...patch };
     setData(next);
     const ok = writeLocalStudy<Toolkit>(patch);
-    setMessage(ok ? notice : 'Couldn't save — your browser storage may be full. Try exporting your data or freeing up space.');
+    setMessage(ok ? notice : "Couldn't save — your browser storage may be full. Try exporting your data or freeing up space.");
   };
   const glossary = safeArray<GlossaryItem>(data.glossary);
   const decks = safeArray<Deck>(data.customDecks);
