@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card';
 
 const STORAGE_KEY = 'cliniolab_local_study_toolkit_v1';
 type SavedTopic = { id: string; title: string; href: string; savedAt: string };
-type LocalStudyData = { savedTopics?: SavedTopic[]; articleStudyProgress?: Record<string, { understood: boolean; reviewedAt?: string }>; [key: string]: unknown };
+type LocalStudyData = { savedTopics?: SavedTopic[]; articleStudyProgress?: Record<string, { understood: boolean; reviewedAt?: string }>; articleAnnotations?: Array<{ id: string; title: string; href: string; body: string; updatedAt: string }>; [key: string]: unknown };
 function readData(): LocalStudyData { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as LocalStudyData; } catch { return {}; } }
 function plainText(content: string): string {
   if (typeof document === 'undefined') return content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -17,6 +17,8 @@ function plainText(content: string): string {
 export function ArticleStudyMode({ postId, title, content, slug }: { postId: string; title: string; content: string; slug: string }) {
   const [open, setOpen] = useState(false);
   const [showRecall, setShowRecall] = useState(false);
+  const [annotationDraft, setAnnotationDraft] = useState(() => { try { return (readData().articleAnnotations ?? []).find((item) => item.href === `/blog/${slug}`)?.body ?? ''; } catch { return ''; } });
+  const [annotationSaved, setAnnotationSaved] = useState(false);
   const [understood, setUnderstood] = useState(() => {
     try { return readData().articleStudyProgress?.[postId]?.understood ?? false; } catch { return false; }
   });
@@ -54,8 +56,28 @@ export function ArticleStudyMode({ postId, title, content, slug }: { postId: str
     } catch {}
   }
 
+  function saveArticleAnnotation() {
+    const body = annotationDraft.trim();
+    if (!body) return;
+    try {
+      const data = readData();
+      const current = data.articleAnnotations ?? [];
+      const href = `/blog/${slug}`;
+      const next = [{ id: postId, title, href, body, updatedAt: new Date().toISOString() }, ...current.filter((item) => item.id !== postId)].slice(0, 300);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, articleAnnotations: next }));
+      setAnnotationSaved(true);
+    } catch { setAnnotationSaved(false); }
+  }
+
   return <section className="mx-auto mt-6 max-w-2xl px-6" aria-label="Article study tools"><Card className="overflow-hidden p-0"><div className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-pulse-600">Optional study tools</p><h2 className="mt-1 font-semibold text-ink-800">Study this article</h2><p className="mt-1 text-xs text-ink-500">Quick summary, active recall, and device-local progress.</p></div><button type="button" onClick={() => setOpen((value) => !value)} className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold text-ink-700 hover:bg-ink-50">{open ? 'Hide study tools' : 'Open Study Mode'}</button></div>
     {open && <div className="border-t border-ink-100 p-4 sm:p-5"><h3 className="text-sm font-semibold text-ink-800">Quick summary</h3><p className="mt-2 text-sm leading-6 text-ink-600">{summary}</p><div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => setShowRecall((value) => !value)} className="rounded-lg bg-pulse-600 px-3 py-2 text-sm font-semibold text-white">{showRecall ? 'Hide recall prompts' : 'Test my recall'}</button><button type="button" onClick={toggleSaved} className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold text-ink-700">{saved ? 'Remove from revision list' : 'Save topic for revision'}</button><button type="button" onClick={() => updateProgress(!understood)} className={`rounded-lg border px-3 py-2 text-sm font-semibold ${understood ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-ink-200 text-ink-700'}`}>{understood ? 'Marked as understood' : 'Mark as understood'}</button></div>
+      <div className="mt-5 rounded-xl border border-ink-100 bg-ink-50/50 p-3 sm:p-4">
+        <h3 className="text-sm font-semibold text-ink-800">Personal article annotation</h3>
+        <p className="mt-1 text-xs text-ink-500">Save your own notes for this article on this device. They are not published.</p>
+        <textarea value={annotationDraft} onChange={(event) => { setAnnotationDraft(event.target.value); setAnnotationSaved(false); }} rows={3} placeholder="Key takeaway, question, or point to revise..." className="mt-3 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm" />
+        <button type="button" onClick={saveArticleAnnotation} disabled={!annotationDraft.trim()} className="mt-2 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm font-semibold text-ink-700 disabled:opacity-50">Save annotation on this device</button>
+        {annotationSaved && <p className="mt-2 text-xs font-medium text-emerald-700" role="status">Annotation saved locally.</p>}
+      </div>
       {showRecall && <div className="mt-5"><h3 className="text-sm font-semibold text-ink-800">Recall prompts</h3><p className="mt-1 text-xs text-ink-500">Answer from memory before reopening the article. Prompts are based on this article's headings and general study questions. They are not AI-generated.</p><ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-ink-700">{recallPrompts.map((prompt, index) => <li key={`${postId}-${index}`}>{prompt}</li>)}</ol></div>}
       <p className="mt-4 text-xs text-ink-400">Progress and saved topics are stored in this device's existing study toolkit record. They do not sync across devices.</p>
     </div>}
