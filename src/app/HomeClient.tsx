@@ -201,8 +201,11 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
   // Recover unfinished quiz sessions from the existing browser-only draft
   // namespace. No new persistence or network request is introduced.
   const [resumeItems, setResumeItems] = useState<QuizWithStats[]>([]);
+  const [recentlyViewed, setRecentlyViewed] = useState<Array<{ href: string; title: string; viewedAt: string }>>([]);
   useEffect(() => {
     try {
+      const recent = JSON.parse(window.localStorage.getItem('cliniolab_recently_viewed_v1') || '[]');
+      if (Array.isArray(recent)) setRecentlyViewed(recent.filter((item) => item && typeof item.href === 'string' && item.href !== '/').slice(0, 4));
       const found: QuizWithStats[] = [];
       const prefixes = ['cliniolab:draft:attempt:', 'cliniolab:draft:study:'];
       for (let i = 0; i < window.localStorage.length; i++) {
@@ -417,6 +420,30 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
                   </div>
                   <p className="mt-2 text-xs text-ink-400">{quiz.questionCount} questions · {quiz.mode === 'exam' ? 'Exam' : quiz.mode === 'study' ? 'Study' : 'Quiz'} mode</p>
                   <p className="mt-3 text-xs font-semibold text-pulse-600">Continue session</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {recentlyViewed.length > 0 && (
+        <section className="mx-auto max-w-7xl px-6 pb-10 sm:pb-14" aria-labelledby="recently-viewed-heading">
+          <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-pulse-600">Saved in this browser</p>
+                <h2 id="recently-viewed-heading" className="mt-1 font-display text-xl font-semibold text-ink-900 sm:text-2xl">Recently viewed</h2>
+                <p className="mt-1 text-sm text-ink-500">Return to learning materials you opened recently on this device.</p>
+              </div>
+              <Link href="/dashboard" className="text-sm font-semibold text-pulse-600 hover:text-pulse-700">Open study space →</Link>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {recentlyViewed.map((item) => (
+                <Link key={item.href} href={item.href} className="group rounded-xl border border-ink-100 bg-ink-50/40 p-4 transition hover:-translate-y-0.5 hover:border-pulse-200 hover:bg-white hover:shadow-sm">
+                  <p className="line-clamp-2 font-semibold text-ink-800 group-hover:text-pulse-700">{item.title}</p>
+                  <p className="mt-2 truncate text-xs text-ink-400">{item.href}</p>
+                  <p className="mt-3 text-xs font-semibold text-pulse-600">Continue →</p>
                 </Link>
               ))}
             </div>
