@@ -438,11 +438,11 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
               </div>
               <Link href="/dashboard" className="text-sm font-semibold text-pulse-600 hover:text-pulse-700">Open study space →</Link>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {recentlyViewed.map((item) => (
-                <Link key={item.href} href={item.href} className="group rounded-xl border border-ink-100 bg-ink-50/40 p-4 transition hover:-translate-y-0.5 hover:border-pulse-200 hover:bg-white hover:shadow-sm">
-                  <p className="line-clamp-2 font-semibold text-ink-800 group-hover:text-pulse-700">{item.title}</p>
-                  <p className="mt-2 truncate text-xs text-ink-400">{item.href}</p>
+                <Link key={item.href} href={item.href} className="group min-w-0 rounded-xl border border-ink-100 bg-ink-50/40 p-4 transition hover:-translate-y-0.5 hover:border-pulse-200 hover:bg-white hover:shadow-sm">
+                  <p className="line-clamp-2 break-words font-semibold text-ink-800 group-hover:text-pulse-700">{item.title}</p>
+                  <p className="mt-2 min-w-0 truncate text-xs text-ink-400">{item.href}</p>
                   <p className="mt-3 text-xs font-semibold text-pulse-600">Continue →</p>
                 </Link>
               ))}
