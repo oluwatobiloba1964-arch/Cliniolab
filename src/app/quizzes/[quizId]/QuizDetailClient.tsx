@@ -29,6 +29,15 @@ interface CachedQuizPayload {
   questions: Omit<QuizQuestion, 'correctAnswer'>[];
 }
 
+// Same local-first/D1-fallback caching as CachedQuizPayload above, for
+// Study Mode's question set, which was previously re-fetched from
+// /api/quizzes/:id/study on every single visit even when nothing changed.
+interface CachedStudyPayload {
+  updatedAt: string;
+  quiz: Quiz;
+  questions: QuizQuestion[];
+}
+
 const MODE_LABELS: Record<Quiz['mode'], string> = {
   study: 'Study Mode',
   quiz: 'Quiz Mode',
@@ -195,6 +204,18 @@ export function QuizDetailClient({
           setStarted(true);
           return;
         }
+
+        // Same cache-first check for Study Mode's question set. `quiz`
+        // here is already populated from the lightweight preview fetch
+        // below, so this is safe to check before touching the network.
+        const cachedStudy = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
+        if (cachedStudy && quiz && cachedStudy.updatedAt === quiz.updatedAt && cachedStudy.quiz.mode === 'study') {
+          setQuiz(cachedStudy.quiz);
+          setStudyQuestions(cachedStudy.questions);
+          setHasAttempted(true);
+          setStarted(true);
+          return;
+        }
       }
 
       // Peek at the quiz's mode first via the normal endpoint (which
@@ -226,6 +247,13 @@ export function QuizDetailClient({
         }
         setQuiz(studyData.quiz);
         setStudyQuestions(studyData.questions);
+        if (!missedOnly) {
+          saveDraft<CachedStudyPayload>('study-questions-cache', quizId, {
+            updatedAt: studyData.quiz.updatedAt,
+            quiz: studyData.quiz,
+            questions: studyData.questions,
+          });
+        }
       } else {
         const quizForAttempt = data.quiz.timeLimitMode === 'user_choice' && data.quiz.mode !== 'study'
           ? { ...data.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
