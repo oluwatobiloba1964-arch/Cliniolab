@@ -6,7 +6,7 @@ leaderboards, comments, and an admin control panel.
 **Stack:** Next.js 16 (React 19) · Cloudflare D1 (database) · Supabase (auth + realtime)
 · Cloudflare Pages (hosting)
 
-## Architecture
+# Architecture
 
 All database access goes through a service layer in `src/lib/db/services/*`,
 exposed via the single barrel import `@/lib/db`. Components and API routes
