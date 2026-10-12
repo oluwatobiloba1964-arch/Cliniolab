@@ -12,6 +12,7 @@ import { FlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { LocalStudyToolkit } from '@/components/study/LocalStudyToolkit';
 import { LocalClinicalPractice } from '@/components/study/LocalClinicalPractice';
+import { LocalStudyExtras } from '@/components/study/LocalStudyExtras';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 
@@ -322,6 +323,7 @@ export default function DashboardPage() {
       </div>
 
       <LocalStudyToolkit />
+      <LocalStudyExtras />
       <LocalClinicalPractice />
 
       <section className="mt-6 grid gap-5 lg:grid-cols-[1.45fr_0.8fr]">
