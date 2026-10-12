@@ -1,6 +1,6 @@
 Cliniolab merged update (updated files only)
 
-Included changes
+Included change
 - Merged the five Flutterwave payment/configuration files from the supplied Flutterwave update into the latest Cliniolab-main (79) source snapshot.
 - Added creator timer policy for timed quizzes: fixed creator-set limit or user-selected custom limit before starting. The quiz taker choice is applied locally to the attempt; it does not trigger an extra API request.
 - Added a browser-only Study Space on the dashboard: personal revision tasks, notes, focus timer, daily goal, streak and milestones. These are stored in localStorage and do not create database reads or server invocations.
