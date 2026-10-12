@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { categoryService } from '@/lib/db';
 
+export const revalidate = 300;
+
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
 
 export const metadata: Metadata = {

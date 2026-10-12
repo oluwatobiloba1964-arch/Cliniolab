@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { quizService } from '@/lib/db';
 import { QuizzesClient } from './QuizzesClient';
 
+export const revalidate = 300;
+
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
 const PAGE_SIZE = 12;
 

@@ -1088,29 +1088,37 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
 
       {error && <p className="mt-4 text-sm text-critical-500">{error}</p>}
 
-      <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:justify-between">
-        <Button
-          variant="secondary"
-          disabled={current === 0}
-          onClick={() => setCurrent((c) => Math.max(0, c - 1))}
-        >
-          Previous
-        </Button>
-        <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex">
-          {!isAnswered(question.id) && (
-            <Button variant="secondary" onClick={skipQuestion}>
-              Skip
-            </Button>
-          )}
+      <div className="mt-6">
+        {/* Previous / Next / Submit: fixed positions, never reflow regardless
+            of answer state or last-question status. Submit swaps in for
+            Next on the final question but keeps the same slot and width
+            class so it doesn't jump. */}
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            variant="secondary"
+            disabled={current === 0}
+            onClick={() => setCurrent((c) => Math.max(0, c - 1))}
+          >
+            Previous
+          </Button>
           {current < questions.length - 1 ? (
             <Button onClick={() => setCurrent((c) => Math.min(questions.length - 1, c + 1))}>
               Next
             </Button>
           ) : (
-            <Button onClick={() => setShowSubmitConfirm(true)} disabled={submitting}>
+            <Button className="min-w-28" onClick={() => setShowSubmitConfirm(true)} disabled={submitting}>
               {submitting ? 'Submitting…' : 'Submit'}
             </Button>
           )}
+        </div>
+        {/* Skip: always rendered in its own fixed slot below, so its
+            presence/absence never shifts Previous/Next/Submit above.
+            Disabled (not hidden) once the question is answered, since
+            there's nothing left to skip. */}
+        <div className="mt-2 flex justify-center">
+          <Button variant="secondary" disabled={isAnswered(question.id)} onClick={skipQuestion}>
+            Skip
+          </Button>
         </div>
       </div>
 
