@@ -1,3 +1,4 @@
+// File: src/components/study/LocalStudyToolkit.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -29,6 +30,8 @@ export function LocalStudyToolkit() {
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<ToolkitData>;
         setData({ ...emptyData, ...parsed, tasks: parsed.tasks ?? [], notes: parsed.notes ?? [], minutesByDay: parsed.minutesByDay ?? {}, studyDays: parsed.studyDays ?? [] });
+        const preferredMinutes = Number((parsed as Partial<ToolkitData> & { studyPreferences?: { defaultSessionMinutes?: number } }).studyPreferences?.defaultSessionMinutes);
+        if ([5, 10, 15, 25, 45, 60].includes(preferredMinutes)) { setMinutes(preferredMinutes); setSecondsLeft(preferredMinutes * 60); }
       }
     } catch {}
     setReady(true);
