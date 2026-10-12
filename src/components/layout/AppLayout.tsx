@@ -8,10 +8,12 @@ import { PwaSetup } from './PwaSetup';
 import { FeedbackWidget } from './FeedbackWidget';
 import { CookieConsentBanner } from './CookieConsentBanner';
 import { ClientUXEnhancements } from './ClientUXEnhancements';
+import { LocalActivityTracker } from './LocalActivityTracker';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-paper">
+      <LocalActivityTracker />
       <NavBar />
       <main id="main-content" className="flex-1">{children}</main>
       <ClientUXEnhancements />
