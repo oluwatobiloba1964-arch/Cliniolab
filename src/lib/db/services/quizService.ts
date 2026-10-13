@@ -247,18 +247,19 @@ export async function createQuiz(
   const quizStatement = db
     .prepare(
       `INSERT INTO quizzes (
-        id, subcategory_id, creator_id, title, description, mode, difficulty,
+        id, subcategory_id, creator_id, title, normalized_title, description, mode, difficulty,
         visibility, share_slug, link_expires_at, time_limit_seconds, time_limit_mode,
         shuffle_questions, shuffle_options,
         anti_cheat_enabled, retake_policy, retake_limit, status, pricing, price_kobo,
         allow_flagging, default_mark, show_marks, leaderboard_enabled, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       id,
       input.subcategoryId,
       creatorId,
       input.title,
+      normalizeForDedup(input.title),
       input.description ?? null,
       input.mode,
       input.difficulty,
@@ -283,20 +284,27 @@ export async function createQuiz(
       now
     );
 
+  // subcategory_id and normalized_prompt are denormalized onto the question
+  // row itself (instead of joining through quizzes) so a duplicate check
+  // can do an indexed `WHERE subcategory_id = ? AND normalized_prompt IN
+  // (...)` lookup against only the incoming batch, rather than reading
+  // every existing question in the subcategory to compare in JS.
   const questionStatements = input.questions.map((q, index) =>
     db
       .prepare(
         `INSERT INTO questions (
-          id, quiz_id, type, prompt, options, correct_answer,
+          id, quiz_id, subcategory_id, type, prompt, normalized_prompt, options, correct_answer,
           explanation, incorrect_rationale, sort_order, mark
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         generateId('q'),
         id,
+        input.subcategoryId,
         q.type,
         q.prompt,
+        normalizeForDedup(q.prompt),
         q.options ? JSON.stringify(q.options) : null,
         q.correctAnswer,
         q.explanation ?? null,
@@ -359,7 +367,7 @@ export async function updateQuiz(
   const quizStatement = db
     .prepare(
       `UPDATE quizzes SET
-        subcategory_id = ?, title = ?, description = ?, mode = ?, difficulty = ?,
+        subcategory_id = ?, title = ?, normalized_title = ?, description = ?, mode = ?, difficulty = ?,
         time_limit_seconds = ?, time_limit_mode = ?, shuffle_questions = ?, shuffle_options = ?,
         anti_cheat_enabled = ?, retake_policy = ?, retake_limit = ?,
         pricing = ?, price_kobo = ?, allow_flagging = ?, default_mark = ?,
@@ -369,6 +377,7 @@ export async function updateQuiz(
     .bind(
       input.subcategoryId,
       input.title,
+      normalizeForDedup(input.title),
       input.description ?? null,
       input.mode,
       input.difficulty,
@@ -452,13 +461,15 @@ export async function updateQuiz(
       return db
         .prepare(
           `UPDATE questions SET
-            type = ?, prompt = ?, options = ?, correct_answer = ?,
+            subcategory_id = ?, type = ?, prompt = ?, normalized_prompt = ?, options = ?, correct_answer = ?,
             explanation = ?, incorrect_rationale = ?, sort_order = ?, mark = ?
           WHERE id = ?`
         )
         .bind(
+          input.subcategoryId,
           q.type,
           q.prompt,
+          normalizeForDedup(q.prompt),
           q.options ? JSON.stringify(q.options) : null,
           q.correctAnswer,
           q.explanation ?? null,
@@ -472,16 +483,18 @@ export async function updateQuiz(
     return db
       .prepare(
         `INSERT INTO questions (
-          id, quiz_id, type, prompt, options, correct_answer,
+          id, quiz_id, subcategory_id, type, prompt, normalized_prompt, options, correct_answer,
           explanation, incorrect_rationale, sort_order, mark
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         generateId('q'),
         quizId,
+        input.subcategoryId,
         q.type,
         q.prompt,
+        normalizeForDedup(q.prompt),
         q.options ? JSON.stringify(q.options) : null,
         q.correctAnswer,
         q.explanation ?? null,
@@ -593,14 +606,65 @@ export interface BulkQuizDuplicateReport {
   >;
 }
 
+// Keep well under D1/SQLite's bound-parameter ceiling (the subcategory_id
+// bind takes one slot too).
+const DEDUP_IN_CHUNK_SIZE = 100;
+
+async function fetchMatchingNormalized(
+  db: ReturnType<typeof getDb>,
+  table: 'quizzes' | 'questions',
+  column: 'normalized_title' | 'normalized_prompt',
+  subcategoryId: string,
+  normalizedValues: string[]
+): Promise<Set<string>> {
+  const found = new Set<string>();
+  const uniqueValues = [...new Set(normalizedValues)];
+
+  for (let i = 0; i < uniqueValues.length; i += DEDUP_IN_CHUNK_SIZE) {
+    const chunk = uniqueValues.slice(i, i + DEDUP_IN_CHUNK_SIZE);
+    if (chunk.length === 0) continue;
+
+    const placeholders = chunk.map(() => '?').join(',');
+    const { results } = await db
+      .prepare(
+        `SELECT ${column} AS value FROM ${table}
+         WHERE subcategory_id = ? AND ${column} IN (${placeholders})`
+      )
+      .bind(subcategoryId, ...chunk)
+      .all<{ value: string }>();
+
+    for (const row of results) found.add(row.value);
+  }
+
+  return found;
+}
+
 export async function findBulkQuizDuplicates(
   inputs: QuizInput[]
 ): Promise<BulkQuizDuplicateReport> {
   const db = getDb();
 
-  const subcategoryIds = [
-    ...new Set(inputs.map((q) => q.subcategoryId)),
-  ];
+  // Only ask the DB about the titles/prompts actually present in this
+  // upload, scoped per subcategory - instead of reading every existing
+  // title/prompt in the subcategory and comparing in JS. A bulk upload of
+  // a handful of questions against a subcategory with thousands of
+  // existing ones now reads only what could possibly match, not the whole
+  // bank: read cost scales with the size of the upload, not the archive.
+  const normalizedTitlesBySubcat = new Map<string, Set<string>>();
+  const normalizedPromptsBySubcat = new Map<string, Set<string>>();
+
+  for (const input of inputs) {
+    if (!normalizedTitlesBySubcat.has(input.subcategoryId)) {
+      normalizedTitlesBySubcat.set(input.subcategoryId, new Set());
+      normalizedPromptsBySubcat.set(input.subcategoryId, new Set());
+    }
+    normalizedTitlesBySubcat.get(input.subcategoryId)!.add(normalizeForDedup(input.title));
+    for (const q of input.questions) {
+      normalizedPromptsBySubcat.get(input.subcategoryId)!.add(normalizeForDedup(q.prompt));
+    }
+  }
+
+  const subcategoryIds = [...normalizedTitlesBySubcat.keys()];
 
   const existingTitlesBySubcat = new Map<
     string,
@@ -614,45 +678,26 @@ export async function findBulkQuizDuplicates(
 
   await Promise.all(
     subcategoryIds.map(async (subcategoryId) => {
-      const [
-        { results: titleRows },
-        { results: promptRows },
-      ] = await Promise.all([
-        db
-          .prepare(
-            'SELECT title FROM quizzes WHERE subcategory_id = ?'
-          )
-          .bind(subcategoryId)
-          .all<{ title: string }>(),
+      const [titleMatches, promptMatches] = await Promise.all([
+        fetchMatchingNormalized(
+          db,
+          'quizzes',
+          'normalized_title',
+          subcategoryId,
+          [...normalizedTitlesBySubcat.get(subcategoryId)!]
+        ),
 
-        db
-          .prepare(
-            `SELECT q.prompt AS prompt
-             FROM questions q
-             JOIN quizzes qz ON qz.id = q.quiz_id
-             WHERE qz.subcategory_id = ?`
-          )
-          .bind(subcategoryId)
-          .all<{ prompt: string }>(),
+        fetchMatchingNormalized(
+          db,
+          'questions',
+          'normalized_prompt',
+          subcategoryId,
+          [...normalizedPromptsBySubcat.get(subcategoryId)!]
+        ),
       ]);
 
-      existingTitlesBySubcat.set(
-        subcategoryId,
-        new Set(
-          titleRows.map((r) =>
-            normalizeForDedup(r.title)
-          )
-        )
-      );
-
-      existingPromptsBySubcat.set(
-        subcategoryId,
-        new Set(
-          promptRows.map((r) =>
-            normalizeForDedup(r.prompt)
-          )
-        )
-      );
+      existingTitlesBySubcat.set(subcategoryId, titleMatches);
+      existingPromptsBySubcat.set(subcategoryId, promptMatches);
     })
   );
 
