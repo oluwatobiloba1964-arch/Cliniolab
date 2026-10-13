@@ -527,10 +527,35 @@ export async function bulkCreateQuizzes(
   creatorId: string,
   inputs: QuizInput[]
 ): Promise<Quiz[]> {
+  // All-or-nothing: D1 doesn't give us a single cross-statement transaction
+  // spanning multiple createQuiz() calls (each createQuiz already batches
+  // its own quiz+questions atomically, but the *loop* across quizzes isn't
+  // atomic). Previously, if quiz #50 of a 100-quiz batch failed (e.g. a
+  // FOREIGN KEY violation), quizzes #1-49 stayed committed. The caller's
+  // only recourse was "Publish anyway", which re-sent the WHOLE batch -
+  // so #1-49 now looked like duplicates (because they genuinely already
+  // existed), while #50 failed again for the same underlying reason. The
+  // user saw the same duplicate report loop forever with no way out.
+  //
+  // Fix: track every quiz actually created in this call, and if any later
+  // quiz throws, delete everything this call created before re-throwing -
+  // so a failed bulk upload always leaves the database exactly as it was
+  // before the attempt, and a retry starts clean instead of fighting
+  // phantom duplicates from the previous partial run.
   const created: Quiz[] = [];
 
-  for (const input of inputs) {
-    created.push(await createQuiz(creatorId, input));
+  try {
+    for (const input of inputs) {
+      created.push(await createQuiz(creatorId, input));
+    }
+  } catch (err) {
+    await Promise.all(
+      created.map((quiz) => deleteQuiz(quiz.id).catch(() => {
+        // Best-effort cleanup - if a delete itself fails, surfacing the
+        // original creation error is more useful than this secondary one.
+      }))
+    );
+    throw err;
   }
 
   return created;
