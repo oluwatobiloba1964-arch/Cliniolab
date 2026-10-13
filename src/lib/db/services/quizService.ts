@@ -542,20 +542,41 @@ export async function bulkCreateQuizzes(
   // so a failed bulk upload always leaves the database exactly as it was
   // before the attempt, and a retry starts clean instead of fighting
   // phantom duplicates from the previous partial run.
-  const created: Quiz[] = [];
+  //
+  // FIX (Vercel Hobby duration budget) - this used to await createQuiz()
+  // one quiz at a time in a for-loop. Each quiz is its own D1 round trip
+  // (or several, for a big question list), so a real bulk upload - the
+  // exact case where duplicates get re-sent via "Publish anyway" - could
+  // easily run past the ~10s Hobby function budget and get killed mid-way,
+  // which the client only ever saw as the generic "something went wrong"
+  // error below, every time, regardless of whether anything was actually
+  // a duplicate. createQuiz calls are independent of each other (each one
+  // reads/writes only its own quiz+questions), so they're safe to run
+  // concurrently - this brings wall time down to roughly one quiz's worth
+  // of round trips instead of N.
+  const results = await Promise.allSettled(
+    inputs.map((input) => createQuiz(creatorId, input))
+  );
 
-  try {
-    for (const input of inputs) {
-      created.push(await createQuiz(creatorId, input));
+  const created: Quiz[] = [];
+  let firstError: unknown = null;
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      created.push(result.value);
+    } else if (firstError === null) {
+      firstError = result.reason;
     }
-  } catch (err) {
+  }
+
+  if (firstError !== null) {
     await Promise.all(
       created.map((quiz) => deleteQuiz(quiz.id).catch(() => {
         // Best-effort cleanup - if a delete itself fails, surfacing the
         // original creation error is more useful than this secondary one.
       }))
     );
-    throw err;
+    throw firstError;
   }
 
   return created;
