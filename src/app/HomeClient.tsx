@@ -16,6 +16,7 @@ import { CompactTeaserBlogSection } from '@/components/cms/CompactTeaserBlogSect
 
 import {
   HomeHero,
+  HomeLatestArticle,
   HomeQuickActions,
   HomeStudyStrip,
   HomeSubjectExplorer,
@@ -58,6 +59,10 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
     <div className="bg-white">
       <HomeHero />
       <BannerSlot placement="header" />
+
+      <HomeLatestArticle blogCategories={blogCategories} data={home.data} />
+      <DailyQuizBanner />
+
       <HomeQuickActions signedIn={!!user} />
       <HomeStudyStrip />
       <HomeSubjectExplorer categories={initialCategories} />

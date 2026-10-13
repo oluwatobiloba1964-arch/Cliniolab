@@ -1,5 +1,6 @@
 // src/components/home/index.ts
 export { HomeHero } from './HomeHero';
+export { HomeLatestArticle } from './HomeLatestArticle';
 export { HomeQuickActions } from './HomeQuickActions';
 export { HomeStudyStrip } from './HomeStudyStrip';
 export { HomeSubjectExplorer } from './HomeSubjectExplorer';
