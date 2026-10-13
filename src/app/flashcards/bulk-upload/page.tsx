@@ -457,28 +457,27 @@ export default function FlashcardBulkUploadPage() {
   async function handleSubmit() {
     setSubmitting(true);
     setSubmitError(null);
-    let successCount = 0;
-    const failures: string[] = [];
     try {
-      for (const set of parsedSets) {
-        const res = await fetch('/api/flashcards', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(set),
-        });
-        if (res.ok) {
-          successCount++;
-        } else {
-          const data = await res.json().catch(() => ({}));
-          failures.push(`"${set.title}": ${data.error ?? `HTTP ${res.status}`}`);
-        }
+      // Previously this looped and POSTed to /api/flashcards once per set -
+      // for a real upload that's dozens of separate round trips from the
+      // browser, no all-or-nothing guarantee, and nothing stopped a closed
+      // tab or dropped connection from leaving the upload half-done. Now
+      // it's a single request to the bulk endpoint, which creates
+      // everything server-side and rolls back entirely if any one set
+      // fails.
+      const res = await fetch('/api/flashcards/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sets: parsedSets }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSubmitError(data.error ?? 'Upload failed');
+        return;
       }
-      setSubmittedCount(successCount);
+      setSubmittedCount(data.sets?.length ?? parsedSets.length);
       setParsedSets([]);
       setFileName(null);
-      if (failures.length > 0) {
-        setSubmitError(`${failures.length} set(s) failed to upload:\n${failures.join('\n')}`);
-      }
     } catch {
       setSubmitError('Network error while publishing.');
     } finally {
