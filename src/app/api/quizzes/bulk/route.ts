@@ -156,8 +156,16 @@ export async function POST(request: Request) {
     const created = await quizService.bulkCreateQuizzes(user.id, body.quizzes);
     return NextResponse.json({ quizzes: created }, { status: 201 });
   } catch (err) {
+    // Log the real error server-side for debugging, but never forward raw
+    // DB/driver text (e.g. "FOREIGN KEY constraint failed: SQLITE_CONSTRAINT
+    // (extended: SQLITE_CONSTRAINT_FOREIGNKEY)") to the client - it means
+    // nothing to the admin uploading a spreadsheet and reads like a crash.
+    // bulkCreateQuizzes now also rolls back anything it managed to create
+    // before the failure, so a retry after this error starts from a clean
+    // slate instead of re-flagging already-inserted rows as duplicates.
+    console.error('Bulk quiz upload failed:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Bulk upload failed' },
+      { error: 'Something went wrong while publishing these quizzes. Nothing was saved - please try again, and contact support if it keeps happening.' },
       { status: 500 }
     );
   }
