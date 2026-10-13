@@ -12,6 +12,7 @@ import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
 import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
+import { ATTEMPTED_QUIZZES_KEY, COPIED_EXPLANATIONS_KEY, makeId, readJson, writeJson } from '@/lib/services/localExtrasService';
 import type { AttemptResult, Quiz, QuizQuestion } from '@/types';
 
 interface QuizRunnerProps {
@@ -469,6 +470,21 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         resultData = data.result;
       }
       setResult(resultData);
+      // Cache last attempt locally so quiz cards can show a "last: NN%" badge
+      // without any server round trip. Client-side only.
+      try {
+        const cache = readJson<Record<string, { percentage: number; at: string }>>(
+          ATTEMPTED_QUIZZES_KEY,
+          {}
+        );
+        cache[quiz.id] = {
+          percentage: Math.round(resultData.percentage),
+          at: new Date().toISOString(),
+        };
+        writeJson(ATTEMPTED_QUIZZES_KEY, cache);
+      } catch {
+        // ignore, badge is a nicety
+      }
       if (guest) {
         // Device-local only: lets "Retake missed only" work without any account or database row.
         try {
@@ -802,6 +818,24 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                             textarea.select();
                             document.execCommand('copy');
                             document.body.removeChild(textarea);
+                          }
+                          try {
+                            const log = readJson<
+                              Array<{ id: string; quizTitle: string; prompt: string; explanation: string; copiedAt: string }>
+                            >(COPIED_EXPLANATIONS_KEY, []);
+                            const next = [
+                              {
+                                id: makeId(),
+                                quizTitle: quiz.title,
+                                prompt: pq.prompt,
+                                explanation: pq.explanation ?? '',
+                                copiedAt: new Date().toISOString(),
+                              },
+                              ...log,
+                            ].slice(0, 20);
+                            writeJson(COPIED_EXPLANATIONS_KEY, next);
+                          } catch {
+                            // ignore
                           }
                           setCopiedExplanationId(pq.questionId);
                           window.setTimeout(() => setCopiedExplanationId((id) => id === pq.questionId ? null : id), 1800);

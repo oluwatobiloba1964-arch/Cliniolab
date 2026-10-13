@@ -13,6 +13,7 @@ import { ShareButton } from '@/components/quiz/ShareButton';
 import { LocalStudyToolkit } from '@/components/study/LocalStudyToolkit';
 import { LocalClinicalPractice } from '@/components/study/LocalClinicalPractice';
 import { LocalStudyExtras } from '@/components/study/LocalStudyExtras';
+import { TonightQueue } from '@/components/study/TonightQueue';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 
@@ -323,6 +324,9 @@ export default function DashboardPage() {
       </div>
 
       <LocalStudyToolkit />
+      <div className="mt-6">
+        <TonightQueue />
+      </div>
       <LocalStudyExtras />
       <LocalClinicalPractice />
 

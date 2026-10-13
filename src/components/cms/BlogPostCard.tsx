@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { useBlogSubcategoryName } from '@/lib/hooks/useBlogSubcategoryName';
 import { useBlogCategorySlug } from '@/lib/hooks/useBlogCategorySlug';
+import { ReadingTimePill } from '@/components/blog/ReadingTimePill';
 import type { BlogPost } from '@/types';
 
 const FALLBACK_COVERS: Record<'job' | 'scholarship' | 'default', string> = {
@@ -120,6 +121,7 @@ export function BlogPostCard({ post }: { post: BlogPost }) {
                 {subcategoryName}
               </span>
             )}
+            <ReadingTimePill content={post.content} />
           </div>
           <h3 className="mt-2 font-display text-lg font-semibold text-ink-800">{post.title}</h3>
           {excerpt && <p className="mt-1 text-sm text-ink-500 line-clamp-2">{excerpt}</p>}

@@ -15,6 +15,9 @@ import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
 import { Button } from '@/components/ui/Button';
 import { Card, DifficultyBadge } from '@/components/ui/Card';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
+import { QuizNotesPanel } from '@/components/quiz/QuizNotesPanel';
+import { AddToQueueButton } from '@/components/quiz/AddToQueueButton';
+import { AttemptedQuizBadge } from '@/components/quiz/AttemptedQuizBadge';
 import type { Quiz, QuizQuestion, QuizWithStats } from '@/types';
 
 // Caches the full "Start" payload (quiz + questions) so repeat Start
@@ -414,9 +417,12 @@ export function QuizDetailClient({
         <div className="flex items-start justify-between gap-3">
           <div>
             {quiz && <DifficultyBadge difficulty={quiz.difficulty} />}
-            <h1 className="mt-2 font-display text-2xl font-semibold text-ink-800">
-              {quiz?.title ?? 'Quiz'}
-            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-2xl font-semibold text-ink-800">
+                {quiz?.title ?? 'Quiz'}
+              </h1>
+              <AttemptedQuizBadge quizId={quizId} />
+            </div>
             {quiz && (
               <span className="mt-1 inline-block font-mono text-xs uppercase tracking-wide text-pulse-600">
                 {MODE_LABELS[quiz.mode]}
@@ -565,9 +571,12 @@ export function QuizDetailClient({
             </Button>
           </div>
         ) : (
-          <Button className="mt-6" onClick={handleStart} disabled={fetching}>
-            {fetching ? 'Loading…' : 'Start'}
-          </Button>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <Button onClick={handleStart} disabled={fetching}>
+              {fetching ? 'Loading…' : 'Start'}
+            </Button>
+            {quiz && <AddToQueueButton quizId={quiz.id} title={quiz.title} />}
+          </div>
         )}
       </Card>
 
@@ -578,6 +587,7 @@ export function QuizDetailClient({
           <CreatorProfileCard creatorId={previewStats.creatorId} />
         </div>
       )}
+      <QuizNotesPanel quizId={quizId} />
       <RelatedStudyMaterials endpoint={`/api/quizzes/${quizId}/related`} />
     </div>
   );

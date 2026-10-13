@@ -1,0 +1,88 @@
+// src/lib/hooks/useHomeData.ts
+'use client';
+
+import { useEffect, useState } from 'react';
+import { publicFetchJson } from '@/lib/client/publicFetch';
+import type {
+  BlogPost,
+  FlashcardSetWithStats,
+  LeaderboardEntry,
+  QuizWithStats,
+  Resource,
+} from '@/types';
+
+export interface BlogCategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+}
+
+export interface HomeData {
+  blogCategories: BlogCategoryOption[];
+  resourcesEnabled: boolean;
+  resources: Resource[];
+  flashcardsEnabled: boolean;
+  latestFlashcards: FlashcardSetWithStats[];
+  jobPosts: BlogPost[];
+  scholarshipPosts: BlogPost[];
+  blogsByCategory: Record<string, BlogPost[]>;
+  quizzesByCategory: Record<string, QuizWithStats[]>;
+  flashcardsByCategory: Record<string, FlashcardSetWithStats[]>;
+}
+
+export interface HomeDataResult {
+  data: HomeData | null;
+  failed: boolean;
+  leaderboard: LeaderboardEntry[];
+  leaderboardEnabled: boolean;
+  leaderboardLabel: string;
+  currentUserRank: number | null;
+}
+
+/**
+ * All three homepage-only client fetches, kept together so HomeClient is
+ * no longer responsible for wiring up URLs and intermediate state. Each
+ * fetch fails independently — a slow leaderboard never blocks the rest
+ * of the homepage.
+ */
+export function useHomeData(): HomeDataResult {
+  const [data, setData] = useState<HomeData | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardEnabled, setLeaderboardEnabled] = useState(true);
+  const [leaderboardLabel, setLeaderboardLabel] = useState('Top Quiz Takers');
+  const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
+
+  useEffect(() => {
+    publicFetchJson<HomeData>('/api/homepage-data', 60_000)
+      .then(setData)
+      .catch(() => setFailed(true));
+
+    publicFetchJson<{
+      enabled: boolean;
+      entries?: LeaderboardEntry[];
+      currentUserRank?: number | null;
+    }>('/api/leaderboard/general', 60_000)
+      .then((d) => {
+        if (!d) return;
+        setLeaderboardEnabled(d.enabled);
+        setLeaderboard(d.entries ?? []);
+        setCurrentUserRank(d.currentUserRank ?? null);
+      })
+      .catch(() => {
+        // ignore — leaderboard is a soft failure
+      });
+
+    publicFetchJson<{ label?: string }>('/api/flags/leaderboard_general', 60_000)
+      .then((d) => {
+        if (d?.label) setLeaderboardLabel(d.label);
+      })
+      .catch(() => {
+        // ignore
+      });
+  }, []);
+
+  return { data, failed, leaderboard, leaderboardEnabled, leaderboardLabel, currentUserRank };
+}

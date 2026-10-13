@@ -18,6 +18,7 @@ import { ArticleStudyMode } from '@/components/study/ArticleStudyMode';
 import { extractTableOfContents, MIN_HEADINGS_FOR_TOC } from '@/lib/utils/tableOfContents';
 import { useBlogSubcategoryName } from '@/lib/hooks/useBlogSubcategoryName';
 import { useBlogCategorySlug } from '@/lib/hooks/useBlogCategorySlug';
+import { ArticleDisplayToggle } from '@/components/blog/ArticleDisplayToggle';
 import type { BlogPost } from '@/types';
 
 const FALLBACK_COVERS: Record<'job' | 'scholarship' | 'default', string> = {
@@ -196,6 +197,7 @@ function BlogPostBody({ post }: { post: BlogPost }) {
   const { authorBox, flags } = usePublicConfig();
   const subcategoryName = useBlogSubcategoryName(post.blogCategoryId, post.blogSubcategoryId);
   const categorySlug = useBlogCategorySlug(post.blogCategoryId);
+  const [displayMode, setDisplayMode] = useState<'default' | 'sepia' | 'contrast'>('default');
   const isRaw = isFullRawDocument(post.content);
   // Covers old/edge-case posts that carry their own <style> or fixed
   // pixel widths but, for whatever historical reason, don't trip the
@@ -241,6 +243,9 @@ function BlogPostBody({ post }: { post: BlogPost }) {
             </span>
           )}
         </div>
+        <div className="mt-4">
+          <ArticleDisplayToggle onChange={setDisplayMode} />
+        </div>
         <div className="mt-2 flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
           <h1 className="font-display text-3xl font-semibold text-ink-800">{post.title}</h1>
           {typeof window !== 'undefined' && (
@@ -273,6 +278,7 @@ function BlogPostBody({ post }: { post: BlogPost }) {
           render through the fragment/sanitize path below — only the
           iframe rendering itself is reserved for true full documents.
           Plain markdown/article posts stay at readable article width. */}
+      <div className={displayMode === 'sepia' ? 'article-mode-sepia' : displayMode === 'contrast' ? 'article-mode-contrast' : ''}>
       {isRaw ? (
         <div className="mx-auto mt-6 max-w-6xl px-6">
           <RawHtmlFrame html={post.content} />
@@ -306,6 +312,7 @@ function BlogPostBody({ post }: { post: BlogPost }) {
           );
         })()
       )}
+      </div>
 
       <div className="mx-auto max-w-2xl px-6">
         <AuthorBox

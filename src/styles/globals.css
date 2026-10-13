@@ -398,3 +398,40 @@ select {
 .readable-content { font-size: calc(1rem * var(--cliniolab-text-scale)); }
 @media print { .page-tools, .command-trigger, .mobile-bottom-nav, .back-to-top, .offline-pill, .install-pill { display: none !important; } }
 @media (max-width: 767px) { .page-tools { right: .8rem; bottom: 5.5rem; } }
+
+
+/* ------------------------------------------------------------------ */
+/* Browser-only feature bundle: article display modes + polish        */
+/* ------------------------------------------------------------------ */
+
+.article-mode-sepia {
+  background-color: #f4ecdc;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+}
+.dark .article-mode-sepia {
+  background-color: #2a2018;
+}
+
+.article-mode-contrast {
+  background-color: #ffffff;
+  filter: contrast(1.15);
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #0b1f2e;
+}
+.dark .article-mode-contrast {
+  background-color: #0a1119;
+  border-color: #e8eef1;
+  filter: contrast(1.1);
+}
+
+/* Small extra: the article display toggle's pill buttons should never
+   wrap onto two lines awkwardly on narrow phones. Scoped to this
+   component only — `.rounded-full` is a shared Tailwind utility used
+   across ~45 unrelated files and must not be touched globally. */
+@media (max-width: 480px) {
+  .article-display-toggle {
+    white-space: nowrap;
+  }
+}
