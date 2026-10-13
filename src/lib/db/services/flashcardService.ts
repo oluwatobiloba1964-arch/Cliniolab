@@ -107,6 +107,52 @@ export async function createFlashcardSet(creatorId: string, input: FlashcardInpu
   };
 }
 
+/**
+ * Creates many flashcard sets in one call (bulk upload). All-or-nothing:
+ * runs every createFlashcardSet concurrently (each one only touches its
+ * own set+cards, so they're independent of each other) rather than
+ * one-at-a-time, then if any of them fails, deletes everything this call
+ * created before re-throwing - so a failed bulk upload always leaves the
+ * database exactly as it was before the attempt.
+ *
+ * Previously, the only "bulk upload" was the client looping and POSTing
+ * to /api/flashcards once per set - N separate round trips from the
+ * browser, no all-or-nothing guarantee, and no way to know partway
+ * through if something failed. This replaces that with a single request
+ * that creates everything server-side, concurrently.
+ */
+export async function bulkCreateFlashcardSets(
+  creatorId: string,
+  inputs: FlashcardInput[]
+): Promise<FlashcardSet[]> {
+  const results = await Promise.allSettled(
+    inputs.map((input) => createFlashcardSet(creatorId, input))
+  );
+
+  const created: FlashcardSet[] = [];
+  let firstError: unknown = null;
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      created.push(result.value);
+    } else if (firstError === null) {
+      firstError = result.reason;
+    }
+  }
+
+  if (firstError !== null) {
+    await Promise.all(
+      created.map((set) => deleteFlashcardSet(set.id).catch(() => {
+        // Best-effort cleanup - if a delete itself fails, surfacing the
+        // original creation error is more useful than this secondary one.
+      }))
+    );
+    throw firstError;
+  }
+
+  return created;
+}
+
 export async function updateFlashcardSet(setId: string, input: FlashcardInput): Promise<FlashcardSet> {
   const db = getDb();
   const now = nowIso();
