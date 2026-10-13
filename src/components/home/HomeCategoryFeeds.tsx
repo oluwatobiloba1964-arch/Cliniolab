@@ -4,11 +4,25 @@
 import { CategoryBlogSection } from '@/components/cms/CategoryBlogSection';
 import { CategoryQuizSection } from '@/components/quiz/CategoryQuizSection';
 import { CategoryFlashcardSection } from '@/components/flashcards/CategoryFlashcardSection';
-import { JOB_CATEGORY_SLUG, SCHOLARSHIP_CATEGORY_SLUG } from '@/lib/constants/blogCategories';
+import {
+  JOB_CATEGORY_SLUG,
+  SCHOLARSHIP_CATEGORY_SLUG,
+  CLINICAL_PEARLS_CATEGORY_SLUG,
+  EXAM_PREP_GUIDES_CATEGORY_SLUG,
+} from '@/lib/constants/blogCategories';
 import type { HomeData, BlogCategoryOption } from '@/lib/hooks/useHomeData';
 import type { Category } from '@/types';
 
-const HOMEPAGE_EXCLUDED_SLUGS = new Set([JOB_CATEGORY_SLUG, SCHOLARSHIP_CATEGORY_SLUG]);
+// Job/Scholarship get their own dedicated pages instead of a homepage
+// section, and Clinical Pearls/Exam Prep Guides already get their own
+// compact-card teaser section higher up on the page (see HomeClient) —
+// so all four are excluded here to avoid showing the same category twice.
+const HOMEPAGE_EXCLUDED_SLUGS = new Set([
+  JOB_CATEGORY_SLUG,
+  SCHOLARSHIP_CATEGORY_SLUG,
+  CLINICAL_PEARLS_CATEGORY_SLUG,
+  EXAM_PREP_GUIDES_CATEGORY_SLUG,
+]);
 
 interface HomeCategoryFeedsProps {
   categories: Category[];
