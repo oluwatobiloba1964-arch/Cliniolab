@@ -22,6 +22,79 @@ async function runBatchChunked(
   }
 }
 
+// FIX (undeletable corrupted quiz rows, "SQL logic error: SQLITE_ERROR" on
+// DELETE/UPDATE) — some quiz rows created during the pre-sequential-batch
+// concurrent-insert bug (see d1HttpAdapter.ts) ended up with a corrupted
+// quizzes_fts (FTS5 external-content) shadow-table entry: the row's content
+// itself is fine (SELECT works), but the AFTER DELETE/UPDATE triggers that
+// sync quizzes_fts can't satisfy the 'delete' sync command for that
+// specific rowid, so the trigger throws and the whole statement fails with
+// a generic SQLITE_ERROR. PRAGMA integrity_check (which could diagnose/fix
+// FTS corruption) is not permitted on D1's hosted console, and
+// `INSERT INTO quizzes_fts(quizzes_fts) VALUES('rebuild')` does not fix it
+// either. The only confirmed working fix is to temporarily drop the three
+// sync triggers, perform the write, then recreate them and force a full
+// rebuild so search stays consistent. This only runs as a fallback when the
+// first attempt fails with this specific error - the normal path (trigger
+// in place) is untouched for every other row.
+const FTS_SYNC_ERROR_MARKER = 'SQL logic error';
+
+async function withQuizzesFtsTriggersDropped<T>(
+  db: ReturnType<typeof getDb>,
+  fn: () => Promise<T>
+): Promise<T> {
+  await db.batch([
+    db.prepare('DROP TRIGGER IF EXISTS quizzes_fts_ai'),
+    db.prepare('DROP TRIGGER IF EXISTS quizzes_fts_ad'),
+    db.prepare('DROP TRIGGER IF EXISTS quizzes_fts_au'),
+  ]);
+  try {
+    return await fn();
+  } finally {
+    await db.batch([
+      db.prepare(
+        `CREATE TRIGGER IF NOT EXISTS quizzes_fts_ai AFTER INSERT ON quizzes BEGIN
+           INSERT INTO quizzes_fts(rowid, title, description)
+           VALUES (new.rowid, new.title, COALESCE(new.description, ''));
+         END`
+      ),
+      db.prepare(
+        `CREATE TRIGGER IF NOT EXISTS quizzes_fts_ad AFTER DELETE ON quizzes BEGIN
+           INSERT INTO quizzes_fts(quizzes_fts, rowid, title, description)
+           VALUES ('delete', old.rowid, old.title, COALESCE(old.description, ''));
+         END`
+      ),
+      db.prepare(
+        `CREATE TRIGGER IF NOT EXISTS quizzes_fts_au AFTER UPDATE ON quizzes BEGIN
+           INSERT INTO quizzes_fts(quizzes_fts, rowid, title, description)
+           VALUES ('delete', old.rowid, old.title, COALESCE(old.description, ''));
+           INSERT INTO quizzes_fts(rowid, title, description)
+           VALUES (new.rowid, new.title, COALESCE(new.description, ''));
+         END`
+      ),
+      db.prepare(`INSERT INTO quizzes_fts(quizzes_fts) VALUES('rebuild')`),
+    ]);
+  }
+}
+
+/**
+ * Deletes a quizzes row, working around the quizzes_fts trigger corruption
+ * described above when it's hit. Every other table's rows for this quiz
+ * must already be gone by the time this is called (see deleteQuiz below) -
+ * this only ever touches the quizzes row itself.
+ */
+async function deleteQuizRowResilient(db: ReturnType<typeof getDb>, quizId: string): Promise<void> {
+  try {
+    await db.prepare('DELETE FROM quizzes WHERE id = ?').bind(quizId).run();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes(FTS_SYNC_ERROR_MARKER)) throw err;
+    await withQuizzesFtsTriggersDropped(db, () =>
+      db.prepare('DELETE FROM quizzes WHERE id = ?').bind(quizId).run()
+    );
+  }
+}
+
 function generateShareSlug(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 }
@@ -335,23 +408,6 @@ export async function getQuizByShareSlug(slug: string): Promise<Quiz | null> {
   return quiz;
 }
 
-// Runs one labeled delete step and, if it throws, rewraps the error with
-// which step failed prepended to the original D1 message. D1's errors
-// (especially over the HTTP API - see d1HttpAdapter.ts) are often just
-// "SQL logic error: SQLITE_ERROR" with no indication of which statement
-// or constraint caused it, which makes a failing delete nearly impossible
-// to diagnose from the client-side error banner alone. This turns that
-// into e.g. "deleteQuiz step 'study_attempts' failed: SQL logic error:
-// SQLITE_ERROR" so the real cause is visible without a server log.
-async function runDeleteStep(label: string, fn: () => Promise<unknown>): Promise<void> {
-  try {
-    await fn();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`deleteQuiz step '${label}' failed: ${message}`);
-  }
-}
-
 export async function deleteQuiz(quizId: string): Promise<void> {
   const db = getDb();
 
@@ -373,51 +429,31 @@ export async function deleteQuiz(quizId: string): Promise<void> {
 
   if (questionIds.length > 0) {
     for (const idsChunk of chunk(questionIds, CHUNK_SIZE)) {
-      await runDeleteStep('question_reports', () =>
-        db.prepare(`DELETE FROM question_reports WHERE question_id IN (${placeholders(idsChunk.length)})`)
-          .bind(...idsChunk).run()
-      );
-      await runDeleteStep('attempt_answers', () =>
-        db.prepare(`DELETE FROM attempt_answers WHERE question_id IN (${placeholders(idsChunk.length)})`)
-          .bind(...idsChunk).run()
-      );
+      await db.prepare(`DELETE FROM question_reports WHERE question_id IN (${placeholders(idsChunk.length)})`)
+        .bind(...idsChunk).run();
+      await db.prepare(`DELETE FROM attempt_answers WHERE question_id IN (${placeholders(idsChunk.length)})`)
+        .bind(...idsChunk).run();
     }
   }
 
   if (commentIds.length > 0) {
     for (const idsChunk of chunk(commentIds, CHUNK_SIZE)) {
-      await runDeleteStep('comment_reactions', () =>
-        db.prepare(`DELETE FROM comment_reactions WHERE comment_id IN (${placeholders(idsChunk.length)})`)
-          .bind(...idsChunk).run()
-      );
+      await db.prepare(`DELETE FROM comment_reactions WHERE comment_id IN (${placeholders(idsChunk.length)})`)
+        .bind(...idsChunk).run();
     }
   }
 
-  await runDeleteStep('questions', () =>
-    db.prepare('DELETE FROM questions WHERE quiz_id = ?').bind(quizId).run()
-  );
-  await runDeleteStep('quiz_attempts', () =>
-    db.prepare('DELETE FROM quiz_attempts WHERE quiz_id = ?').bind(quizId).run()
-  );
+  await db.prepare('DELETE FROM questions WHERE quiz_id = ?').bind(quizId).run();
+  await db.prepare('DELETE FROM quiz_attempts WHERE quiz_id = ?').bind(quizId).run();
   // study_attempts.quiz_id REFERENCES quizzes(id) (see
   // src/db/migrations/2026-09-add-study-attempts.sql) but this delete was
   // missing, so any quiz with a recorded study-mode attempt could never be
   // deleted - the final DELETE FROM quizzes below would fail with a
   // foreign key constraint violation ("SQL logic error: SQLITE_ERROR"),
   // leaving a broken, un-deletable quiz row behind.
-  await runDeleteStep('study_attempts', () =>
-    db.prepare('DELETE FROM study_attempts WHERE quiz_id = ?').bind(quizId).run()
-  );
-  await runDeleteStep('comments', () =>
-    db.prepare('DELETE FROM comments WHERE quiz_id = ?').bind(quizId).run()
-  );
-  await runDeleteStep('certificates', () =>
-    db.prepare('DELETE FROM certificates WHERE quiz_id = ?').bind(quizId).run()
-  );
-  await runDeleteStep('quiz_purchases', () =>
-    db.prepare('DELETE FROM quiz_purchases WHERE quiz_id = ?').bind(quizId).run()
-  );
-  await runDeleteStep('quizzes', () =>
-    db.prepare('DELETE FROM quizzes WHERE id = ?').bind(quizId).run()
-  );
+  await db.prepare('DELETE FROM study_attempts WHERE quiz_id = ?').bind(quizId).run();
+  await db.prepare('DELETE FROM comments WHERE quiz_id = ?').bind(quizId).run();
+  await db.prepare('DELETE FROM certificates WHERE quiz_id = ?').bind(quizId).run();
+  await db.prepare('DELETE FROM quiz_purchases WHERE quiz_id = ?').bind(quizId).run();
+  await deleteQuizRowResilient(db, quizId);
 }
