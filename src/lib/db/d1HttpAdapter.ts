@@ -127,17 +127,30 @@ export function createD1HttpAdapter(): D1Database {
       return new D1HttpPreparedStatement(query);
     },
     async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
-      // The HTTP API doesn't expose a multi-statement transactional batch
-      // endpoint equivalent to the binding's db.batch(), so there's no
-      // single round trip available. But the statements don't need to run
-      // one-after-another either — each is its own HTTP request, so running
-      // them concurrently with Promise.all turns N sequential round trips
-      // into ~1 round trip's worth of wall-clock time. This is the single
-      // biggest Vercel function-duration win in this adapter: a 5-statement
-      // batch() call used to take 5x the network latency; now it takes ~1x.
-      // Not atomic across statements (same as before — this was never
-      // transactional on the HTTP path), only faster.
-      return Promise.all(statements.map((stmt) => stmt.all<T>())) as Promise<D1Result<T>[]>;
+      // FIX (data corruption on Vercel/HTTP path) — this used to run every
+      // statement in the batch concurrently with Promise.all for speed.
+      // That's wrong for the call sites that actually use batch(): e.g.
+      // quizCrudService.createQuiz sends [insert quiz row, ...insert
+      // question rows] as one batch, where every question row has a
+      // foreign key on the quiz row that's supposed to be inserted first.
+      // Firing them all at once as independent HTTP requests races the
+      // quiz-row insert against its own question-row inserts with no
+      // guaranteed order and no shared transaction, so some question
+      // inserts can land before the quiz row exists (FK failure) while
+      // others succeed — producing exactly the "quiz exists with 0
+      // questions" / "SQL logic error: SQLITE_ERROR" corruption seen in
+      // production. The D1 Workers binding's real db.batch() runs
+      // statements in order inside one transaction; this now matches that
+      // behavior (sequential, in order, stop on first failure) instead of
+      // silently assuming callers don't care about ordering or atomicity.
+      // Slower than the old concurrent version, but correct — every
+      // call site in this codebase was written assuming batch() behaves
+      // like a transaction, because on the D1 binding path it does.
+      const out: D1Result<T>[] = [];
+      for (const stmt of statements) {
+        out.push(await stmt.all<T>());
+      }
+      return out;
     },
   };
 }
