@@ -133,25 +133,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    if (!body.confirm) {
-      const duplicates = await quizService.findBulkQuizDuplicates(body.quizzes);
-      const hasDuplicates =
-        duplicates.duplicateTitleIndexes.length > 0 ||
-        Object.keys(duplicates.duplicateQuestionsByQuizIndex).length > 0;
-
-      if (hasDuplicates) {
-        return NextResponse.json(
-          {
-            needsConfirmation: true,
-            duplicates: {
-              duplicateTitleIndexes: duplicates.duplicateTitleIndexes,
-              duplicateQuestionsByQuizIndex: duplicates.duplicateQuestionsByQuizIndex,
-            },
-          },
-          { status: 200 }
-        );
-      }
-    }
+    // Duplicate detection is temporarily disabled - it was erroring out
+    // and blocking publish entirely instead of just flagging. Uploads go
+    // straight to create until it's fixed. To re-enable, restore the
+    // findBulkQuizDuplicates check that used to sit here (see git history).
 
     const created = await quizService.bulkCreateQuizzes(user.id, body.quizzes);
     return NextResponse.json({ quizzes: created }, { status: 201 });
