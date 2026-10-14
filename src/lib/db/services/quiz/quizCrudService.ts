@@ -372,6 +372,13 @@ export async function deleteQuiz(quizId: string): Promise<void> {
 
   await db.prepare('DELETE FROM questions WHERE quiz_id = ?').bind(quizId).run();
   await db.prepare('DELETE FROM quiz_attempts WHERE quiz_id = ?').bind(quizId).run();
+  // study_attempts.quiz_id REFERENCES quizzes(id) (see
+  // src/db/migrations/2026-09-add-study-attempts.sql) but this delete was
+  // missing, so any quiz with a recorded study-mode attempt could never be
+  // deleted - the final DELETE FROM quizzes below would fail with a
+  // foreign key constraint violation ("SQL logic error: SQLITE_ERROR"),
+  // leaving a broken, un-deletable quiz row behind.
+  await db.prepare('DELETE FROM study_attempts WHERE quiz_id = ?').bind(quizId).run();
   await db.prepare('DELETE FROM comments WHERE quiz_id = ?').bind(quizId).run();
   await db.prepare('DELETE FROM certificates WHERE quiz_id = ?').bind(quizId).run();
   await db.prepare('DELETE FROM quiz_purchases WHERE quiz_id = ?').bind(quizId).run();
