@@ -242,9 +242,23 @@ function buildQuestionInput(cols: Record<string, string>): {
       return { input: null, error: 'MCQ options must be unique' };
     }
 
-    const matched = options.find((o) => normalizeText(o.text) === normalizeText(correctAnswer));
+    let matched = options.find((o) => normalizeText(o.text) === normalizeText(correctAnswer));
+
+    // Also accept a bare option letter ("A"-"D", optionally with a
+    // trailing "." or ")") as shorthand for that option's text.
     if (!matched) {
-      return { input: null, error: 'correct_answer must match one of the MCQ options' };
+      const letterMatch = normalizeText(correctAnswer).match(/^([a-d])[.)]?$/);
+      if (letterMatch) {
+        const letterIndex = letterMatch[1].charCodeAt(0) - 'a'.charCodeAt(0);
+        matched = options[letterIndex];
+      }
+    }
+
+    if (!matched) {
+      return {
+        input: null,
+        error: 'correct_answer must match one of the MCQ options, or be its letter (A-D)',
+      };
     }
 
     return {
