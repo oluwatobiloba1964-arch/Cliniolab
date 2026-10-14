@@ -335,6 +335,23 @@ export async function getQuizByShareSlug(slug: string): Promise<Quiz | null> {
   return quiz;
 }
 
+// Runs one labeled delete step and, if it throws, rewraps the error with
+// which step failed prepended to the original D1 message. D1's errors
+// (especially over the HTTP API - see d1HttpAdapter.ts) are often just
+// "SQL logic error: SQLITE_ERROR" with no indication of which statement
+// or constraint caused it, which makes a failing delete nearly impossible
+// to diagnose from the client-side error banner alone. This turns that
+// into e.g. "deleteQuiz step 'study_attempts' failed: SQL logic error:
+// SQLITE_ERROR" so the real cause is visible without a server log.
+async function runDeleteStep(label: string, fn: () => Promise<unknown>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`deleteQuiz step '${label}' failed: ${message}`);
+  }
+}
+
 export async function deleteQuiz(quizId: string): Promise<void> {
   const db = getDb();
 
@@ -356,31 +373,51 @@ export async function deleteQuiz(quizId: string): Promise<void> {
 
   if (questionIds.length > 0) {
     for (const idsChunk of chunk(questionIds, CHUNK_SIZE)) {
-      await db.prepare(`DELETE FROM question_reports WHERE question_id IN (${placeholders(idsChunk.length)})`)
-        .bind(...idsChunk).run();
-      await db.prepare(`DELETE FROM attempt_answers WHERE question_id IN (${placeholders(idsChunk.length)})`)
-        .bind(...idsChunk).run();
+      await runDeleteStep('question_reports', () =>
+        db.prepare(`DELETE FROM question_reports WHERE question_id IN (${placeholders(idsChunk.length)})`)
+          .bind(...idsChunk).run()
+      );
+      await runDeleteStep('attempt_answers', () =>
+        db.prepare(`DELETE FROM attempt_answers WHERE question_id IN (${placeholders(idsChunk.length)})`)
+          .bind(...idsChunk).run()
+      );
     }
   }
 
   if (commentIds.length > 0) {
     for (const idsChunk of chunk(commentIds, CHUNK_SIZE)) {
-      await db.prepare(`DELETE FROM comment_reactions WHERE comment_id IN (${placeholders(idsChunk.length)})`)
-        .bind(...idsChunk).run();
+      await runDeleteStep('comment_reactions', () =>
+        db.prepare(`DELETE FROM comment_reactions WHERE comment_id IN (${placeholders(idsChunk.length)})`)
+          .bind(...idsChunk).run()
+      );
     }
   }
 
-  await db.prepare('DELETE FROM questions WHERE quiz_id = ?').bind(quizId).run();
-  await db.prepare('DELETE FROM quiz_attempts WHERE quiz_id = ?').bind(quizId).run();
+  await runDeleteStep('questions', () =>
+    db.prepare('DELETE FROM questions WHERE quiz_id = ?').bind(quizId).run()
+  );
+  await runDeleteStep('quiz_attempts', () =>
+    db.prepare('DELETE FROM quiz_attempts WHERE quiz_id = ?').bind(quizId).run()
+  );
   // study_attempts.quiz_id REFERENCES quizzes(id) (see
   // src/db/migrations/2026-09-add-study-attempts.sql) but this delete was
   // missing, so any quiz with a recorded study-mode attempt could never be
   // deleted - the final DELETE FROM quizzes below would fail with a
   // foreign key constraint violation ("SQL logic error: SQLITE_ERROR"),
   // leaving a broken, un-deletable quiz row behind.
-  await db.prepare('DELETE FROM study_attempts WHERE quiz_id = ?').bind(quizId).run();
-  await db.prepare('DELETE FROM comments WHERE quiz_id = ?').bind(quizId).run();
-  await db.prepare('DELETE FROM certificates WHERE quiz_id = ?').bind(quizId).run();
-  await db.prepare('DELETE FROM quiz_purchases WHERE quiz_id = ?').bind(quizId).run();
-  await db.prepare('DELETE FROM quizzes WHERE id = ?').bind(quizId).run();
+  await runDeleteStep('study_attempts', () =>
+    db.prepare('DELETE FROM study_attempts WHERE quiz_id = ?').bind(quizId).run()
+  );
+  await runDeleteStep('comments', () =>
+    db.prepare('DELETE FROM comments WHERE quiz_id = ?').bind(quizId).run()
+  );
+  await runDeleteStep('certificates', () =>
+    db.prepare('DELETE FROM certificates WHERE quiz_id = ?').bind(quizId).run()
+  );
+  await runDeleteStep('quiz_purchases', () =>
+    db.prepare('DELETE FROM quiz_purchases WHERE quiz_id = ?').bind(quizId).run()
+  );
+  await runDeleteStep('quizzes', () =>
+    db.prepare('DELETE FROM quizzes WHERE id = ?').bind(quizId).run()
+  );
 }
