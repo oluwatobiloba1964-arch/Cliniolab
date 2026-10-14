@@ -13,6 +13,14 @@ export async function GET(request: Request) {
   const page = Math.max(1, Number(searchParams.get('page') ?? 1) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') ?? 20) || 20));
 
-  const result = await quizService.adminListAllQuizzes(page, pageSize);
-  return NextResponse.json(result);
+  try {
+    const result = await quizService.adminListAllQuizzes(page, pageSize);
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error('Admin quiz list failed:', err);
+    return NextResponse.json(
+      { error: 'Something went wrong while loading quizzes. Please try again.' },
+      { status: 500 }
+    );
+  }
 }
