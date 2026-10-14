@@ -117,7 +117,24 @@ export async function createQuiz(creatorId: string, input: QuizInput): Promise<Q
       )
   );
 
-  await runBatchChunked(db, [quizStatement, ...questionStatements]);
+  try {
+    await runBatchChunked(db, [quizStatement, ...questionStatements]);
+  } catch (err) {
+    // The quiz row + questions are inserted as one logical unit, but
+    // runBatchChunked splits large batches into multiple D1 .batch() calls
+    // (50 statements each), and only each individual chunk is atomic — not
+    // the whole insert. If an early chunk succeeds and a later one fails
+    // (e.g. a bad value a few hundred questions in), the quiz row and the
+    // first N questions are left committed with the rest missing, and the
+    // caller only sees a rejected promise with nothing to clean up (see
+    // bulkCreateQuizzes, which can only roll back quizzes whose promise
+    // fulfilled). So on any failure here, delete whatever this call
+    // managed to commit for this quiz id before rethrowing, so every
+    // caller always sees an all-or-nothing result.
+    await db.prepare('DELETE FROM questions WHERE quiz_id = ?').bind(id).run().catch(() => {});
+    await db.prepare('DELETE FROM quizzes WHERE id = ?').bind(id).run().catch(() => {});
+    throw err;
+  }
 
   return {
     id,
