@@ -110,6 +110,7 @@ export function QuizForm({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedQuestions, setSelectedQuestions] = useState<Set<number>>(new Set());
 
   // Exam mode always carries a timer by definition; quiz mode's timer is
   // opt-in (for creators who want speed-drills). Switching to exam mode
@@ -159,6 +160,90 @@ export function QuizForm({
 
   function removeQuestion(index: number) {
     setQuestions((prev) => prev.filter((_, i) => i !== index));
+    setSelectedQuestions((prev) => {
+      const next = new Set<number>();
+      prev.forEach((i) => {
+        if (i < index) next.add(i);
+        else if (i > index) next.add(i - 1);
+      });
+      return next;
+    });
+  }
+
+  function toggleQuestionSelected(index: number) {
+    setSelectedQuestions((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function toggleSelectAllQuestions() {
+    setSelectedQuestions((prev) =>
+      prev.size === questions.length ? new Set() : new Set(questions.map((_, i) => i))
+    );
+  }
+
+  /**
+   * Removes every selected question from local state in one go, then
+   * immediately saves the quiz so the deletion is committed to the
+   * database right away (the server-side diff in quizCrudService hard-
+   * deletes any question no longer present in the payload) instead of
+   * waiting for the user to separately hit the main Save button.
+   */
+  async function removeSelectedQuestions() {
+    if (selectedQuestions.size === 0) return;
+    const remaining = questions.filter((_, i) => !selectedQuestions.has(i));
+    if (remaining.length === 0) {
+      setError('A quiz needs at least one question - add a replacement before removing the rest.');
+      return;
+    }
+    const count = selectedQuestions.size;
+    if (!window.confirm(`Permanently delete ${count} selected question${count === 1 ? '' : 's'}? This cannot be undone.`)) {
+      return;
+    }
+    setQuestions(remaining);
+    setSelectedQuestions(new Set());
+
+    // Only auto-save immediately when editing an existing quiz (so the
+    // deletion is committed to the database right away). For a brand new
+    // quiz that hasn't been created yet, there's nothing to delete from
+    // the database - just drop the rows locally.
+    if (!initialQuiz) return;
+
+    setError(null);
+    setSubmitting(true);
+    try {
+      const input: QuizInput = {
+        subcategoryId,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        mode,
+        difficulty,
+        visibility,
+        linkExpiry: visibility === 'private' ? linkExpiry : undefined,
+        customExpiryDate: visibility === 'private' && linkExpiry === 'custom' ? customExpiryDate : undefined,
+        timeLimitSeconds: timerEnabled ? timeLimitMinutes * 60 : undefined,
+        timeLimitMode: timerEnabled ? timeLimitMode : 'fixed',
+        shuffleQuestions,
+        shuffleOptions,
+        antiCheatEnabled,
+        retakePolicy: antiCheatEnabled ? retakePolicy : 'unlimited',
+        retakeLimit: antiCheatEnabled && retakePolicy !== 'single' ? retakeLimit : undefined,
+        allowFlagging,
+        defaultMark,
+        showMarks,
+        leaderboardEnabled: visibility === 'private' ? leaderboardEnabled : undefined,
+        pricing,
+        priceKobo: pricing === 'paid' ? Math.round(priceNaira * 100) : undefined,
+        questions: remaining,
+      };
+      const result = await onSubmit(input);
+      if (result?.error) setError(result.error);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleSubmit() {
@@ -574,12 +659,44 @@ export function QuizForm({
         </div>
       </Card>
 
-      <h2 className="mt-10 font-display text-xl font-semibold text-ink-800">Questions</h2>
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-semibold text-ink-800">Questions</h2>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-ink-500">
+            <input
+              type="checkbox"
+              checked={questions.length > 0 && selectedQuestions.size === questions.length}
+              onChange={toggleSelectAllQuestions}
+              className="h-4 w-4 rounded border-ink-200"
+            />
+            Select all
+          </label>
+          {selectedQuestions.size > 0 && (
+            <button
+              type="button"
+              onClick={removeSelectedQuestions}
+              disabled={submitting}
+              className="rounded-md bg-critical-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-critical-600 disabled:opacity-50"
+            >
+              Remove selected ({selectedQuestions.size})
+            </button>
+          )}
+        </div>
+      </div>
       <div className="mt-4 space-y-6">
         {questions.map((q, qIndex) => (
-          <Card key={qIndex} className="p-5">
+          <Card key={qIndex} className={`p-5 ${selectedQuestions.has(qIndex) ? 'ring-2 ring-critical-300' : ''}`}>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-ink-600">Question {qIndex + 1}</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedQuestions.has(qIndex)}
+                  onChange={() => toggleQuestionSelected(qIndex)}
+                  className="h-4 w-4 rounded border-ink-200"
+                  aria-label={`Select question ${qIndex + 1}`}
+                />
+                <span className="text-sm font-medium text-ink-600">Question {qIndex + 1}</span>
+              </div>
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1.5 text-xs text-ink-500">
                   Mark
