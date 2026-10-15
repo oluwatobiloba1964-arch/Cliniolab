@@ -294,23 +294,28 @@ export async function updateQuiz(quizId: string, input: QuizInput): Promise<Quiz
   const incomingIds = new Set(input.questions.filter((q) => q.id).map((q) => q.id as string));
   const removedIds = [...existingIds].filter((id) => !incomingIds.has(id));
 
-  let deletableIds: string[] = removedIds;
-  if (removedIds.length > 0) {
-    const placeholders = removedIds.map(() => '?').join(',');
-    const [attemptRefs, reportRefs] = await Promise.all([
-      db.prepare(`SELECT DISTINCT question_id FROM attempt_answers WHERE question_id IN (${placeholders})`)
-        .bind(...removedIds).all<{ question_id: string }>(),
-      db.prepare(`SELECT DISTINCT question_id FROM question_reports WHERE question_id IN (${placeholders})`)
-        .bind(...removedIds).all<{ question_id: string }>(),
-    ]);
-    const referenced = new Set([
-      ...attemptRefs.results.map((r) => r.question_id),
-      ...reportRefs.results.map((r) => r.question_id),
-    ]);
-    deletableIds = removedIds.filter((id) => !referenced.has(id));
+  // Permanent delete: a question removed from the quiz is hard-deleted
+  // from `questions` even if past attempts or reports reference it. To
+  // avoid leaving orphaned rows (attempt_answers / question_reports
+  // pointing at a question_id that no longer exists - which would break
+  // or blank out that one question when an old attempt's review screen
+  // is rendered), their referencing rows are deleted first, in the same
+  // batch, before the question row itself is deleted. The attempt and
+  // report records themselves (score, pass/fail, the rest of the
+  // breakdown) are untouched - only the rows tied to the deleted
+  // question(s) are removed.
+  const deletableIds = removedIds;
+  const deleteStatements: ReturnType<typeof db.prepare>[] = [];
+  if (deletableIds.length > 0) {
+    const placeholders = deletableIds.map(() => '?').join(',');
+    deleteStatements.push(
+      db.prepare(`DELETE FROM attempt_answers WHERE question_id IN (${placeholders})`).bind(...deletableIds),
+      db.prepare(`DELETE FROM question_reports WHERE question_id IN (${placeholders})`).bind(...deletableIds)
+    );
+    for (const id of deletableIds) {
+      deleteStatements.push(db.prepare('DELETE FROM questions WHERE id = ?').bind(id));
+    }
   }
-
-  const deleteStatements = deletableIds.map((id) => db.prepare('DELETE FROM questions WHERE id = ?').bind(id));
 
   const questionStatements = input.questions.map((q, index) => {
     if (q.id && existingIds.has(q.id)) {
