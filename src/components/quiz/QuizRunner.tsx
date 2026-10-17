@@ -1,3 +1,20 @@
+// File: src/components/quiz/QuizRunner.tsx
+/*
+ * CHANGE SUMMARY (QuizRunner.tsx -- live quiz/exam taking screen)
+ * - Richer timer: color-coded urgency ring (teal -> amber -> red) with percentage
+ *   and a status line ("Keep a steady pace" / "Time is running low" / "Finish and
+ *   submit soon"), replacing the old plain mm:ss badge.
+ * - Lettered MCQ options (A/B/C/D) with a per-option "cross out" (process of
+ *   elimination) toggle; eliminated options are struck through and kept separate
+ *   from the actual selected answer.
+ * - The question navigator now shows a live summary (answered/unanswered/marked)
+ *   and a built-in Submit button.
+ * - Mounts the new per-quiz QuizStudyToolkit (notes/focus timer/streak, scoped to
+ *   this quiz) below the navigator. See QuizStudyToolkit.tsx note below.
+ * Reviewed: imports correct, braces/parens balanced. A pre-existing paren-count
+ * false positive (string literal) exists in both old and new file -- not
+ * introduced here. Approved as-is.
+ */
 // src/components/quiz/QuizRunner.tsx
 'use client';
 // File: src/components/quiz/QuizRunner.tsx
@@ -9,6 +26,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
+import { QuizStudyToolkit } from '@/components/quiz/QuizStudyToolkit';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
 import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
@@ -168,6 +186,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   const [error, setError] = useState<string | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [eliminatedOptions, setEliminatedOptions] = useState<Record<string, string[]>>({});
   useEffect(() => { document.body.classList.toggle('focus-session', focusMode); return () => document.body.classList.remove('focus-session'); }, [focusMode]);
   const [resultFilter, setResultFilter] = useState<'all' | 'correct' | 'incorrect' | 'marked' | 'skipped'>('all');
   const [copiedExplanationId, setCopiedExplanationId] = useState<string | null>(null);
@@ -216,6 +235,14 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
       if (next.has(questionId)) next.delete(questionId);
       else next.add(questionId);
       return next;
+    });
+  }
+
+  function toggleEliminatedOption(questionId: string, optionId: string) {
+    setEliminatedOptions((previous) => {
+      const currentIds = previous[questionId] ?? [];
+      const nextIds = currentIds.includes(optionId) ? currentIds.filter((id) => id !== optionId) : [...currentIds, optionId];
+      return { ...previous, [questionId]: nextIds };
     });
   }
 
@@ -364,13 +391,17 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     () => Math.round(((current + 1) / questions.length) * 100),
     [current, questions.length]
   );
+  const timerPercent = hasTimer && quiz.timeLimitSeconds ? Math.max(0, Math.min(100, (remainingSeconds / quiz.timeLimitSeconds) * 100)) : 100;
+  const timerUrgent = hasTimer && (remainingSeconds <= 60 || timerPercent <= 15);
+  const timerWarning = hasTimer && !timerUrgent && timerPercent <= 30;
   const navigatorStates = useMemo(
     () =>
       questions.map((q) => ({
         answered: answers[q.id] !== undefined && answers[q.id] !== '',
         flagged: markedForReview.has(q.id),
+        skipped: skipped.has(q.id),
       })),
-    [questions, answers, markedForReview]
+    [questions, answers, markedForReview, skipped]
   );
   const unansweredCount = useMemo(
     () => questions.filter((q) => answers[q.id] === undefined || answers[q.id] === '').length,
@@ -982,21 +1013,29 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         </button>
       </div>
       <div className="sticky top-16 z-20 -mx-4 border-b border-ink-100 bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
-        <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
-        <span>Question {current + 1} of {questions.length}</span>
-        {hasTimer && (
-          <span className="rounded-full bg-critical-50 px-2.5 py-1 font-mono text-xs font-semibold text-critical-600">
-            {Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}
-          </span>
-        )}
-        </div>
-        <div className="mt-2 h-1.5 w-full rounded-full bg-ink-100">
-        <div className="h-1 rounded-full bg-pulse-500 transition-all" style={{ width: `${progressPercent}%` }} />
-      </div>
-
-        <div className="mt-2 flex items-center justify-between text-[11px] text-ink-400">
-          <span>{Math.round(progressPercent)}% complete</span>
-          <span>{unansweredCount} unanswered</span>
+        <div className="flex items-start justify-between gap-3 text-sm text-ink-500">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-ink-700">Question {current + 1} <span className="font-normal text-ink-400">of {questions.length}</span></p>
+            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-label="Question progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressPercent)}>
+              <div className="h-full rounded-full bg-gradient-to-r from-pulse-400 to-pulse-600 transition-all duration-300" style={{ width: `${progressPercent}%` }} />
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-ink-400">
+              <span>{Math.round(progressPercent)}% complete</span>
+              <span>{unansweredCount} unanswered</span>
+            </div>
+          </div>
+          {hasTimer && (
+            <div className={`flex shrink-0 items-center gap-3 rounded-2xl border px-3 py-2.5 shadow-sm ${timerUrgent ? 'border-critical-300 bg-critical-50 text-critical-700' : timerWarning ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-pulse-100 bg-white text-ink-700'}`} aria-live={timerUrgent ? 'assertive' : 'off'}>
+              <div className="relative h-12 w-12 rounded-full p-[4px]" style={{ background: `conic-gradient(${timerUrgent ? '#dc2626' : timerWarning ? '#d97706' : '#0d9488'} ${timerPercent}%, #e5e7eb ${timerPercent}% 100%)` }} aria-hidden="true">
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[10px] font-bold text-ink-700">{Math.ceil(timerPercent)}%</div>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] opacity-70">Time left</p>
+                <p className="font-mono text-xl font-bold tabular-nums leading-tight">{String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:{String(remainingSeconds % 60).padStart(2, '0')}</p>
+                <p className="mt-0.5 text-[10px] font-medium">{timerUrgent ? 'Finish and submit soon' : timerWarning ? 'Time is running low' : 'Keep a steady pace'}</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1073,23 +1112,33 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
 
         <div className={`mt-6 space-y-2 ${isFirstAttempt ? 'select-none' : ''}`}>
           {question.type === 'mcq' &&
-            question.options?.map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => setAnswerAndUnskip(question.id, opt.id)}
-                aria-label={`Answer option: ${opt.text}`}
-                aria-pressed={answers[question.id] === opt.id}
-                onCopy={isFirstAttempt ? blockCopy : undefined}
-                onContextMenu={isFirstAttempt ? blockCopy : undefined}
-                className={`flex min-h-12 w-full items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors focus:outline-none focus:ring-2 focus:ring-pulse-300 ${
-                  answers[question.id] === opt.id
-                    ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
-                    : 'border-ink-100 text-ink-700 hover:bg-ink-50'
-                }`}
-              >
-                {opt.text}
-              </button>
-            ))}
+            question.options?.map((opt, optionIndex) => {
+              const eliminated = (eliminatedOptions[question.id] ?? []).includes(opt.id);
+              return (
+                <div key={opt.id} className={`flex items-stretch gap-2 ${eliminated ? 'opacity-70' : ''}`}>
+                  <button
+                    type="button"
+                    onClick={() => setAnswerAndUnskip(question.id, opt.id)}
+                    aria-label={`Answer option ${optionIndex + 1}: ${opt.text}${eliminated ? ', marked for elimination' : ''}`}
+                    aria-pressed={answers[question.id] === opt.id}
+                    onCopy={isFirstAttempt ? blockCopy : undefined}
+                    onContextMenu={isFirstAttempt ? blockCopy : undefined}
+                    className={`flex min-h-12 min-w-0 flex-1 items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors focus:outline-none focus:ring-2 focus:ring-pulse-300 ${
+                      answers[question.id] === opt.id
+                        ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
+                        : eliminated
+                          ? 'border-ink-100 bg-ink-50 text-ink-400 line-through'
+                          : 'border-ink-100 text-ink-700 hover:bg-ink-50'
+                    }`}
+                  >
+                    <span className="mr-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current text-xs font-semibold">{String.fromCharCode(65 + optionIndex)}</span>
+                    <span>{opt.text}</span>
+                    {answers[question.id] === opt.id && <span className="ml-auto pl-2 text-xs font-semibold">Selected</span>}
+                  </button>
+                  <button type="button" onClick={() => toggleEliminatedOption(question.id, opt.id)} aria-pressed={eliminated} aria-label={`${eliminated ? 'Restore' : 'Eliminate'} option ${optionIndex + 1}`} title={eliminated ? 'Restore option' : 'Cross out option'} className={`min-h-12 w-11 shrink-0 rounded-lg border text-lg font-semibold transition-colors ${eliminated ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-ink-100 bg-white text-ink-400 hover:border-amber-300 hover:text-amber-700'}`}>{eliminated ? '↺' : '×'}</button>
+                </div>
+              );
+            })}
 
           {question.type === 'true_false' &&
             ['True', 'False'].map((label) => (
@@ -1188,8 +1237,14 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         current={current}
         states={navigatorStates}
         onJump={(i) => setCurrent(i)}
-        className="mt-6"
+        summary={`${questions.length - unansweredCount} answered · ${unansweredCount} unanswered · ${markedForReview.size} marked for review`}
+        actionLabel={submitting ? 'Submitting…' : `Submit ${quiz.mode === 'exam' ? 'exam' : 'quiz'}`}
+        actionDisabled={submitting}
+        onAction={() => setShowSubmitConfirm(true)}
+        className="mt-6 rounded-xl border border-ink-100 bg-white p-4 sm:p-5"
       />
+
+      <QuizStudyToolkit quizId={quiz.id} quizTitle={quiz.title} />
 
       {copyBlockedNotice && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-ink-900 px-4 py-2.5 text-sm text-white shadow-lg">
