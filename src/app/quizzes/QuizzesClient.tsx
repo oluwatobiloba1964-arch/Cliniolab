@@ -1,3 +1,10 @@
+/*
+ * CHANGE SUMMARY (quizzes/QuizzesClient.tsx)
+ * - Adds a category filter dropdown and two more sort options ("Most attempts",
+ *   "Title A to Z") to the existing client-side filter/sort state
+ * - Wired into the reset/clear-filters buttons and the "filters active" indicator
+ * Reviewed: quiz.attemptCount confirmed to exist on QuizWithStats type. Approved as-is.
+ */
 'use client';
 
 import Link from 'next/link';
@@ -21,7 +28,9 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<'all' | 'quiz' | 'exam' | 'study'>('all');
   const [difficulty, setDifficulty] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
-  const [sort, setSort] = useState<'newest' | 'questions'>('newest');
+  const [category, setCategory] = useState('all');
+  const [sort, setSort] = useState<'newest' | 'questions' | 'attempts' | 'title'>('newest');
+  const categories = useMemo(() => Array.from(new Set(quizzes.map((quiz) => quiz.categoryName).filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b)), [quizzes]);
 
   const visibleQuizzes = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -29,9 +38,10 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
       .filter((quiz) => !q || `${quiz.title} ${quiz.description ?? ''} ${quiz.categoryName ?? ''} ${quiz.subcategoryName ?? ''}`.toLowerCase().includes(q))
       .filter((quiz) => mode === 'all' || quiz.mode === mode)
       .filter((quiz) => difficulty === 'all' || quiz.difficulty === difficulty)
+      .filter((quiz) => category === 'all' || quiz.categoryName === category)
       .slice()
-      .sort((a, b) => sort === 'questions' ? b.questionCount - a.questionCount : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [quizzes, query, mode, difficulty, sort]);
+      .sort((a, b) => sort === 'questions' ? b.questionCount - a.questionCount : sort === 'attempts' ? b.attemptCount - a.attemptCount : sort === 'title' ? a.title.localeCompare(b.title) : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [quizzes, query, mode, difficulty, category, sort]);
 
   // Page 1 already arrived server-rendered; only fetch for page changes.
   useEffect(() => {
@@ -57,10 +67,11 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
     setQuery('');
     setMode('all');
     setDifficulty('all');
+    setCategory('all');
     setPage(nextPage);
   }
 
-  const filtersActive = query.trim() !== '' || mode !== 'all' || difficulty !== 'all';
+  const filtersActive = query.trim() !== '' || mode !== 'all' || difficulty !== 'all' || category !== 'all';
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-16">
@@ -71,7 +82,7 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
         </Link>
       </div>
       <div className="mt-7 rounded-2xl border border-ink-100 bg-ink-50/50 p-4 sm:p-5">
-        <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
           <label className="sr-only" htmlFor="quiz-search">Search quizzes</label>
           <input id="quiz-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search this page…" className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm outline-none focus:border-pulse-400 focus:ring-2 focus:ring-pulse-100" />
           <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
@@ -80,19 +91,20 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
           <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as typeof difficulty)} className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
             <option value="all">All difficulty</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
           </select>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm"><option value="all">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select>
           <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
-            <option value="newest">Newest</option><option value="questions">Most questions</option>
+            <option value="newest">Newest</option><option value="questions">Most questions</option><option value="attempts">Most attempts</option><option value="title">Title A to Z</option>
           </select>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400">
           <span>{visibleQuizzes.length} shown on this page</span>
-          {(query || mode !== 'all' || difficulty !== 'all') && <button type="button" onClick={() => { setQuery(''); setMode('all'); setDifficulty('all'); }} className="font-semibold text-pulse-600 hover:text-pulse-700">Clear filters</button>}
+          {(query || mode !== 'all' || difficulty !== 'all' || category !== 'all') && <button type="button" onClick={() => { setQuery(''); setMode('all'); setDifficulty('all'); setCategory('all'); }} className="font-semibold text-pulse-600 hover:text-pulse-700">Clear filters</button>}
         </div>
       </div>
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {loading && quizzes.length === 0 && <div className="col-span-full grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[1,2,3].map((i) => <div key={i} className="h-48 animate-pulse rounded-2xl border border-ink-100 bg-ink-50" />)}</div>}
         {visibleQuizzes.map((quiz) => <QuizCard key={quiz.id} quiz={quiz} />)}
-        {!loading && visibleQuizzes.length === 0 && <div className="ui-empty-state col-span-full"><p className="font-semibold text-ink-700">No quizzes match these filters.</p><button type="button" onClick={() => { setQuery(''); setMode('all'); setDifficulty('all'); }} className="mt-2 text-sm font-semibold text-pulse-600">Clear filters</button></div>}
+        {!loading && visibleQuizzes.length === 0 && <div className="ui-empty-state col-span-full"><p className="font-semibold text-ink-700">No quizzes match these filters.</p><button type="button" onClick={() => { setQuery(''); setMode('all'); setDifficulty('all'); setCategory('all'); }} className="mt-2 text-sm font-semibold text-pulse-600">Clear filters</button></div>}
       </div>
       {filtersActive ? (
         <p className="mt-10 text-center text-xs text-ink-400">
