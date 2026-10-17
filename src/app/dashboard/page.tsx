@@ -323,14 +323,20 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <LocalStudyToolkit />
-      <div className="mt-6">
-        <TonightQueue />
-      </div>
-      <LocalStudyExtras />
-      <LocalClinicalPractice />
+      <nav aria-label="Dashboard shortcuts" className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { href: '#learning-overview', icon: '📈', label: 'Overview' },
+          { href: '#study-toolkit', icon: '🧰', label: 'Study tools' },
+          { href: '#clinical-practice', icon: '🩺', label: 'Clinical practice' },
+          { href: '#my-content', icon: '📚', label: 'My content' },
+        ].map((item) => (
+          <a key={item.href} href={item.href} className="flex min-h-11 items-center gap-2 rounded-xl border border-ink-100 bg-white px-3 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-pulse-200 hover:bg-pulse-50/40 hover:text-pulse-700">
+            <span aria-hidden="true">{item.icon}</span><span>{item.label}</span>
+          </a>
+        ))}
+      </nav>
 
-      <section className="mt-6 grid gap-5 lg:grid-cols-[1.45fr_0.8fr]">
+      <section id="learning-overview" className="mt-6 grid scroll-mt-6 gap-5 lg:grid-cols-[1.45fr_0.8fr]">
         <Card className="overflow-hidden p-0">
           <div className="bg-gradient-to-br from-pulse-50 via-white to-ink-50 p-6 sm:p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -405,7 +411,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-pulse-700">Today’s mission</p>
                   <p className="mt-1 text-sm font-semibold text-ink-800">{dailyMissionComplete ? 'Daily practice complete' : 'Complete one focused practice session'}</p>
-                  <p className="mt-0.5 text-xs text-ink-500">No new tracking is created — this is calculated from your existing learning history.</p>
+                  <p className="mt-0.5 text-xs text-ink-500">No new tracking is created. This is calculated from your existing learning history.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-24 overflow-hidden rounded-full bg-white">
@@ -448,6 +454,25 @@ export default function DashboardPage() {
             Start learning →
           </Link>
         </Card>
+      </section>
+
+      <section id="study-toolkit" className="mt-8 scroll-mt-6 space-y-5">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-pulse-600">Your workspace</p>
+          <h2 className="mt-1 font-display text-xl font-semibold text-ink-900 sm:text-2xl">Study tools and revision</h2>
+          <p className="mt-1 text-sm leading-6 text-ink-500">Your existing personal tools, revision queue and learning utilities, grouped together for easier access.</p>
+        </div>
+        <LocalStudyToolkit />
+        <TonightQueue />
+        <LocalStudyExtras />
+      </section>
+
+      <section id="clinical-practice" className="mt-8 scroll-mt-6 space-y-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-pulse-600">Apply your knowledge</p>
+          <h2 className="mt-1 font-display text-xl font-semibold text-ink-900 sm:text-2xl">Clinical practice</h2>
+        </div>
+        <LocalClinicalPractice />
       </section>
 
       {hasStudyActivity && recentActivity.length > 0 && (
@@ -515,7 +540,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <div className="mt-10 flex gap-2 border-b border-ink-100">
+      <div id="my-content" className="mt-10 scroll-mt-6 flex gap-2 border-b border-ink-100">
         <button
           type="button"
           onClick={() => setActiveTab('quizzes')}
