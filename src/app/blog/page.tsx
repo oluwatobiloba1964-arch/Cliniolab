@@ -1,7 +1,14 @@
+/*
+ * CHANGE SUMMARY (blog/page.tsx)
+ * - Mechanical only: post list rendering extracted into new BlogListingClient
+ *   component (see that file). Server-side data fetching (cmsService,
+ *   blogCategoryService) and category pills unchanged.
+ * Reviewed: matches new BlogListingClient.tsx props. Approved as-is.
+ */
 import { PageTools } from '@/components/layout/PageTools';
 // src/app/blog/page.tsx
 import Link from 'next/link';
-import { BlogPostCard } from '@/components/cms/BlogPostCard';
+import { BlogListingClient } from '@/app/blog/BlogListingClient';
 import { cmsService, blogCategoryService } from '@/lib/db';
 
 // Revalidate periodically so new posts show up without a full redeploy,
@@ -36,14 +43,7 @@ export default async function BlogPage() {
         ))}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2">
-        {posts.map((post) => (
-          <BlogPostCard key={post.id} post={post} />
-        ))}
-        {posts.length === 0 && (
-          <p className="col-span-full text-sm text-ink-400">No posts yet.</p>
-        )}
-      </div>
+      <BlogListingClient posts={posts} />
     </div>
   );
 }
