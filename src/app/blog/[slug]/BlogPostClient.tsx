@@ -215,6 +215,7 @@ function BlogPostBody({ post }: { post: BlogPost }) {
   const isWideFragment =
     !isRaw && (post.contentFormat === 'html' || looksLikeWideDesignedContent(post.content));
   const wide = isRaw || isWideFragment || post.fullWidth;
+  const isStudyExcludedCategory = categorySlug === 'job' || categorySlug === 'scholarship';
 
   return (
     <div className="py-16">
@@ -267,7 +268,9 @@ function BlogPostBody({ post }: { post: BlogPost }) {
         </div>
       </div>
 
-      {flags.articleStudyMode && <ArticleStudyMode postId={post.id} title={post.title} content={post.content} slug={post.slug} />}
+      {flags.articleStudyMode && !isStudyExcludedCategory && (
+        <ArticleStudyMode postId={post.id} title={post.title} content={post.content} slug={post.slug} />
+      )}
 
       {/* Post body: full raw HTML documents render edge-to-edge (up to a
           generous max width) via the shared sandboxed iframe, so a pasted
@@ -332,13 +335,15 @@ function BlogPostBody({ post }: { post: BlogPost }) {
         />
         <RelatedPosts endpoint={`/api/blog/${post.slug}/related-posts`} title="Related posts" />
         <RelatedQuizzes endpoint={`/api/blog/${post.slug}/related`} title="Practice quizzes for this topic" />
-        <div className="mt-8 rounded-lg border border-ink-100 bg-ink-50/40 p-4">
-          <p className="text-sm font-medium text-ink-800">Want to memorize this topic?</p>
-          <p className="mt-1 text-xs text-ink-500">Browse Cliniolab flashcards for active recall practice.</p>
-          <Link href="/flashcards" className="mt-2 inline-block text-sm font-semibold text-pulse-600 hover:text-pulse-700">
-            Browse flashcards →
-          </Link>
-        </div>
+        {!isStudyExcludedCategory && (
+          <div className="mt-8 rounded-lg border border-ink-100 bg-ink-50/40 p-4">
+            <p className="text-sm font-medium text-ink-800">Want to memorize this topic?</p>
+            <p className="mt-1 text-xs text-ink-500">Browse Cliniolab flashcards for active recall practice.</p>
+            <Link href="/flashcards" className="mt-2 inline-block text-sm font-semibold text-pulse-600 hover:text-pulse-700">
+              Browse flashcards →
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
