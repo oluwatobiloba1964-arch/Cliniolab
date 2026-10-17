@@ -182,6 +182,19 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     deadline ? Math.max(0, Math.round((deadline - Date.now()) / 1000)) : 0
   );
   const [submitting, setSubmitting] = useState(false);
+  // Synchronous re-entrancy guard for handleSubmit. `submitting` (state)
+  // and `result` (state) are NOT safe to gate a submit on by themselves:
+  // the timer's setInterval (checkDeadline) and the mount-time
+  // auto-submit-on-expired-deadline path both close over whatever
+  // `submitting`/`result` were at the render the interval/effect was set
+  // up with, and state updates don't take effect until the next render.
+  // That let a handful of ticks in a row - or the interval tick racing the
+  // queueMicrotask auto-submit on mount - all read `submitting === false`
+  // and all call handleSubmit() before the first POST's response (and the
+  // resulting re-render) ever landed, each one writing its own
+  // quiz_attempts row. A ref is read/written synchronously with no
+  // render in between, so it closes the race.
+  const submitInFlight = useRef(false);
   const [result, setResult] = useState<AttemptResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
@@ -305,7 +318,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     if (!deadline || result) return;
     const secondsLeft = Math.max(0, Math.round((deadline - Date.now()) / 1000));
     setRemainingSeconds(secondsLeft);
-    if (secondsLeft <= 0) {
+    if (secondsLeft <= 0 && !submitInFlight.current) {
       void handleSubmit();
     }
   }
@@ -320,8 +333,11 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     if (Date.now() >= deadline) {
       setAutoSubmittingExpired(true);
       // Deferred one tick: handleSubmit reads component state/refs that
-      // aren't fully wired up mid-render.
-      queueMicrotask(() => void handleSubmit());
+      // aren't fully wired up mid-render. submitInFlight guards against
+      // this racing the timer interval's own checkDeadline call.
+      queueMicrotask(() => {
+        if (!submitInFlight.current) void handleSubmit();
+      });
     }
   }
 
@@ -470,7 +486,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   }, [draftsEnabled, result, quiz.id, questions, current, answers, markedForReview, confidence, skipped, startedAt, deadline]);
 
   async function handleSubmit() {
-    if (submitting || result) return;
+    if (submitInFlight.current || result) return;
+    submitInFlight.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -539,6 +556,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
       }
     } catch {
       setError('Network error while submitting. Please try again.');
+      submitInFlight.current = false;
     } finally {
       setSubmitting(false);
     }
