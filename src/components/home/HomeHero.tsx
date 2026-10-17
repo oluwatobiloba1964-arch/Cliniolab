@@ -39,13 +39,17 @@ export function HomeHero() {
           onSubmit={handleSubmit}
           className="mx-auto mt-8 flex max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-lg sm:flex-row"
         >
+          <label className="sr-only" htmlFor="homepage-search">Search nursing resources, quizzes and articles</label>
           <input
+            id="homepage-search"
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setShowRecent(true)}
             onBlur={() => window.setTimeout(() => setShowRecent(false), 120)}
-            placeholder="Search nursing resources, quizzes, articles…"
-            className="min-w-0 flex-1 px-4 py-3.5 text-sm text-ink-800 focus:outline-none"
+            placeholder="Search nursing resources, quizzes, articles..."
+            autoComplete="off"
+            className="min-w-0 flex-1 px-4 py-3.5 text-sm text-ink-800 outline-none ring-inset focus:ring-2 focus:ring-pulse-500"
           />
           <button
             type="submit"
