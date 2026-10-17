@@ -60,12 +60,11 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       <HomeHero />
       <BannerSlot placement="header" />
 
-      <HomeLatestArticle blogCategories={blogCategories} data={home.data} />
-      <DailyQuizBanner />
-
       <HomeQuickActions signedIn={!!user} />
       <HomeStudyStrip />
+      <DailyQuizBanner />
       <HomeSubjectExplorer categories={initialCategories} />
+      <HomeLatestArticle blogCategories={blogCategories} data={home.data} />
 
       <HomeResumeSection items={resumeItems} />
       <HomeRecentlyViewed items={recentlyViewed} />
@@ -102,10 +101,6 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       <div className="mx-auto max-w-7xl px-6 py-10 sm:py-14">
         <LocalClinicalPractice />
       </div>
-
-      <div className="chart-strip mx-auto max-w-7xl text-ink-200" aria-hidden />
-
-      <DailyQuizBanner />
 
       <HomeCategoryFeeds
         categories={initialCategories}
