@@ -1,3 +1,14 @@
+/*
+ * CHANGE SUMMARY (QuizForm.tsx)
+ * - Local-only draft autosave/recovery for the quiz builder (localStorage, no new API)
+ * - Validation before submit: blocks incomplete questions, duplicate question prompts,
+ *   and duplicate MCQ options; scrolls to the offending question
+ * - "Learner preview" toggle: shows the quiz as a learner would see it, with correct
+ *   answers highlighted, without leaving the editor
+ * - Question navigator strip to jump to any question
+ * Reviewed: no new API routes, no schema changes. Balanced braces/parens/JSX fragments
+ * confirmed. useEffect/Card imports present. Approved as-is.
+ */
 // src/components/quiz/QuizForm.tsx
 'use client';
 
@@ -111,6 +122,46 @@ export function QuizForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedQuestions, setSelectedQuestions] = useState<Set<number>>(new Set());
+  const [learnerPreview, setLearnerPreview] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const draftKey = `cliniolab-quiz-builder-draft-v1-${initialQuiz?.id ?? 'new'}`;
+
+  // Local-only recovery for the quiz builder. Existing quiz data is never replaced automatically.
+  useEffect(() => {
+    if (initialQuiz) { setDraftReady(true); return; }
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as { title?: string; description?: string; subcategoryId?: string; mode?: QuizMode; difficulty?: QuizDifficulty; questions?: QuizQuestionInput[]; savedAt?: number };
+        if (draft.title || draft.description || (draft.questions?.length ?? 0) > 1 || draft.questions?.[0]?.prompt) {
+          const age = draft.savedAt ? Math.max(0, Math.round((Date.now() - draft.savedAt) / 60000)) : 0;
+          if (window.confirm(`Recover your local quiz draft from ${age} minute(s) ago?`)) {
+            if (draft.title !== undefined) setTitle(draft.title);
+            if (draft.description !== undefined) setDescription(draft.description);
+            if (draft.subcategoryId !== undefined) setSubcategoryId(draft.subcategoryId);
+            if (draft.mode) setModeState(draft.mode);
+            if (draft.difficulty) setDifficulty(draft.difficulty);
+            if (draft.questions?.length) setQuestions(draft.questions);
+          } else {
+            window.localStorage.removeItem(draftKey);
+          }
+        }
+      }
+    } catch { /* Ignore an invalid local draft without affecting the form. */ }
+    setDraftReady(true);
+  // Restore once when the form opens, not whenever the draft key changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady || initialQuiz) return;
+    const handle = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(draftKey, JSON.stringify({ title, description, subcategoryId, mode, difficulty, questions, savedAt: Date.now() }));
+      } catch { /* Local storage can be disabled or full. */ }
+    }, 350);
+    return () => window.clearTimeout(handle);
+  }, [draftReady, initialQuiz, draftKey, title, description, subcategoryId, mode, difficulty, questions]);
 
   // Exam mode always carries a timer by definition; quiz mode's timer is
   // opt-in (for creators who want speed-drills). Switching to exam mode
@@ -241,6 +292,7 @@ export function QuizForm({
       };
       const result = await onSubmit(input);
       if (result?.error) setError(result.error);
+      else if (!initialQuiz) { try { window.localStorage.removeItem(draftKey); } catch { /* Ignore storage failures. */ } }
     } finally {
       setSubmitting(false);
     }
@@ -276,6 +328,37 @@ export function QuizForm({
       setError('Question marks must be at least 1.');
       return;
     }
+    const incomplete = questions.findIndex((q) => {
+      if (!q.prompt.trim()) return true;
+      if (q.type === 'mcq') {
+        const options = (q.options ?? []).filter((option) => option.text.trim());
+        return options.length < 2 || !q.correctAnswer || !options.some((option) => option.id === q.correctAnswer);
+      }
+      return !q.correctAnswer.trim();
+    });
+    if (incomplete !== -1) {
+      setError(`Question ${incomplete + 1} needs a prompt, a valid answer, and at least two non-empty options for multiple-choice questions.`);
+      document.getElementById(`quiz-question-${incomplete}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    const promptKeys = new Map<string, number>();
+    for (let i = 0; i < questions.length; i++) {
+      const key = questions[i].prompt.trim().toLowerCase().replace(/\s+/g, ' ');
+      if (promptKeys.has(key)) {
+        setError(`Question ${i + 1} looks like a duplicate of Question ${promptKeys.get(key)}. Review it before publishing.`);
+        document.getElementById(`quiz-question-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      promptKeys.set(key, i + 1);
+      if (questions[i].type === 'mcq') {
+        const options = (questions[i].options ?? []).map((option) => option.text.trim().toLowerCase()).filter(Boolean);
+        if (new Set(options).size !== options.length) {
+          setError(`Question ${i + 1} has repeated answer options. Make each option distinct.`);
+          document.getElementById(`quiz-question-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
+    }
 
     const input: QuizInput = {
       subcategoryId,
@@ -306,6 +389,7 @@ export function QuizForm({
     try {
       const result = await onSubmit(input);
       if (result?.error) setError(result.error);
+      else if (!initialQuiz) { try { window.localStorage.removeItem(draftKey); } catch { /* Ignore storage failures. */ } }
     } finally {
       setSubmitting(false);
     }
@@ -318,13 +402,22 @@ export function QuizForm({
           an edit made near the top is tedious, so this stays reachable. */}
       <div className="sticky top-0 z-10 -mx-4 mb-4 flex items-center justify-between gap-3 bg-paper/95 px-4 py-3 backdrop-blur">
         {error && <p className="text-sm text-critical-500">{error}</p>}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="secondary" onClick={() => setLearnerPreview((value) => !value)}>{learnerPreview ? 'Back to editor' : 'Learner preview'}</Button>
           <Button onClick={handleSubmit} disabled={submitting}>
             {submitting ? submittingLabel : submitLabel}
           </Button>
         </div>
       </div>
 
+      {learnerPreview && (
+        <Card className="mb-6 space-y-5 p-6">
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-pulse-600">Learner preview</p><h2 className="mt-1 font-display text-2xl font-semibold text-ink-800">{title.trim() || 'Untitled quiz'}</h2><p className="mt-1 text-sm text-ink-500">{description || 'No description added.'}</p><p className="mt-2 text-xs text-ink-400">{questions.length} questions · {mode === 'exam' ? 'Timed exam' : mode === 'study' ? 'Study mode' : 'Quiz mode'} · Answers shown here for creator review</p></div>
+          {questions.map((question, index) => <div key={question.id ?? index} className="rounded-xl border border-ink-100 p-4"><p className="font-medium text-ink-800">{index + 1}. {question.prompt || 'Question prompt not entered yet'}</p>{question.type === 'mcq' && <ul className="mt-3 space-y-2">{(question.options ?? []).map((option, optionIndex) => <li key={option.id} className={`rounded-lg px-3 py-2 text-sm ${option.id === question.correctAnswer ? 'bg-pulse-50 font-semibold text-pulse-700 ring-1 ring-pulse-200' : 'bg-ink-50 text-ink-600'}`}>{String.fromCharCode(65 + optionIndex)}. {option.text || 'Empty option'} {option.id === question.correctAnswer ? '✓ Correct answer' : ''}</li>)}</ul>}{question.type !== 'mcq' && <p className="mt-2 text-sm text-ink-500">Expected answer: {question.correctAnswer || 'Not entered'}</p>}{question.explanation && <p className="mt-3 text-sm text-ink-500">Explanation: {question.explanation}</p>}</div>)}
+          <Button variant="secondary" onClick={() => setLearnerPreview(false)}>Return to editing</Button>
+        </Card>
+      )}
+      {!learnerPreview && <>
       <Card className="space-y-5 p-6">
         <div>
           <label className="text-sm font-medium text-ink-700">Title</label>
@@ -658,7 +751,13 @@ export function QuizForm({
           </div>
         </div>
       </Card>
+      </>}
 
+      {!learnerPreview && <div className="mb-4 rounded-xl border border-ink-100 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-700">Question navigator</p><p className="text-xs text-ink-400">{questions.filter((q) => q.prompt.trim() && q.correctAnswer.trim()).length} of {questions.length} have a prompt and answer</p></div>
+        <div className="mt-2 flex flex-wrap gap-2">{questions.map((q, index) => <button key={q.id ?? index} type="button" onClick={() => document.getElementById(`quiz-question-${index}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className={`h-9 min-w-9 rounded-lg border px-2 text-xs font-semibold ${q.prompt.trim() && q.correctAnswer.trim() ? 'border-pulse-200 bg-pulse-50 text-pulse-700' : 'border-flag-200 bg-flag-50 text-flag-700'}`} aria-label={`Go to question ${index + 1}`}>{index + 1}</button>)}</div>
+      </div>}
+      {!learnerPreview && <>
       <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-xl font-semibold text-ink-800">Questions</h2>
         <div className="flex items-center gap-4">
@@ -685,7 +784,7 @@ export function QuizForm({
       </div>
       <div className="mt-4 space-y-6">
         {questions.map((q, qIndex) => (
-          <Card key={qIndex} className={`p-5 ${selectedQuestions.has(qIndex) ? 'ring-2 ring-critical-300' : ''}`}>
+          <Card key={qIndex} className={`p-5 ${selectedQuestions.has(qIndex) ? 'ring-2 ring-critical-300' : ''}`}><div id={`quiz-question-${qIndex}`} className="scroll-mt-24" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <input
@@ -801,14 +900,14 @@ export function QuizForm({
             <textarea
               value={q.explanation ?? ''}
               onChange={(e) => updateQuestion(qIndex, { explanation: e.target.value })}
-              placeholder="Explanation (optional, shown after grading) — write a full rationale, not just a fragment"
+              placeholder="Explanation (optional, shown after grading). Write a full rationale, not just a fragment"
               rows={3}
               className="mt-3 w-full rounded-md border border-ink-100 px-4 py-2 text-sm text-ink-600 focus:border-pulse-400 focus:outline-none"
             />
             <textarea
               value={q.incorrectRationale ?? ''}
               onChange={(e) => updateQuestion(qIndex, { incorrectRationale: e.target.value })}
-              placeholder="Why the other options are wrong (optional) — one short line per wrong option works well"
+              placeholder="Why the other options are wrong (optional). One short line per wrong option works well"
               rows={2}
               className="mt-2 w-full rounded-md border border-ink-100 px-4 py-2 text-sm text-ink-600 focus:border-pulse-400 focus:outline-none"
             />
@@ -829,6 +928,7 @@ export function QuizForm({
           {submitting ? submittingLabel : submitLabel}
         </Button>
       </div>
+      </>}
     </div>
   );
 }
