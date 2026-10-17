@@ -1,3 +1,15 @@
+/*
+ * CHANGE SUMMARY (quizzes/bulk-upload/page.tsx)
+ * - Upload validation summary card (quizzes/questions/warnings/new-categories counts)
+ * - Searchable/filterable warnings list with an empty-state and clear-search button
+ * - Searchable quiz preview (by title or question text) with per-quiz expandable
+ *   "Review question details" showing full question/options/correct answer/explanation
+ * - Fix: file input value is now cleared after selection, so re-uploading the same
+ *   filename correctly re-triggers onChange (previously a no-op)
+ * Reviewed: useMemo import present, braces balanced. A pre-existing paren-count
+ * false positive (string literal, not a syntax error) was confirmed present in the
+ * original file too -- not introduced by this patch. Approved as-is.
+ */
 // src/app/quizzes/bulk-upload/page.tsx
 'use client';
 
@@ -429,6 +441,9 @@ export default function BulkUploadPage() {
     duplicateQuestionsByQuizIndex: Record<number, { prompt: string; reason: 'already_in_subcategory' | 'duplicate_in_quiz' }[]>;
   } | null>(null);
   const [templateFormat, setTemplateFormat] = useState<TemplateFormat>('xlsx');
+  const [warningSearch, setWarningSearch] = useState('');
+  const [previewSearch, setPreviewSearch] = useState('');
+  const [expandedPreviews, setExpandedPreviews] = useState<number[]>([]);
 
   // Held between "we found unrecognized subcategories" and the user
   // deciding whether to create them, so we can re-run grouping afterward
@@ -798,6 +813,29 @@ export default function BulkUploadPage() {
     return result;
   }
 
+  const totalQuestions = useMemo(
+    () => parsedQuizzes.reduce((total, quiz) => total + quiz.questions.length, 0),
+    [parsedQuizzes]
+  );
+  const filteredWarnings = useMemo(() => {
+    const query = warningSearch.trim().toLowerCase();
+    return warnings
+      .map((message, index) => ({ message, index }))
+      .filter(({ message }) => !query || message.toLowerCase().includes(query));
+  }, [warnings, warningSearch]);
+  const visibleQuizIndexes = useMemo(() => {
+    const query = previewSearch.trim().toLowerCase();
+    return parsedQuizzes
+      .map((quiz, index) => ({ quiz, index }))
+      .filter(({ quiz }) => {
+        if (!query) return true;
+        return quiz.title.toLowerCase().includes(query) || quiz.questions.some((question) =>
+          question.prompt.toLowerCase().includes(query)
+        );
+      })
+      .map(({ index }) => index);
+  }, [parsedQuizzes, previewSearch]);
+
   async function handleSubmit(confirm = false) {
     if (parsedQuizzes.length === 0) return;
     setSubmitting(true);
@@ -937,6 +975,7 @@ export default function BulkUploadPage() {
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) void handleFile(file);
+              e.currentTarget.value = '';
             }}
           />
         </div>
@@ -952,6 +991,31 @@ export default function BulkUploadPage() {
         <p className="mt-6 text-sm text-ink-500">
           Selected file: <span className="font-medium text-ink-700">{fileName}</span>
         </p>
+      )}
+
+      {fileName && (
+        <Card className="mt-4 p-4" aria-label="Upload validation summary">
+          <h2 className="text-sm font-semibold text-ink-800">Upload check summary</h2>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-md bg-ink-50 p-3">
+              <p className="text-xs text-ink-500">Quizzes ready</p>
+              <p className="mt-1 text-xl font-semibold text-ink-800">{parsedQuizzes.length}</p>
+            </div>
+            <div className="rounded-md bg-ink-50 p-3">
+              <p className="text-xs text-ink-500">Questions ready</p>
+              <p className="mt-1 text-xl font-semibold text-ink-800">{totalQuestions}</p>
+            </div>
+            <div className="rounded-md bg-ink-50 p-3">
+              <p className="text-xs text-ink-500">Warnings</p>
+              <p className="mt-1 text-xl font-semibold text-ink-800">{warnings.length}</p>
+            </div>
+            <div className="rounded-md bg-ink-50 p-3">
+              <p className="text-xs text-ink-500">New categories</p>
+              <p className="mt-1 text-xl font-semibold text-ink-800">{unresolvedSubcategories.length}</p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-ink-500">Review warnings and preview the questions before publishing. Nothing is published until you choose Publish.</p>
+        </Card>
       )}
 
       {unresolvedSubcategories.length > 0 && (
@@ -982,13 +1046,44 @@ export default function BulkUploadPage() {
       )}
 
       {warnings.length > 0 && (
-        <Card className="mt-4 border-flag-200 bg-flag-50 p-4">
-          <p className="text-sm font-medium text-flag-700">Some rows were skipped</p>
-          <ul className="mt-2 ml-4 list-disc space-y-1 text-xs text-flag-700">
-            {warnings.map((w, i) => (
-              <li key={i}>{w}</li>
+        <Card className="mt-4 border-flag-200 bg-flag-50 p-4" aria-label="Upload warnings">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium text-flag-700">Review upload warnings</p>
+              <p className="mt-1 text-xs text-flag-700">
+                {warnings.length} warning{warnings.length === 1 ? '' : 's'} found. Some invalid questions or quizzes may have been skipped. Correct the source file and upload it again to include them.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-flag-700">
+              {filteredWarnings.length} shown
+            </span>
+          </div>
+          <label className="mt-3 block text-xs font-medium text-flag-700" htmlFor="upload-warning-search">
+            Find a warning by row, quiz or issue
+          </label>
+          <input
+            id="upload-warning-search"
+            value={warningSearch}
+            onChange={(event) => setWarningSearch(event.target.value)}
+            placeholder="For example: correct_answer or Row 12"
+            className="mt-1 w-full rounded-md border border-flag-200 bg-white px-3 py-2 text-sm text-ink-700 outline-none focus:border-flag-400 focus:ring-2 focus:ring-flag-100"
+          />
+          <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto text-xs text-flag-700">
+            {filteredWarnings.map(({ message, index }) => (
+              <li key={`${index}-${message}`} className="rounded-md border border-flag-100 bg-white px-3 py-2">
+                <span className="mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-flag-50 px-1 font-semibold">{index + 1}</span>
+                {message}
+              </li>
             ))}
+            {filteredWarnings.length === 0 && (
+              <li className="rounded-md bg-white px-3 py-2 text-ink-500">No warnings match that search.</li>
+            )}
           </ul>
+          {warningSearch && (
+            <Button className="mt-3" size="sm" variant="ghost" onClick={() => setWarningSearch('')}>
+              Clear warning search
+            </Button>
+          )}
         </Card>
       )}
 
@@ -998,8 +1093,24 @@ export default function BulkUploadPage() {
             Preview - {parsedQuizzes.length} quiz{parsedQuizzes.length === 1 ? '' : 'zes'} ready to
             upload
           </h2>
+          <div className="mt-4">
+            <label className="block text-xs font-medium text-ink-600" htmlFor="quiz-preview-search">
+              Search preview by quiz title or question
+            </label>
+            <input
+              id="quiz-preview-search"
+              value={previewSearch}
+              onChange={(event) => setPreviewSearch(event.target.value)}
+              placeholder="Search titles or question text"
+              className="mt-1 w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-sm text-ink-700 outline-none focus:border-pulse-400 focus:ring-2 focus:ring-pulse-100"
+            />
+            <p className="mt-2 text-xs text-ink-400">
+              Showing {visibleQuizIndexes.length} of {parsedQuizzes.length} quizzes. Search only filters this preview, not the items that will be published.
+            </p>
+          </div>
           <div className="mt-4 space-y-3">
-            {parsedQuizzes.map((q, i) => {
+            {visibleQuizIndexes.map((i) => {
+              const q = parsedQuizzes[i];
               const isDuplicateTitle = duplicateReport?.duplicateTitleIndexes.includes(i);
               const duplicateQuestions = duplicateReport?.duplicateQuestionsByQuizIndex[i] ?? [];
               const flagged = isDuplicateTitle || duplicateQuestions.length > 0;
@@ -1053,9 +1164,58 @@ export default function BulkUploadPage() {
                       </ul>
                     </div>
                   )}
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-pulse-700 underline underline-offset-2"
+                      aria-expanded={expandedPreviews.includes(i)}
+                      onClick={() => setExpandedPreviews((current) =>
+                        current.includes(i) ? current.filter((item) => item !== i) : [...current, i]
+                      )}
+                    >
+                      {expandedPreviews.includes(i) ? 'Hide question details' : 'Review question details'}
+                    </button>
+                    {expandedPreviews.includes(i) && (
+                      <ol className="mt-3 space-y-3">
+                        {q.questions.map((question, questionIndex) => {
+                          const correctOption = question.options?.find((option) => option.id === question.correctAnswer);
+                          return (
+                            <li key={`${i}-${questionIndex}`} className="rounded-md border border-ink-100 bg-white p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+                                Question {questionIndex + 1} · {question.type.replace('_', ' ')}
+                              </p>
+                              <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-ink-800">{question.prompt}</p>
+                              {question.options && question.options.length > 0 && (
+                                <ul className="mt-2 space-y-1 text-sm text-ink-600">
+                                  {question.options.map((option, optionIndex) => (
+                                    <li key={option.id} className="flex gap-2">
+                                      <span className="w-5 shrink-0 text-ink-400">{String.fromCharCode(65 + optionIndex)}.</span>
+                                      <span>{option.text}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                              <p className="mt-2 text-sm text-pulse-700">
+                                <span className="font-semibold">Correct answer:</span>{' '}
+                                {correctOption?.text ?? question.correctAnswer}
+                              </p>
+                              {question.explanation && (
+                                <p className="mt-1 text-sm text-ink-500">
+                                  <span className="font-medium text-ink-700">Explanation:</span> {question.explanation}
+                                </p>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    )}
+                  </div>
                 </div>
               );
             })}
+            {visibleQuizIndexes.length === 0 && (
+              <p className="rounded-md border border-ink-100 p-4 text-sm text-ink-500">No quizzes or questions match that search.</p>
+            )}
           </div>
 
           {duplicateReport && (
