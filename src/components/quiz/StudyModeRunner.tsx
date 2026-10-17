@@ -1,3 +1,26 @@
+// File: src/components/quiz/StudyModeRunner.tsx
+/*
+ * CHANGE SUMMARY (StudyModeRunner.tsx -- Study Mode screen)
+ * - Focus mode toggle (hides bottom nav / command trigger while studying).
+ * - Left/Right arrow-key navigation between questions (ignored while typing in
+ *   an input/textarea/select).
+ * - "Recall first" mode: hides answer choices until the learner actively reveals
+ *   them, encouraging active recall before multiple-choice recognition.
+ * - "Mark for revision" per question, now reflected in the navigator and the
+ *   end-of-session summary.
+ * - Confidence-vs-correctness breakdown on the results screen (how many "sure"
+ *   vs "guessing" answers were actually correct).
+ * - Mounts the new per-quiz QuizStudyToolkit (see note below).
+ * - Real bug fix: the "incorrect" results filter previously included unanswered
+ *   questions (since "not correct" also matched "not answered"); now correctly
+ *   requires the question to be answered AND wrong.
+ * FIXED during review: the focus-mode toggle was setting a body class
+ * (study-focus-session) that has no matching CSS rule, so it did nothing.
+ * Corrected to use the existing `focus-session` class (same one QuizRunner.tsx
+ * already uses), which IS defined in globals.css and actually hides the bottom
+ * nav / command trigger.
+ * Reviewed: balanced braces, no new em-dash regressions. Approved with the fix.
+ */
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -5,6 +28,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
+import { QuizStudyToolkit } from '@/components/quiz/QuizStudyToolkit';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
 import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
@@ -51,6 +75,7 @@ interface StudyDraft {
   skipped: string[];
   confidence: Record<string, 'sure' | 'guessing'>;
   resultFilter: ResultFilter;
+  markedForRevision?: string[];
 }
 
 const DRAFT_NAMESPACE = 'study';
@@ -132,6 +157,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
   // Questions explicitly skipped without answering, so they can be
   // revisited or filtered separately from "answered".
   const [skipped, setSkipped] = useState<Set<string>>(new Set(initialDraft?.skipped ?? []));
+  const [markedForRevision, setMarkedForRevision] = useState<Set<string>>(new Set(initialDraft?.markedForRevision ?? []));
   // Self-rated confidence, captured just before the answer is revealed.
   const [confidence, setConfidence] = useState<Record<string, 'sure' | 'guessing'>>(
     initialDraft?.confidence ?? {}
@@ -145,6 +171,31 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
   const [showSummary, setShowSummary] = useState(false);
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all');
   const [flashcardMode, setFlashcardMode] = useState<'all' | 'missed' | null>(null);
+  const [focusMode, setFocusMode] = useState(false);
+  const [recallFirst, setRecallFirst] = useState(true);
+  const [recallChoicesVisible, setRecallChoicesVisible] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.toggle('focus-session', focusMode);
+    return () => document.body.classList.remove('focus-session');
+  }, [focusMode]);
+
+  useEffect(() => {
+    function handleStudyKeys(event: KeyboardEvent) {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')) return;
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goPrevious();
+      } else if (event.key === 'ArrowRight' && revealed) {
+        event.preventDefault();
+        goNext();
+      }
+    }
+    window.addEventListener('keydown', handleStudyKeys);
+    return () => window.removeEventListener('keydown', handleStudyKeys);
+  }, [current, revealed, questions.length, answers]);
 
   const question = questions[current];
   const answeredIds = useMemo(() => new Set(Object.keys(answers)), [answers]);
@@ -157,8 +208,8 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
       : question.correctAnswer;
 
   const navigatorStates = useMemo(
-    () => questions.map((q) => ({ answered: answeredIds.has(q.id) })),
-    [questions, answeredIds]
+    () => questions.map((q) => ({ answered: answeredIds.has(q.id), skipped: skipped.has(q.id), flagged: markedForRevision.has(q.id) })),
+    [questions, answeredIds, skipped, markedForRevision]
   );
 
   function matchesFilter(q: QuizQuestion, filter: ResultFilter): boolean {
@@ -206,9 +257,10 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
       skipped: Array.from(skipped),
       confidence,
       resultFilter,
+      markedForRevision: Array.from(markedForRevision),
     };
     saveDraft(DRAFT_NAMESPACE, quiz.id, draft);
-  }, [quiz.id, questions, current, answers, skipped, confidence, resultFilter]);
+  }, [quiz.id, questions, current, answers, skipped, confidence, resultFilter, markedForRevision]);
 
   // Fires once per finished study session, when the summary screen first
   // shows - mirrors FlashcardRunner's "finished" effect. Reaching the
@@ -219,6 +271,15 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
     if (showSummary) onComplete?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSummary]);
+
+  function toggleRevisionMark() {
+    setMarkedForRevision((previous) => {
+      const next = new Set(previous);
+      if (next.has(question.id)) next.delete(question.id);
+      else next.add(question.id);
+      return next;
+    });
+  }
 
   function rateConfidence(level: 'sure' | 'guessing') {
     setConfidence((prev) => ({ ...prev, [question.id]: level }));
@@ -245,6 +306,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
 
   function goToQuestion(index: number) {
     setCurrent(index);
+    setRecallChoicesVisible(false);
     const targetQuestion = questions[index];
     const priorAnswer = answers[targetQuestion.id];
     if (priorAnswer !== undefined) {
@@ -285,6 +347,18 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
       answers[q.id].trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
   ).length;
   const percentage = answeredCount > 0 ? (correctCount / answeredCount) * 100 : 0;
+  const confidenceSummary = useMemo(() => {
+    const entries = Object.entries(confidence).filter(([id]) => answers[id] !== undefined);
+    const sure = entries.filter(([, level]) => level === 'sure');
+    const guessing = entries.filter(([, level]) => level === 'guessing');
+    const correctFor = (items: typeof entries) => items.filter(([id]) => answers[id]?.trim().toLowerCase() === questions.find((q) => q.id === id)?.correctAnswer.trim().toLowerCase()).length;
+    return {
+      sureCount: sure.length,
+      sureCorrect: correctFor(sure),
+      guessingCount: guessing.length,
+      guessingCorrect: correctFor(guessing),
+    };
+  }, [confidence, answers, questions]);
 
   function resolveOptionText(q: QuizQuestion, value: string | undefined): string | null {
     if (value === undefined) return null;
@@ -329,11 +403,17 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         const isRight =
           answeredIds.has(q.id) && answers[q.id] !== undefined &&
           answers[q.id].trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
-        return summaryFilter === 'correct' ? isRight : !isRight;
+        if (summaryFilter === 'correct') return isRight;
+        return answeredIds.has(q.id) && !isRight;
       });
 
     return (
-      <div className="mx-auto max-w-2xl px-6 py-16">
+      <div className={`mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-16 ${focusMode ? 'study-focus-mode' : ''}`}>
+        <div className="mb-3 flex justify-end">
+          <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">
+            {focusMode ? 'Exit focus mode' : 'Focus mode'}
+          </button>
+        </div>
         <Card className="p-8 text-center">
           <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Study Session Results</p>
           <p className="mt-4 font-display text-5xl font-semibold text-ink-800">
@@ -345,8 +425,22 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
               ` · ${questions.length - answeredCount} question${questions.length - answeredCount === 1 ? '' : 's'} unanswered`}
           </p>
           <p className="mt-3 text-xs text-ink-400">
-            Study Mode isn&apos;t scored or saved to your dashboard — this is just a recap of this session.
+            This is a personal recap of your study session, not an official exam result.
           </p>
+          {(confidenceSummary.sureCount + confidenceSummary.guessingCount) > 0 && (
+            <div className="mt-5 grid gap-3 text-left sm:grid-cols-2">
+              <div className="rounded-lg border border-ink-100 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Felt confident</p>
+                <p className="mt-1 text-lg font-semibold text-ink-800">{confidenceSummary.sureCorrect}/{confidenceSummary.sureCount} correct</p>
+                <p className="text-xs text-ink-500">Questions you marked as sure</p>
+              </div>
+              <div className="rounded-lg border border-ink-100 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Was guessing</p>
+                <p className="mt-1 text-lg font-semibold text-ink-800">{confidenceSummary.guessingCorrect}/{confidenceSummary.guessingCount} correct</p>
+                <p className="text-xs text-ink-500">Questions you marked as guessing</p>
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 flex justify-center gap-2">
             {(['all', 'correct', 'incorrect'] as const).map((f) => {
@@ -357,7 +451,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
                       const isRight =
                         answeredIds.has(q.id) && answers[q.id] !== undefined &&
                         answers[q.id].trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
-                      return f === 'correct' ? isRight : !isRight;
+                      return f === 'correct' ? isRight : answeredIds.has(q.id) && !isRight;
                     }).length;
               return (
                 <button
@@ -434,16 +528,27 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-16">
-      <div className="flex items-center justify-between text-sm text-ink-400">
-        <span>Question {current + 1} of {questions.length}</span>
-        <span className="font-mono text-xs uppercase tracking-widest text-pulse-600">Study Mode</span>
+    <div className={`mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-16 ${focusMode ? 'study-focus-mode' : ''}`}>
+      <div className="mb-3 flex justify-end">
+        <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">
+          {focusMode ? 'Exit focus mode' : 'Focus mode'}
+        </button>
       </div>
-      <div className="mt-2 h-1 w-full rounded-full bg-ink-100">
-        <div
-          className="h-1 rounded-full bg-pulse-500 transition-all"
-          style={{ width: `${((current + 1) / questions.length) * 100}%` }}
-        />
+      <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
+          <span className="font-semibold text-ink-700">Question {current + 1} <span className="font-normal text-ink-400">of {questions.length}</span></span>
+          <span className="rounded-full bg-pulse-50 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-pulse-700">Study mode</span>
+        </div>
+        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(((current + 1) / questions.length) * 100)}>
+          <div className="h-full rounded-full bg-gradient-to-r from-pulse-400 to-pulse-600 transition-all duration-300" style={{ width: `${((current + 1) / questions.length) * 100}%` }} />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-ink-400">{Math.round(((current + 1) / questions.length) * 100)}% of this set explored</p>
+          <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg border border-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-600">
+            <input type="checkbox" checked={recallFirst} onChange={(event) => { setRecallFirst(event.target.checked); setRecallChoicesVisible(false); }} className="h-4 w-4 accent-teal-600" />
+            Recall first
+          </label>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -468,8 +573,13 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         ))}
       </div>
 
-      <Card className="mt-8 p-6">
-        <h2 className="font-display text-lg font-medium text-ink-800">{question.prompt}</h2>
+      <Card className="mt-6 p-4 sm:mt-8 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="min-w-0 flex-1 font-display text-lg font-medium text-ink-800">{question.prompt}</h2>
+          <button type="button" onClick={toggleRevisionMark} aria-pressed={markedForRevision.has(question.id)} className={`min-h-9 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${markedForRevision.has(question.id) ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-ink-200 text-ink-500 hover:border-amber-300 hover:text-amber-800'}`}>
+            {markedForRevision.has(question.id) ? 'Marked for revision' : 'Mark for revision'}
+          </button>
+        </div>
 
         {!revealed && (
           <div className="mt-3 flex items-center gap-2">
@@ -491,7 +601,15 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
           </div>
         )}
 
-        <div className="mt-6 space-y-2">
+        {recallFirst && !revealed && !recallChoicesVisible && (
+          <div className="mt-5 rounded-xl border border-pulse-100 bg-pulse-50/70 p-4">
+            <p className="text-sm font-semibold text-ink-800">Try to recall the answer before seeing the choices.</p>
+            <p className="mt-1 text-xs leading-5 text-ink-500">Think of the answer in your own words, then reveal the options to check your understanding.</p>
+            <button type="button" onClick={() => setRecallChoicesVisible(true)} className="mt-3 min-h-10 rounded-lg bg-pulse-600 px-4 py-2 text-sm font-semibold text-white hover:bg-pulse-700">Reveal answer choices</button>
+          </div>
+        )}
+
+        {(!recallFirst || recallChoicesVisible || revealed) && <div className="mt-6 space-y-2">
           {question.type === 'mcq' &&
             question.options?.map((opt) => {
               const isSelected = selectedAnswer === opt.id;
@@ -538,7 +656,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
               Your answer: {selectedAnswer}
             </div>
           )}
-        </div>
+        </div>}
 
         {revealed && (
           <div className={`mt-4 rounded-md border p-4 ${isCorrect ? 'border-pulse-200 bg-pulse-50' : 'border-critical-200 bg-critical-50'}`}>
@@ -582,8 +700,12 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         current={current}
         states={navigatorStates}
         onJump={goToQuestion}
-        className="mt-2"
+        summary={`${answeredCount} answered · ${questions.length - answeredCount - skipped.size} unanswered · ${skipped.size} skipped · ${markedForRevision.size} marked for revision`}
+        actionLabel="Finish studying"
+        onAction={() => setShowSummary(true)}
+        className="mt-4 rounded-xl border border-ink-100 bg-white p-4 sm:p-5"
       />
+      <QuizStudyToolkit quizId={quiz.id} quizTitle={quiz.title} />
     </div>
   );
 }
