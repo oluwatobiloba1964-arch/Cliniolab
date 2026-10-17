@@ -21,6 +21,7 @@ import type { Flashcard, FlashcardSet } from '@/types';
 // since caching before deciding whether the cache is still good.
 interface CachedFlashcardPayload {
   updatedAt: string;
+  cachedAt?: number;
   set: FlashcardSet;
   cards: Flashcard[];
 }
@@ -44,47 +45,84 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    const cached = loadDraft<CachedFlashcardPayload>('cards-cache', setId);
+    const safeInstantCache = !!cached
+      && Array.isArray(cached.cards)
+      && cached.set?.id === setId
+      && cached.set?.pricing === 'free'
+      && cached.set?.visibility === 'public'
+      && typeof cached.cachedAt === 'number'
+      && Date.now() - cached.cachedAt >= 0
+      && Date.now() - cached.cachedAt <= 5 * 60 * 1000;
+
+    // Public, free sets can render from the local cache immediately while the
+    // existing lightweight preview request validates freshness. Paid/private
+    // sets never reveal cached cards before the existing access check passes.
+    if (safeInstantCache && cached) {
+      setSet(cached.set);
+      setCards(cached.cards);
+      setError(null);
+      setRequiresPurchase(false);
+      setFetching(false);
+      if (loadDraft(FLASHCARD_DRAFT_NAMESPACE, setId)) setStarted(true);
+    } else {
+      setFetching(true);
+    }
 
     async function load() {
-      setFetching(true);
       try {
-        // Lightweight freshness check first - no cards, just the set row
-        // (including updatedAt) and the purchase/visibility gating that
-        // has to run fresh every visit regardless of any cache.
+        // A fresh local copy of a public, free set is enough to start.
+        // Paid/private sets always continue through the existing access gate.
+        if (safeInstantCache) return;
         const previewRes = await fetch(`/api/flashcards/${setId}?preview=1`);
         const previewData = await previewRes.json();
         if (cancelled) return;
 
         if (previewRes.status === 402) {
-          setSet(previewData.set ?? null);
+          setSet(previewData.set ?? cached?.set ?? null);
+          setCards([]);
+          setStarted(false);
           setRequiresPurchase(true);
           return;
         }
         if (!previewRes.ok) {
+          // Keep an already-rendered public/free copy for transient server
+          // errors, but never keep it when the server says the set is gone.
+          if (safeInstantCache && previewRes.status >= 500) {
+            setError('Showing a saved copy. Reconnect to check for updates.');
+            return;
+          }
+          setCards([]);
+          setSet(null);
+          setStarted(false);
           setError(previewData.error ?? 'Failed to load flashcard set');
           return;
         }
 
-        // Cache hit: the set hasn't changed since we last fetched its
-        // cards, so reuse them instead of re-fetching. Safe on every
-        // retry/reopen of this set, including after finishing a study
-        // session, since nothing about the cards themselves changes
-        // between attempts - only quiz_attempts-style history would, and
-        // flashcards don't grade/gate on that the way quizzes do.
-        const cached = loadDraft<CachedFlashcardPayload>('cards-cache', setId);
         if (cached && cached.updatedAt === previewData.set.updatedAt) {
           setSet(cached.set);
           setCards(cached.cards);
+          setRequiresPurchase(false);
+          setError(null);
+          saveDraft<CachedFlashcardPayload>('cards-cache', setId, {
+            updatedAt: cached.updatedAt,
+            cachedAt: Date.now(),
+            set: cached.set,
+            cards: cached.cards,
+          });
           if (loadDraft(FLASHCARD_DRAFT_NAMESPACE, setId)) setStarted(true);
           return;
         }
 
+        setFetching(true);
         const res = await fetch(`/api/flashcards/${setId}`);
         const data = await res.json();
         if (cancelled) return;
 
         if (res.status === 402) {
-          setSet(data.set ?? null);
+          setSet(data.set ?? previewData.set ?? null);
+          setCards([]);
+          setStarted(false);
           setRequiresPurchase(true);
           return;
         }
@@ -94,16 +132,20 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
         }
         setSet(data.set);
         setCards(data.cards ?? []);
+        setRequiresPurchase(false);
+        setError(null);
         saveDraft<CachedFlashcardPayload>('cards-cache', setId, {
           updatedAt: data.set.updatedAt,
+          cachedAt: Date.now(),
           set: data.set,
           cards: data.cards ?? [],
         });
-        // Resume straight into the runner if a saved session exists for
-        // this set (e.g. tab was closed mid-study).
         if (loadDraft(FLASHCARD_DRAFT_NAMESPACE, setId)) setStarted(true);
       } catch {
-        if (!cancelled) setError('Network error while loading flashcard set');
+        if (!cancelled) {
+          if (safeInstantCache) setError('Showing a saved copy. Reconnect to check for updates.');
+          else setError('Network error while loading flashcard set');
+        }
       } finally {
         if (!cancelled) setFetching(false);
       }
@@ -159,7 +201,21 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
     }
   }
 
-  if (loading || fetching) return null;
+  if (loading) return null;
+
+  if (fetching && !set) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-16" aria-live="polite">
+        <div className="animate-pulse rounded-2xl border border-ink-100 bg-white p-8 shadow-sm">
+          <div className="h-4 w-24 rounded bg-ink-100" />
+          <div className="mt-4 h-8 w-3/4 rounded bg-ink-100" />
+          <div className="mt-3 h-4 w-full rounded bg-ink-50" />
+          <div className="mt-8 h-11 w-48 rounded-xl bg-ink-100" />
+        </div>
+        <p className="mt-3 text-center text-xs text-ink-400">Loading flashcards…</p>
+      </div>
+    );
+  }
 
   if (error && !set) {
     return (

@@ -7,6 +7,17 @@ interface FlagRow {
   label: string | null;
 }
 
+const FLAG_CACHE_TTL_MS = 60_000;
+let flagMapCache: { value: Record<FeatureFlagKey, boolean>; expiresAt: number } | null = null;
+let flagMapPending: Promise<Record<FeatureFlagKey, boolean>> | null = null;
+let flagMapVersion = 0;
+
+function invalidateFlagCache(): void {
+  flagMapCache = null;
+  flagMapPending = null;
+  flagMapVersion += 1;
+}
+
 function mapFlag(row: FlagRow): FeatureFlag {
   return { key: row.key as FeatureFlagKey, enabled: row.enabled === 1, label: row.label };
 }
@@ -22,21 +33,28 @@ export async function listFeatureFlags(): Promise<FeatureFlag[]> {
  * without re-querying per flag.
  */
 export async function getFeatureFlagMap(): Promise<Record<FeatureFlagKey, boolean>> {
-  const flags = await listFeatureFlags();
-  const map = {} as Record<FeatureFlagKey, boolean>;
-  for (const f of flags) map[f.key] = f.enabled;
-  return map;
+  if (flagMapCache && flagMapCache.expiresAt > Date.now()) return { ...flagMapCache.value };
+  if (flagMapPending) return { ...(await flagMapPending) };
+  const version = flagMapVersion;
+  const request = (async () => {
+    const flags = await listFeatureFlags();
+    const map = {} as Record<FeatureFlagKey, boolean>;
+    for (const f of flags) map[f.key] = f.enabled;
+    if (version === flagMapVersion) flagMapCache = { value: map, expiresAt: Date.now() + FLAG_CACHE_TTL_MS };
+    return map;
+  })();
+  flagMapPending = request;
+  try {
+    return { ...(await request) };
+  } finally {
+    if (flagMapPending === request) flagMapPending = null;
+  }
 }
 
 export async function isFeatureEnabled(key: FeatureFlagKey): Promise<boolean> {
-  const db = getDb();
-  const row = await db
-    .prepare('SELECT enabled FROM feature_flags WHERE key = ?')
-    .bind(key)
-    .first<{ enabled: number }>();
-  // Default to enabled if the flag row is missing, so a forgotten flag
-  // doesn't silently hide a feature.
-  return row ? row.enabled === 1 : true;
+  const flags = await getFeatureFlagMap();
+  // Missing rows default to enabled, matching the existing behaviour.
+  return flags[key] !== false;
 }
 
 export async function getFeatureFlag(key: FeatureFlagKey): Promise<FeatureFlag> {
@@ -66,4 +84,5 @@ export async function setFeatureFlag(
       .bind(enabled ? 1 : 0, key)
       .run();
   }
+  invalidateFlagCache();
 }

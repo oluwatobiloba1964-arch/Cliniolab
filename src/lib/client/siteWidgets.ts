@@ -1,5 +1,5 @@
 // File: src/lib/client/siteWidgets.ts
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonSessionCached } from '@/lib/client/publicFetch';
 import type { Banner, HomepageVideoSetting, MedicalAbbreviation, QuizWithStats, ScholarOfTheDay } from '@/types';
 
 export interface SiteWidgets {
@@ -19,5 +19,5 @@ export interface SiteWidgets {
  * that needs these calls this, so each page makes one request instead of many.
  */
 export function getSiteWidgets(): Promise<SiteWidgets> {
-  return publicFetchJson<SiteWidgets>('/api/site-widgets', 60_000);
+  return publicFetchJsonSessionCached<SiteWidgets>('/api/site-widgets', 60_000);
 }

@@ -1,10 +1,20 @@
 // src/app/quizzes/[quizId]/page.tsx
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { quizService } from '@/lib/db';
 import { getQuizzesWithStatsByIds } from '@/lib/db/services/quizService';
 import { QuizDetailClient } from './QuizDetailClient';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
+
+// React cache deduplicates these lookups within a server render/request, including
+// metadata generation and the page render, without persisting quiz data across users.
+const getQuizForRequest = cache(async (quizId: string) =>
+  quizService.getQuizById(quizId).catch(() => null)
+);
+const getQuizStatsForRequest = cache(async (quizId: string) =>
+  getQuizzesWithStatsByIds([quizId]).catch(() => [])
+);
 
 interface PageProps {
   params: Promise<{ quizId: string }>;
@@ -48,7 +58,7 @@ function formatTime(seconds: number | null): string | null {
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { quizId } = await params;
-  const quiz = await quizService.getQuizById(quizId).catch(() => null);
+  const quiz = await getQuizForRequest(quizId);
 
   if (!quiz || quiz.visibility !== 'public') {
     // Private/missing quizzes get a neutral title rather than leaking
@@ -62,7 +72,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // Pull stats (question count, creator, price, retake policy) the same
   // way the bookmarks page does, so the OG card matches what's shown
   // on-page rather than only the base quiz description.
-  const [withStats] = await getQuizzesWithStatsByIds([quiz.id]).catch(() => []);
+  const [withStats] = await getQuizStatsForRequest(quiz.id);
 
   const price = formatPrice(quiz.pricing, quiz.priceKobo);
   const time = formatTime(quiz.timeLimitSeconds);
@@ -112,10 +122,10 @@ export default async function QuizDetailPage({ params }: PageProps) {
   // QuizzerWeb-style summary card, and available even before the
   // login-gated client fetch resolves. Only fetched for public quizzes -
   // private ones keep their existing gated flow untouched.
-  const quiz = await quizService.getQuizById(quizId).catch(() => null);
+  const quiz = await getQuizForRequest(quizId);
   const previewStats =
     quiz && (quiz.visibility === 'public' || quiz.visibility === 'guest')
-      ? (await getQuizzesWithStatsByIds([quizId]).catch(() => []))[0] ?? null
+      ? (await getQuizStatsForRequest(quizId))[0] ?? null
       : null;
 
   return <QuizDetailClient quizId={quizId} previewStats={previewStats} />;

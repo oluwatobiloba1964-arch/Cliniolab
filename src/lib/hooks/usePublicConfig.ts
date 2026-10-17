@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { PublicConfig } from '@/app/api/public-config/route';
+import { publicFetchJsonSessionCached } from '@/lib/client/publicFetch';
 
 /**
  * Client read of /api/public-config with a shared in-memory promise so many
@@ -48,8 +49,7 @@ let inflight: Promise<PublicConfig> | null = null;
 export function loadPublicConfig(): Promise<PublicConfig> {
   if (cached) return Promise.resolve(cached);
   if (!inflight) {
-    inflight = fetch('/api/public-config')
-      .then((res) => (res.ok ? (res.json() as Promise<PublicConfig>) : DEFAULT_PUBLIC_CONFIG))
+    inflight = publicFetchJsonSessionCached<PublicConfig>('/api/public-config', 60_000)
       .catch(() => DEFAULT_PUBLIC_CONFIG)
       .then((cfg) => {
         cached = cfg;

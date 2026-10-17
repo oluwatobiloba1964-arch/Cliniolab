@@ -21,11 +21,56 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function fetchAppUser(): Promise<FullSessionUser | null> {
+const APP_USER_CACHE_PREFIX = 'cliniolab:app-user-cache:';
+const APP_USER_CACHE_TTL_MS = 60_000;
+
+function readCachedAppUser(userId: string): FullSessionUser | null {
+  try {
+    const raw = window.sessionStorage.getItem(`${APP_USER_CACHE_PREFIX}${userId}`);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as { expiresAt?: number; user?: FullSessionUser };
+    if (!cached.expiresAt || cached.expiresAt <= Date.now() || cached.user?.id !== userId) {
+      window.sessionStorage.removeItem(`${APP_USER_CACHE_PREFIX}${userId}`);
+      return null;
+    }
+    return cached.user;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedAppUser(user: FullSessionUser): void {
+  try {
+    window.sessionStorage.setItem(
+      `${APP_USER_CACHE_PREFIX}${user.id}`,
+      JSON.stringify({ expiresAt: Date.now() + APP_USER_CACHE_TTL_MS, user })
+    );
+  } catch {
+    // Storage can be disabled. Authentication continues without this cache.
+  }
+}
+
+function clearCachedAppUsers(): void {
+  try {
+    for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
+      const key = window.sessionStorage.key(i);
+      if (key?.startsWith(APP_USER_CACHE_PREFIX)) window.sessionStorage.removeItem(key);
+    }
+  } catch {
+    // Ignore storage restrictions.
+  }
+}
+
+async function fetchAppUser(userId?: string, forceRefresh = false): Promise<FullSessionUser | null> {
+  if (userId && !forceRefresh) {
+    const cached = readCachedAppUser(userId);
+    if (cached) return cached;
+  }
   const res = await fetch('/api/auth/sync-user', { method: 'POST' });
   if (!res.ok) return null;
   const data = await res.json();
-  return {
+  if (!data?.user?.id || (userId && data.user.id !== userId)) return null;
+  const appUser: FullSessionUser = {
     id: data.user.id,
     email: data.user.email,
     displayName: data.user.displayName,
@@ -33,6 +78,8 @@ async function fetchAppUser(): Promise<FullSessionUser | null> {
     currentStreakDays: data.user.currentStreakDays ?? 0,
     longestStreakDays: data.user.longestStreakDays ?? 0,
   };
+  writeCachedAppUser(appUser);
+  return appUser;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -48,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession()
       .then(({ data }) => {
         if (!data.session) return null;
-        return fetchAppUser();
+        return fetchAppUser(data.session.user.id);
       })
       .then((u) => {
         if (u) setUser(u);
@@ -65,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // momentary null session during INITIAL_SESSION, or a failed
       // TOKEN_REFRESHED) must never log the user out on their own.
       if (event === 'SIGNED_OUT') {
+        clearCachedAppUsers();
         setUser(null);
         return;
       }
@@ -75,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const appUser = await fetchAppUser();
+      const appUser = await fetchAppUser(session.user.id, event === 'SIGNED_IN');
       // Only apply the result if it succeeded; a transient failure here
       // (network blip, cold start) must not wipe out a valid logged-in user.
       if (appUser) {
@@ -88,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     await signIn(email, password);
-    const appUser = await fetchAppUser();
+    const appUser = await fetchAppUser(undefined, true);
     setUser(appUser);
   }, []);
 
@@ -98,13 +146,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // No session yet — user must confirm their email before they can log in.
       return { needsEmailConfirmation: true };
     }
-    const appUser = await fetchAppUser();
+    const appUser = await fetchAppUser(undefined, true);
     setUser(appUser);
     return { needsEmailConfirmation: false };
   }, []);
 
   const logout = useCallback(async () => {
     await signOut();
+    clearCachedAppUsers();
     setUser(null);
   }, []);
 

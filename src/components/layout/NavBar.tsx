@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonSessionCached } from '@/lib/client/publicFetch';
 
 interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
 
@@ -35,7 +35,7 @@ export function NavBar() {
   const learningRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    publicFetchJson<{ categories?: BlogCategoryOption[] }>('/api/blog-categories', 300_000)
+    publicFetchJsonSessionCached<{ categories?: BlogCategoryOption[] }>('/api/blog-categories', 300_000)
       .then((data) => setLearningCategories((data.categories ?? []).filter((c) => c.slug !== 'job' && c.slug !== 'scholarship')))
       .catch(() => setLearningCategories([]));
   }, []);

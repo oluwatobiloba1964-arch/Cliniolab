@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJson, publicFetchJsonSessionCached } from '@/lib/client/publicFetch';
 import type {
   BlogPost,
   FlashcardSetWithStats,
@@ -56,7 +56,7 @@ export function useHomeData(): HomeDataResult {
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
 
   useEffect(() => {
-    publicFetchJson<HomeData>('/api/homepage-data', 60_000)
+    publicFetchJsonSessionCached<HomeData>('/api/homepage-data', 60_000)
       .then(setData)
       .catch(() => setFailed(true));
 
@@ -75,7 +75,7 @@ export function useHomeData(): HomeDataResult {
         // ignore — leaderboard is a soft failure
       });
 
-    publicFetchJson<{ label?: string }>('/api/flags/leaderboard_general', 60_000)
+    publicFetchJsonSessionCached<{ label?: string }>('/api/flags/leaderboard_general', 60_000)
       .then((d) => {
         if (d?.label) setLeaderboardLabel(d.label);
       })

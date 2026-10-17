@@ -32,9 +32,53 @@ export async function publicFetchJson<T>(url: string, ttlMs = 30_000): Promise<T
 export function clearPublicFetchCache(urlPrefix?: string) {
   if (!urlPrefix) {
     cache.clear();
-    return;
+  } else {
+    for (const key of cache.keys()) {
+      if (key.startsWith(urlPrefix)) cache.delete(key);
+    }
   }
-  for (const key of cache.keys()) {
-    if (key.startsWith(urlPrefix)) cache.delete(key);
+  // Keep session-persisted public data coherent when a caller explicitly
+  // invalidates the in-memory cache after an administrative edit.
+  try {
+    if (typeof window !== 'undefined') {
+      const prefix = 'cliniolab:public-session-cache:';
+      for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
+        const key = window.sessionStorage.key(i);
+        if (!key?.startsWith(prefix)) continue;
+        const cachedUrl = key.slice(prefix.length);
+        if (!urlPrefix || cachedUrl.startsWith(urlPrefix)) window.sessionStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // Storage is an optional optimization and may be unavailable.
   }
+}
+
+
+/**
+ * Session-persistent cache for explicitly public, non-personalized data that
+ * is expensive to re-read after a hard refresh. Use only for public endpoints.
+ */
+export async function publicFetchJsonSessionCached<T>(url: string, ttlMs = 30_000): Promise<T> {
+  const storageKey = `cliniolab:public-session-cache:${url}`;
+  try {
+    const raw = window.sessionStorage.getItem(storageKey);
+    if (raw) {
+      const cached = JSON.parse(raw) as { expiresAt?: number; data?: T };
+      if (typeof cached.expiresAt === 'number' && cached.expiresAt > Date.now() && cached.data !== undefined) {
+        return cached.data;
+      }
+      window.sessionStorage.removeItem(storageKey);
+    }
+  } catch {
+    // Fall through to the normal in-memory cache when storage is unavailable.
+  }
+
+  const data = await publicFetchJson<T>(url, ttlMs);
+  try {
+    window.sessionStorage.setItem(storageKey, JSON.stringify({ expiresAt: Date.now() + ttlMs, data }));
+  } catch {
+    // Storage is an optimization, never a requirement for loading navigation.
+  }
+  return data;
 }

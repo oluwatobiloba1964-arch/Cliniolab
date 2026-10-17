@@ -26,14 +26,8 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  // Only the quiz-category list is fetched server-side for this pass -
-  // it drives the largest above-the-fold section (Quiz/Exam/Study) and
-  // needs no auth. Every other section (leaderboard, resources, blog
-  // teasers, flashcards, flags) stays a client fetch exactly as before;
-  // several of those are user-specific or flag-gated and are left for a
-  // separate, more careful pass rather than converting this high-traffic
-  // page's whole data layer in one blind rewrite.
+  // listCategories uses a short warm-runtime cache, avoiding a D1 read on every
+  // homepage request while keeping the subject explorer server-rendered.
   const categories = await categoryService.listCategories().catch(() => []);
-
   return <HomeClient initialCategories={categories} />;
 }

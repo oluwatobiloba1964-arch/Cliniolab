@@ -30,6 +30,14 @@ interface BlogSubcategoryRow {
   sort_order: number;
 }
 
+const BLOG_CATEGORY_TTL_MS = 5 * 60 * 1000;
+const BLOG_SUBCATEGORY_TTL_MS = 5 * 60 * 1000;
+let blogCategoryCache: { value: BlogCategory[]; expiresAt: number } | null = null;
+let blogCategoryPending: Promise<BlogCategory[]> | null = null;
+const blogSubcategoryPending = new Map<string, Promise<BlogSubcategory[]>>();
+let blogSubcategoryVersion = 0;
+const blogSubcategoryCache = new Map<string, { value: BlogSubcategory[]; expiresAt: number }>();
+
 function mapBlogCategory(row: BlogCategoryRow): BlogCategory {
   return {
     id: row.id,
@@ -54,20 +62,50 @@ function mapBlogSubcategory(row: BlogSubcategoryRow): BlogSubcategory {
 // them through the app, so there is deliberately no create/delete
 // here anymore.
 export async function listBlogCategories(): Promise<BlogCategory[]> {
-  const db = getDb();
-  const { results } = await db
-    .prepare('SELECT * FROM blog_categories ORDER BY sort_order ASC')
-    .all<BlogCategoryRow>();
-  return results.map(mapBlogCategory);
+  if (blogCategoryCache && blogCategoryCache.expiresAt > Date.now()) {
+    return blogCategoryCache.value.map((category) => ({ ...category }));
+  }
+  if (blogCategoryPending) return (await blogCategoryPending).map((category) => ({ ...category }));
+  const request = (async () => {
+    const db = getDb();
+    const { results } = await db.prepare('SELECT * FROM blog_categories ORDER BY sort_order ASC').all<BlogCategoryRow>();
+    const value = results.map(mapBlogCategory);
+    blogCategoryCache = { value, expiresAt: Date.now() + BLOG_CATEGORY_TTL_MS };
+    return value;
+  })();
+  blogCategoryPending = request;
+  try {
+    return (await request).map((category) => ({ ...category }));
+  } finally {
+    if (blogCategoryPending === request) blogCategoryPending = null;
+  }
 }
 
 export async function listBlogSubcategories(blogCategoryId: string): Promise<BlogSubcategory[]> {
-  const db = getDb();
-  const { results } = await db
-    .prepare('SELECT * FROM blog_subcategories WHERE blog_category_id = ? ORDER BY sort_order ASC')
-    .bind(blogCategoryId)
-    .all<BlogSubcategoryRow>();
-  return results.map(mapBlogSubcategory);
+  const cached = blogSubcategoryCache.get(blogCategoryId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value.map((item) => ({ ...item }));
+  const pending = blogSubcategoryPending.get(blogCategoryId);
+  if (pending) return (await pending).map((item) => ({ ...item }));
+  const version = blogSubcategoryVersion;
+  const request = (async () => {
+    const db = getDb();
+    const { results } = await db.prepare('SELECT * FROM blog_subcategories WHERE blog_category_id = ? ORDER BY sort_order ASC').bind(blogCategoryId).all<BlogSubcategoryRow>();
+    const value = results.map(mapBlogSubcategory);
+    if (version === blogSubcategoryVersion) blogSubcategoryCache.set(blogCategoryId, { value, expiresAt: Date.now() + BLOG_SUBCATEGORY_TTL_MS });
+    return value;
+  })();
+  blogSubcategoryPending.set(blogCategoryId, request);
+  try {
+    return (await request).map((item) => ({ ...item }));
+  } finally {
+    if (blogSubcategoryPending.get(blogCategoryId) === request) blogSubcategoryPending.delete(blogCategoryId);
+  }
+}
+
+function invalidateBlogSubcategoryCache(blogCategoryId: string): void {
+  blogSubcategoryCache.delete(blogCategoryId);
+  blogSubcategoryPending.delete(blogCategoryId);
+  blogSubcategoryVersion += 1;
 }
 
 function slugify(name: string): string {
@@ -101,6 +139,7 @@ export async function getOrCreateBlogSubcategory(
     )
     .bind(id, blogCategoryId, name, slug)
     .run();
+  invalidateBlogSubcategoryCache(blogCategoryId);
   return { id, blogCategoryId, name, slug, sortOrder: 0 };
 }
 

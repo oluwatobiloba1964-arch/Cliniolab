@@ -1,8 +1,14 @@
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { cmsService } from '@/lib/db';
 import { BlogPostClient } from './BlogPostClient';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
+
+// Share the same published-post lookup between SEO metadata and page rendering.
+const getPostForRequest = cache(async (slug: string) =>
+  cmsService.getPostBySlug(slug).catch(() => null)
+);
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -16,7 +22,7 @@ interface PageProps {
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const post = await cmsService.getPostBySlug(slug).catch(() => null);
+  const post = await getPostForRequest(slug);
 
   if (!post) {
     return { title: 'Post not found' };
@@ -55,7 +61,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
-  const post = await cmsService.getPostBySlug(slug).catch(() => null);
+  const post = await getPostForRequest(slug);
 
   const jsonLd = post
     ? {

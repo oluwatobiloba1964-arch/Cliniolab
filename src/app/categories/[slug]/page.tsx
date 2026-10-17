@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { categoryService, quizService } from '@/lib/db';
 import { SubcategoryClient } from './SubcategoryClient';
 
@@ -10,7 +11,7 @@ interface PageProps {
   searchParams: Promise<{ category?: string; page?: string }>;
 }
 
-async function resolveSubcategory(slug: string, categorySlug?: string) {
+const resolveSubcategory = cache(async (slug: string, categorySlug?: string) => {
   if (categorySlug) {
     const category = await categoryService.getCategoryBySlug(categorySlug).catch(() => null);
     if (category) {
@@ -25,7 +26,7 @@ async function resolveSubcategory(slug: string, categorySlug?: string) {
   const categories = await categoryService.listCategories();
   const category = categories.find((c) => c.id === subcategory.categoryId) ?? null;
   return { category, subcategory };
-}
+});
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;

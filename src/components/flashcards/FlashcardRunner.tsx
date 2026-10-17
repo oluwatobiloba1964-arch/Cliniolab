@@ -34,6 +34,8 @@ interface FlashcardRunnerProps {
   draftId?: string;
   /** Shuffle card order once per mount. Defaults to false  -  off for the shared "practice with flashcards" quiz entry point, which has no per-set shuffle concept. */
   shuffle?: boolean;
+  /** Place locally due cards before new or not-yet-due cards. */
+  reviewDueFirst?: boolean;
 }
 
 /** Fisher-Yates shuffle, returns a new array without mutating the input. */
@@ -51,6 +53,7 @@ interface FlashcardDraft {
   current: number;
   knownIds: string[];
   reviewIds: string[];
+  orderIds?: string[];
 }
 
 type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
@@ -73,10 +76,27 @@ const DRAFT_NAMESPACE = FLASHCARD_DRAFT_NAMESPACE;
  * localStorage, keyed by draftId, so closing the tab or navigating away
  * mid-session doesn't lose your place  -  same pattern as Study Mode.
  */
-export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, draftId, shuffle }: FlashcardRunnerProps) {
-  // Shuffle once per mount, same pattern as QuizRunner  -  not on every
-  // re-render, so flipping/marking a card doesn't reorder the deck.
-  const [cards] = useState(() => (shuffle ? shuffleArray(rawCards) : rawCards));
+export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, draftId, shuffle, reviewDueFirst = true }: FlashcardRunnerProps) {
+  // Choose the order once per mount. Existing local review schedules can bring
+  // due cards forward without changing or requesting any remote data.
+  const [cards] = useState(() => {
+    const savedDraft = draftId ? loadDraft<FlashcardDraft>(DRAFT_NAMESPACE, draftId) : null;
+    let ordered = [...rawCards];
+    if (savedDraft?.orderIds?.length) {
+      const byId = new Map(rawCards.map((card) => [card.id, card]));
+      const restored = savedDraft.orderIds.map((id) => byId.get(id)).filter((card): card is FlashcardRunnerCard => !!card);
+      const restoredIds = new Set(restored.map((card) => card.id));
+      ordered = [...restored, ...rawCards.filter((card) => !restoredIds.has(card.id))];
+    } else if (reviewDueFirst && !savedDraft && typeof window !== 'undefined') {
+      try {
+        const schedule = JSON.parse(window.localStorage.getItem(scheduleStorageKey(draftId, title)) || '{}') as CardReviewSchedule;
+        const dueTime = (card: FlashcardRunnerCard) => { const value = schedule[card.id]?.dueAt; const time = value ? Date.parse(value) : Number.NaN; return Number.isFinite(time) ? time : null; };
+        const priority = (time: number | null) => time === null ? 1 : time <= Date.now() ? 0 : 2;
+        ordered.sort((a, b) => { const aDue = dueTime(a); const bDue = dueTime(b); const rank = priority(aDue) - priority(bDue); if (rank !== 0) return rank; if (aDue === null || bDue === null) return 0; return aDue - bDue; });
+      } catch { /* Invalid local schedules never block studying. */ }
+    }
+    return savedDraft?.orderIds?.length ? ordered : (shuffle ? shuffleArray(ordered) : ordered);
+  });
 
   const initialDraft = useRef<FlashcardDraft | null>(
     draftId ? loadDraft<FlashcardDraft>(DRAFT_NAMESPACE, draftId) : null
@@ -147,6 +167,7 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
       current,
       knownIds: Array.from(knownIds),
       reviewIds: Array.from(reviewIds),
+      orderIds: cards.map((item) => item.id),
     });
   }, [draftId, current, knownIds, reviewIds, finished]);
 

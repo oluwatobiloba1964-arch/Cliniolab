@@ -22,6 +22,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent, MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -118,6 +119,7 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFirstAttempt, onSubmitted, guest = false, gradeLocally }: QuizRunnerProps) {
   const router = useRouter();
+  const { user } = useAuth();
 
   // Anti-cheat exams intentionally never read or write a draft: no resume
   // across a refresh, no clock recovery. Everything else (quizzes, and
@@ -533,14 +535,21 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
       } catch {
         // ignore, badge is a nicety
       }
-      if (guest) {
-        // Device-local only: lets "Retake missed only" work without any account or database row.
-        try {
-          const missedIds = resultData.perQuestion.filter((pq) => !pq.isCorrect).map((pq) => pq.questionId);
-          window.localStorage.setItem(`cl-guest-missed:${quiz.id}`, JSON.stringify(missedIds));
-        } catch {
-          // Storage may be unavailable (private mode); retake-missed simply falls back to all questions.
-        }
+      // Cache missed IDs for both signed-in and guest attempts. The user-scoped
+      // key prevents one account on a shared device from seeing another account's list.
+      try {
+        const missedIds = resultData.perQuestion.filter((pq) => !pq.isCorrect).map((pq) => pq.questionId);
+        const cacheOwner = guest ? 'guest' : (user?.id ?? 'anonymous');
+        window.localStorage.setItem(`cl-missed:${quiz.id}:${cacheOwner}`, JSON.stringify({
+          questionIds: missedIds,
+          quizUpdatedAt: quiz.updatedAt,
+          savedAt: Date.now(),
+          userId: guest ? null : (user?.id ?? null),
+        }));
+        // Keep the legacy guest key because existing local revision tools read it.
+        if (guest) window.localStorage.setItem(`cl-guest-missed:${quiz.id}`, JSON.stringify(missedIds));
+      } catch {
+        // Storage may be unavailable. Retake-missed will use the existing API fallback.
       }
       onSubmitted?.();
       if (draftsEnabled) {

@@ -9,6 +9,27 @@ interface CategoryRow {
   sort_order: number;
 }
 
+const CATEGORY_LIST_CACHE_TTL_MS = 5 * 60 * 1000;
+const SUBCATEGORY_LIST_CACHE_TTL_MS = 5 * 60 * 1000;
+let categoryListCache: { value: Category[]; expiresAt: number } | null = null;
+let categoryListPending: Promise<Category[]> | null = null;
+let categoryListVersion = 0;
+
+function invalidateCategoryListCache(): void {
+  categoryListCache = null;
+  categoryListVersion += 1;
+  categoryListPending = null;
+}
+
+const subcategoryListCache = new Map<string, { value: Subcategory[]; expiresAt: number }>();
+const subcategoryListPending = new Map<string, Promise<Subcategory[]>>();
+let subcategoryListVersion = 0;
+function invalidateSubcategoryListCache(): void {
+  subcategoryListCache.clear();
+  subcategoryListPending.clear();
+  subcategoryListVersion += 1;
+}
+
 interface SubcategoryRow {
   id: string;
   category_id: string;
@@ -40,11 +61,26 @@ function mapSubcategory(row: SubcategoryRow): Subcategory {
 }
 
 export async function listCategories(): Promise<Category[]> {
-  const db = getDb();
-  const { results } = await db
-    .prepare('SELECT * FROM categories ORDER BY sort_order ASC')
-    .all<CategoryRow>();
-  return results.map(mapCategory);
+  if (categoryListCache && categoryListCache.expiresAt > Date.now()) {
+    return categoryListCache.value.map((category) => ({ ...category }));
+  }
+  if (categoryListPending) return (await categoryListPending).map((category) => ({ ...category }));
+  const version = categoryListVersion;
+  const request = (async () => {
+    const db = getDb();
+    const { results } = await db.prepare('SELECT * FROM categories ORDER BY sort_order ASC').all<CategoryRow>();
+    const categories = results.map(mapCategory);
+    if (version === categoryListVersion) {
+      categoryListCache = { value: categories, expiresAt: Date.now() + CATEGORY_LIST_CACHE_TTL_MS };
+    }
+    return categories;
+  })();
+  categoryListPending = request;
+  try {
+    return (await request).map((category) => ({ ...category }));
+  } finally {
+    if (categoryListPending === request) categoryListPending = null;
+  }
 }
 
 export async function getCategoryBySlug(slug: string): Promise<Category | null> {
@@ -63,18 +99,29 @@ export async function getSubcategoryById(id: string): Promise<Subcategory | null
 }
 
 export async function listSubcategories(categoryId?: string): Promise<Subcategory[]> {
-  const db = getDb();
-  if (categoryId) {
-    const { results } = await db
-      .prepare('SELECT * FROM subcategories WHERE category_id = ? ORDER BY sort_order ASC')
-      .bind(categoryId)
-      .all<SubcategoryRow>();
-    return results.map(mapSubcategory);
+  const cacheKey = categoryId ?? '*';
+  const cached = subcategoryListCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value.map((item) => ({ ...item }));
+  const pending = subcategoryListPending.get(cacheKey);
+  if (pending) return (await pending).map((item) => ({ ...item }));
+  const version = subcategoryListVersion;
+  const request = (async () => {
+    const db = getDb();
+    const { results } = categoryId
+      ? await db.prepare('SELECT * FROM subcategories WHERE category_id = ? ORDER BY sort_order ASC').bind(categoryId).all<SubcategoryRow>()
+      : await db.prepare('SELECT * FROM subcategories ORDER BY sort_order ASC').all<SubcategoryRow>();
+    const value = results.map(mapSubcategory);
+    if (version === subcategoryListVersion) {
+      subcategoryListCache.set(cacheKey, { value, expiresAt: Date.now() + SUBCATEGORY_LIST_CACHE_TTL_MS });
+    }
+    return value;
+  })();
+  subcategoryListPending.set(cacheKey, request);
+  try {
+    return (await request).map((item) => ({ ...item }));
+  } finally {
+    if (subcategoryListPending.get(cacheKey) === request) subcategoryListPending.delete(cacheKey);
   }
-  const { results } = await db
-    .prepare('SELECT * FROM subcategories ORDER BY sort_order ASC')
-    .all<SubcategoryRow>();
-  return results.map(mapSubcategory);
 }
 
 export async function getSubcategoryBySlug(
@@ -115,6 +162,7 @@ export async function getOrCreateCategory(name: string): Promise<Category> {
     .prepare('INSERT INTO categories (id, name, slug, sort_order) VALUES (?, ?, ?, 0)')
     .bind(id, name, slug)
     .run();
+  invalidateCategoryListCache();
   return { id, name, slug, description: null, sortOrder: 0 };
 }
 
@@ -144,6 +192,7 @@ export async function getOrCreateSubcategory(categoryId: string, name: string): 
     )
     .bind(id, categoryId, name, slug)
     .run();
+  invalidateSubcategoryListCache();
   return { id, categoryId, name, slug, description: null, sortOrder: 0 };
 }
 
@@ -161,6 +210,7 @@ export async function createCategory(input: {
     )
     .bind(id, input.name, input.slug, input.description ?? null, input.sortOrder ?? 0)
     .run();
+  invalidateCategoryListCache();
   return { id, name: input.name, slug: input.slug, description: input.description ?? null, sortOrder: input.sortOrder ?? 0 };
 }
 
@@ -179,6 +229,7 @@ export async function createSubcategory(input: {
     )
     .bind(id, input.categoryId, input.name, input.slug, input.description ?? null, input.sortOrder ?? 0)
     .run();
+  invalidateSubcategoryListCache();
   return {
     id,
     categoryId: input.categoryId,
@@ -203,6 +254,7 @@ export async function updateCategory(
   if (fields.length === 0) return;
   values.push(id);
   await db.prepare(`UPDATE categories SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+  invalidateCategoryListCache();
 }
 
 export async function countQuizzesInSubcategory(subcategoryId: string): Promise<number> {
@@ -234,6 +286,7 @@ export async function deleteSubcategory(
   }
   const db = getDb();
   await db.prepare('DELETE FROM subcategories WHERE id = ?').bind(id).run();
+  invalidateSubcategoryListCache();
   return { deleted: true };
 }
 
@@ -260,5 +313,6 @@ export async function deleteCategory(
     };
   }
   await db.prepare('DELETE FROM categories WHERE id = ?').bind(id).run();
+  invalidateCategoryListCache();
   return { deleted: true };
 }

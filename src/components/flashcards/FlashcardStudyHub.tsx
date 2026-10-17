@@ -19,18 +19,26 @@ interface Props {
   shuffle?: boolean;
   /** Restrict to Flip only (used by the quiz "practice with flashcards" entry points). */
   flipOnly?: boolean;
+  reviewDueFirst?: boolean;
 }
 
 /**
  * Mode picker for flashcards: Flip (the original runner), Learn, Match and
  * Test. Each of Learn, Match and Test can be switched off by an admin flag.
  */
-export function FlashcardStudyHub({ cards, title, onDone, onComplete, draftId, shuffle, flipOnly }: Props) {
+export function FlashcardStudyHub({ cards, title, onDone, onComplete, draftId, shuffle, flipOnly, reviewDueFirst = true }: Props) {
   const { flags } = usePublicConfig();
   const [mode, setMode] = useState<StudyMode>('flip');
   const [runKey, setRunKey] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
-  useEffect(() => { document.body.classList.toggle('focus-session', focusMode); return () => document.body.classList.remove('focus-session'); }, [focusMode]);
+  useEffect(() => {
+    try { setFocusMode(window.localStorage.getItem('cliniolab:study-focus-mode') === 'on'); } catch {}
+  }, []);
+  useEffect(() => {
+    document.body.classList.toggle('focus-session', focusMode);
+    try { window.localStorage.setItem('cliniolab:study-focus-mode', focusMode ? 'on' : 'off'); } catch {}
+    return () => document.body.classList.remove('focus-session');
+  }, [focusMode]);
 
   const modes: { key: StudyMode; label: string }[] = [{ key: 'flip', label: 'Flip' }];
   if (!flipOnly) {
@@ -44,7 +52,7 @@ export function FlashcardStudyHub({ cards, title, onDone, onComplete, draftId, s
   return (
     <div className={focusMode ? 'study-focus-mode' : ''}>
       <div className="mx-auto flex max-w-xl justify-end px-6 pt-4">
-        <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">
+        <button type="button" onClick={() => setFocusMode((value) => !value)} aria-pressed={focusMode} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pulse-400">
           {focusMode ? 'Exit focus mode' : 'Focus mode'}
         </button>
       </div>
@@ -75,6 +83,7 @@ export function FlashcardStudyHub({ cards, title, onDone, onComplete, draftId, s
           onComplete={onComplete}
           draftId={draftId}
           shuffle={shuffle}
+          reviewDueFirst={reviewDueFirst}
         />
       )}
       {active === 'learn' && (

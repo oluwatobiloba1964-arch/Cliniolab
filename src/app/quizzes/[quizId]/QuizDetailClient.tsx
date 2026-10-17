@@ -28,6 +28,7 @@ import type { Quiz, QuizQuestion, QuizWithStats } from '@/types';
 // missed.
 interface CachedQuizPayload {
   updatedAt: string;
+  savedAt?: number;
   quiz: Quiz;
   questions: Omit<QuizQuestion, 'correctAnswer'>[];
 }
@@ -37,6 +38,7 @@ interface CachedQuizPayload {
 // /api/quizzes/:id/study on every single visit even when nothing changed.
 interface CachedStudyPayload {
   updatedAt: string;
+  savedAt?: number;
   quiz: Quiz;
   questions: QuizQuestion[];
 }
@@ -53,6 +55,24 @@ const RETAKE_LABELS: Record<Quiz['retakePolicy'], (limit: number | null) => stri
   daily_limit: (limit) => `${limit ?? 1} attempt${limit === 1 ? '' : 's'} per day`,
   cooldown: (limit) => `${limit ?? 1} attempt${limit === 1 ? '' : 's'} (cooldown applies)`,
 };
+
+const RETAKE_CACHE_MAX_AGE_MS = 15 * 60 * 1000;
+
+/** A recent local payload can start an explicit full retake without first
+ * making the lightweight preview request. Older/legacy caches still need
+ * server metadata validation before reuse. */
+function hasFreshLocalRetakeCache(quizId: string): boolean {
+  const now = Date.now();
+  const quizCache = loadDraft<CachedQuizPayload>('questions-cache', quizId);
+  if (quizCache && typeof quizCache.savedAt === 'number'
+    && now - quizCache.savedAt >= 0 && now - quizCache.savedAt <= RETAKE_CACHE_MAX_AGE_MS
+    && Array.isArray(quizCache.questions) && quizCache.quiz?.mode !== 'study') return true;
+
+  const studyCache = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
+  return !!studyCache && typeof studyCache.savedAt === 'number'
+    && now - studyCache.savedAt >= 0 && now - studyCache.savedAt <= RETAKE_CACHE_MAX_AGE_MS
+    && Array.isArray(studyCache.questions) && studyCache.quiz?.mode === 'study';
+}
 
 function formatNaira(kobo: number): string {
   return `₦${(kobo / 100).toLocaleString('en-NG')}`;
@@ -98,6 +118,10 @@ export function QuizDetailClient({
   // this call, since this fires on every page view, not just attempts.
   useEffect(() => {
     if (!user) return;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('retake') === '1' && hasFreshLocalRetakeCache(quizId)) return;
+    }
     fetch(`/api/quizzes/${quizId}?preview=1`)
       .then((res) => res.json())
       .then((data) => {
@@ -119,14 +143,18 @@ export function QuizDetailClient({
   // signalled by a bare ?retake=1 (no missedOnly narrowing); "Retake
   // missed only" keeps its existing ?retakeMissed=1 signal.
   useEffect(() => {
-    if (!user || started) return;
-    if (typeof window === 'undefined') return;
+    // Full retakes with a recent local payload can start immediately without
+    // a preview request. Otherwise wait for server metadata to validate the
+    // cache before falling back to the existing question API.
+    if (!user || started || typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get('retakeMissed') === '1' || params.get('retake') === '1') {
+    const isFullRetake = params.get('retake') === '1';
+    const isMissedRetake = params.get('retakeMissed') === '1';
+    if ((isFullRetake && (quiz || hasFreshLocalRetakeCache(quizId))) || (isMissedRetake && quiz)) {
       void handleStart();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, started]);
+  }, [user, started, quiz]);
 
   async function handleDelete() {
     if (!confirm('Delete this quiz permanently? This cannot be undone.')) return;
@@ -195,6 +223,82 @@ export function QuizDetailClient({
       // hasAttempted is correctly true (not merely assumed) - a cached
       // payload only exists because this browser already started this
       // quiz before.
+      if (missedOnly) {
+        // Avoid the missed-question DB query when this account has a recent,
+        // matching local cache and the full question payload is already cached.
+        // Otherwise the existing API path remains the source of truth.
+        const ownerKey = user?.id ?? 'anonymous';
+        const cachedQuestions = loadDraft<CachedQuizPayload>('questions-cache', quizId);
+        try {
+          const rawMissed = window.localStorage.getItem(`cl-missed:${quizId}:${ownerKey}`);
+          const localMissed = rawMissed ? JSON.parse(rawMissed) as {
+            questionIds?: unknown;
+            quizUpdatedAt?: string;
+            savedAt?: number;
+            userId?: string | null;
+          } : null;
+          const fresh = !!localMissed
+            && Array.isArray(localMissed.questionIds)
+            && typeof localMissed.savedAt === 'number'
+            && Date.now() - localMissed.savedAt <= 15 * 60 * 1000
+            && !!cachedQuestions
+            && cachedQuestions.updatedAt === localMissed.quizUpdatedAt
+            && !!quiz?.updatedAt
+            && quiz.updatedAt === localMissed.quizUpdatedAt
+            && (localMissed.userId ?? null) === (user?.id ?? null);
+          if (fresh && cachedQuestions) {
+            const missedIds = new Set((localMissed!.questionIds as unknown[]).filter((id): id is string => typeof id === 'string'));
+            const narrowed = missedIds.size > 0
+              ? cachedQuestions.questions.filter((question) => missedIds.has(question.id))
+              : cachedQuestions.questions;
+            if (narrowed.length > 0 || cachedQuestions.questions.length === 0) {
+              setQuiz(cachedQuestions.quiz);
+              setQuestions(narrowed);
+              setHasAttempted(true);
+              setStarted(true);
+              return;
+            }
+          }
+        } catch {
+          // Malformed or unavailable local storage falls back to the API below.
+        }
+      }
+
+      if (!missedOnly && isRetakeAll) {
+        // Explicit Retake all is local-first: reuse a recently saved complete
+        // question set immediately. If storage is absent, malformed or old,
+        // continue through the metadata validation and API fallback below.
+        const cachedQuestions = loadDraft<CachedQuizPayload>('questions-cache', quizId);
+        const cachedStudy = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
+        const now = Date.now();
+        const freshQuizCache = !!cachedQuestions && typeof cachedQuestions.savedAt === 'number'
+          && now - cachedQuestions.savedAt >= 0 && now - cachedQuestions.savedAt <= RETAKE_CACHE_MAX_AGE_MS
+          && Array.isArray(cachedQuestions.questions) && cachedQuestions.quiz.mode !== 'study';
+        const freshStudyCache = !!cachedStudy && typeof cachedStudy.savedAt === 'number'
+          && now - cachedStudy.savedAt >= 0 && now - cachedStudy.savedAt <= RETAKE_CACHE_MAX_AGE_MS
+          && Array.isArray(cachedStudy.questions) && cachedStudy.quiz.mode === 'study';
+        if (freshQuizCache && cachedQuestions) {
+          const cachedQuiz = cachedQuestions.quiz.timeLimitMode === 'user_choice'
+            ? { ...cachedQuestions.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
+            : cachedQuestions.quiz;
+          setQuiz(cachedQuiz);
+          setQuestions(cachedQuestions.questions);
+          setHasAttempted(true);
+          setStarted(true);
+          return;
+        }
+        if (freshStudyCache && cachedStudy) {
+          setQuiz(cachedStudy.quiz);
+          setStudyQuestions(cachedStudy.questions);
+          if (typeof cachedStudy.savedAt !== 'number') {
+            saveDraft<CachedStudyPayload>('study-questions-cache', quizId, { ...cachedStudy, savedAt: Date.now() });
+          }
+          setHasAttempted(true);
+          setStarted(true);
+          return;
+        }
+      }
+
       if (!missedOnly) {
         const cached = loadDraft<CachedQuizPayload>('questions-cache', quizId);
         if (cached && quiz && cached.updatedAt === quiz.updatedAt && cached.quiz.mode !== 'study') {
@@ -203,6 +307,9 @@ export function QuizDetailClient({
             : cached.quiz;
           setQuiz(cachedQuiz);
           setQuestions(cached.questions);
+          if (typeof cached.savedAt !== 'number') {
+            saveDraft<CachedQuizPayload>('questions-cache', quizId, { ...cached, savedAt: Date.now() });
+          }
           setHasAttempted(true);
           setStarted(true);
           return;
@@ -215,6 +322,9 @@ export function QuizDetailClient({
         if (cachedStudy && quiz && cachedStudy.updatedAt === quiz.updatedAt && cachedStudy.quiz.mode === 'study') {
           setQuiz(cachedStudy.quiz);
           setStudyQuestions(cachedStudy.questions);
+          if (typeof cachedStudy.savedAt !== 'number') {
+            saveDraft<CachedStudyPayload>('study-questions-cache', quizId, { ...cachedStudy, savedAt: Date.now() });
+          }
           setHasAttempted(true);
           setStarted(true);
           return;
@@ -253,6 +363,7 @@ export function QuizDetailClient({
         if (!missedOnly) {
           saveDraft<CachedStudyPayload>('study-questions-cache', quizId, {
             updatedAt: studyData.quiz.updatedAt,
+            savedAt: Date.now(),
             quiz: studyData.quiz,
             questions: studyData.questions,
           });
@@ -269,6 +380,7 @@ export function QuizDetailClient({
         if (!missedOnly) {
           saveDraft<CachedQuizPayload>('questions-cache', quizId, {
             updatedAt: data.quiz.updatedAt,
+            savedAt: Date.now(),
             quiz: data.quiz,
             questions: data.questions,
           });

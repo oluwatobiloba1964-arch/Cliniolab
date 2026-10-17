@@ -33,6 +33,14 @@ export const DEFAULT_GUEST_PRACTICE: GuestPracticeSetting = {
 
 export const DEFAULT_THEME: ThemeSetting = { defaultTheme: 'system' };
 
+// Theme changes are infrequent. Cache the public theme setting in the warm
+// runtime so the root layout does not query D1 on every page request. Admin
+// updates invalidate this cache immediately; the TTL covers isolate restarts.
+const THEME_CACHE_TTL_MS = 5 * 60 * 1000;
+let themeCache: { value: ThemeSetting; expiresAt: number } | null = null;
+let themePending: Promise<ThemeSetting> | null = null;
+let themeCacheVersion = 0;
+
 export const DEFAULT_OFFLINE: OfflineSetting = { maxItems: 20, allowPaid: true, refreshDays: 7 };
 
 export const DEFAULT_AUTHOR_BOX: AuthorBoxSetting = {
@@ -107,15 +115,31 @@ export async function setGuestPracticeSetting(setting: GuestPracticeSetting): Pr
 // ---- Theme ----
 
 export async function getThemeSetting(): Promise<ThemeSetting> {
-  const s = await readSetting('theme', DEFAULT_THEME);
-  const allowed: ThemeDefault[] = ['system', 'light', 'dark'];
-  return { defaultTheme: allowed.includes(s.defaultTheme) ? s.defaultTheme : 'system' };
+  if (themeCache && themeCache.expiresAt > Date.now()) return { ...themeCache.value };
+  if (themePending) return { ...(await themePending) };
+  const version = themeCacheVersion;
+  const request = (async () => {
+    const s = await readSetting('theme', DEFAULT_THEME);
+    const allowed: ThemeDefault[] = ['system', 'light', 'dark'];
+    const value: ThemeSetting = { defaultTheme: allowed.includes(s.defaultTheme) ? s.defaultTheme : 'system' };
+    if (version === themeCacheVersion) themeCache = { value, expiresAt: Date.now() + THEME_CACHE_TTL_MS };
+    return value;
+  })();
+  themePending = request;
+  try {
+    return { ...(await request) };
+  } finally {
+    if (themePending === request) themePending = null;
+  }
 }
 
 export async function setThemeSetting(setting: ThemeSetting): Promise<ThemeSetting> {
   const allowed: ThemeDefault[] = ['system', 'light', 'dark'];
   const clean: ThemeSetting = { defaultTheme: allowed.includes(setting.defaultTheme) ? setting.defaultTheme : 'system' };
   await writeSetting('theme', clean);
+  themeCacheVersion += 1;
+  themeCache = { value: clean, expiresAt: Date.now() + THEME_CACHE_TTL_MS };
+  themePending = null;
   return clean;
 }
 

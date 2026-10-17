@@ -45,7 +45,14 @@ const FALLBACK: PublicConfig = {
  * needs (theme default, guest carousel, offline limits, flashcard modes).
  * Cached briefly at the edge so it does not add a database hit per page.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const cacheStorage = (globalThis as typeof globalThis & { caches?: { default?: Cache } }).caches;
+  const edgeCache = cacheStorage?.default;
+  const cacheKey = new Request(new URL(request.url).toString(), { method: 'GET' });
+  if (edgeCache) {
+    const cached = await edgeCache.match(cacheKey);
+    if (cached) return cached;
+  }
   try {
     const [flags, theme, offline, guest, authorBox] = await Promise.all([
       featureFlagService.getFeatureFlagMap(),
@@ -73,10 +80,14 @@ export async function GET() {
       guest,
       authorBox,
     };
-    return NextResponse.json(body, {
+    const response = NextResponse.json(body, {
       headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' },
     });
+    if (edgeCache) void edgeCache.put(cacheKey, response.clone());
+    return response;
   } catch {
-    return NextResponse.json(FALLBACK);
+    // Do not cache fallback settings. A transient database failure should not
+    // persist a default configuration after the database recovers.
+    return NextResponse.json(FALLBACK, { headers: { 'Cache-Control': 'no-store' } });
   }
 }

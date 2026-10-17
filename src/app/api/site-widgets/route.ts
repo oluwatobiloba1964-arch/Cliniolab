@@ -15,7 +15,15 @@ import {
  * day, and the random abbreviations teaser. Everything here is public, so the
  * whole response is edge-cached.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const cacheStorage = (globalThis as typeof globalThis & { caches?: { default?: Cache } }).caches;
+  const edgeCache = cacheStorage?.default;
+  const cacheKey = new Request(new URL(request.url).toString(), { method: 'GET' });
+  if (edgeCache) {
+    const cached = await edgeCache.match(cacheKey);
+    if (cached) return cached;
+  }
+
   const flags = await featureFlagService.getFeatureFlagMap();
   const on = (key: string) => (flags as Record<string, boolean>)[key] !== false;
 
@@ -28,7 +36,7 @@ export async function GET() {
     on('medical_abbreviations') ? abbreviationService.listRandomAbbreviations(5, 'all') : Promise.resolve([]),
   ]);
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       flags,
       banners: {
@@ -42,4 +50,6 @@ export async function GET() {
     },
     { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
   );
+  if (edgeCache) void edgeCache.put(cacheKey, response.clone());
+  return response;
 }
