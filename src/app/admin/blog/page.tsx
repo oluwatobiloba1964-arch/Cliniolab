@@ -1,3 +1,13 @@
+/*
+ * CHANGE SUMMARY (admin/blog/page.tsx)
+ * - Adds a "Publishing checklist" panel: live word count, read time estimate, and
+ *   checks for title/slug/content length/excerpt/featured image/SEO fields/category
+ *   (advisory only, does not block publishing)
+ * Reviewed and FIXED: the original patch replaced every em-dash in this file with a
+ * stray " , " (including inside UI copy and code comments), breaking grammar in ~19
+ * places (e.g. "Not set , will fall back..."). All instances corrected to proper
+ * punctuation (periods/colons) without using em-dashes, per saved style preference.
+ */
 // src/app/admin/blog/page.tsx
 'use client';
 
@@ -21,10 +31,10 @@ function slugify(name: string): string {
 
 /** Simple traffic-light guidance matching the convention most SEO plugins (Yoast, RankMath) use. */
 function lengthHint(length: number, ideal: [number, number]): { label: string; color: string } {
-  if (length === 0) return { label: 'Not set — will fall back to an auto-generated value', color: 'text-ink-400' };
-  if (length < ideal[0]) return { label: `${length} characters — a bit short`, color: 'text-flag-600' };
-  if (length > ideal[1]) return { label: `${length} characters — may get truncated in search results`, color: 'text-critical-500' };
-  return { label: `${length} characters — good length`, color: 'text-pulse-600' };
+  if (length === 0) return { label: 'Not set: will fall back to an auto-generated value', color: 'text-ink-400' };
+  if (length < ideal[0]) return { label: `${length} characters: a bit short`, color: 'text-flag-600' };
+  if (length > ideal[1]) return { label: `${length} characters: may get truncated in search results`, color: 'text-critical-500' };
+  return { label: `${length} characters: good length`, color: 'text-pulse-600' };
 }
 
 export default function AdminBlogPage() {
@@ -42,18 +52,18 @@ export default function AdminBlogPage() {
   const [contentFormat, setContentFormat] = useState<BlogContentFormat>('html');
   // When true, the Content field is a plain textarea (no Tiptap/ProseMirror
   // parsing, no editor-level sanitizeHtml call) so a full pasted HTML
-  // document — <!DOCTYPE>, <head>, <style> with @media/*, etc. — is saved
+  // document (<!DOCTYPE>, <head>, <style> with @media/*, etc.) is saved
   // byte-for-byte. Rendering safety for this path lives at render time in
   // BlogPostClient (sandboxed iframe), not at save time.
   const [isRawHtmlMode, setIsRawHtmlMode] = useState(false);
-  // Raw HTML mode has no visual editor at all — it's a blind textarea
+  // Raw HTML mode has no visual editor at all: it's a blind textarea
   // unless we render what's being typed. This controls which of the two
   // panes (or both) are visible; defaults to split so the preview is
   // never something the admin has to remember to open.
   const [rawHtmlView, setRawHtmlView] = useState<'split' | 'edit' | 'preview'>('split');
   const [featuredImageUrl, setFeaturedImageUrl] = useState('');
 
-  // Fixed top-level category (required) — admin cannot add/remove these.
+  // Fixed top-level category (required). Admin cannot add/remove these.
   const [blogCategories, setBlogCategories] = useState<BlogCategoryOption[]>([]);
   const [blogCategoryId, setBlogCategoryId] = useState<string>('');
 
@@ -107,7 +117,7 @@ export default function AdminBlogPage() {
 
   useEffect(load, []);
 
-  // Recover an in-progress draft if the page was reloaded mid-edit — e.g.
+  // Recover an in-progress draft if the page was reloaded mid-edit, e.g.
   // Android reclaiming this WebView while the native file picker was open
   // for an in-content image insert. Only offers recovery when there is no
   // in-flight edit already (fresh page load) and something was actually
@@ -301,12 +311,12 @@ export default function AdminBlogPage() {
         setError(data.error ?? 'Failed to delete post.');
       }
     } catch {
-      setError('Failed to delete post — check your connection and try again.');
+      setError('Failed to delete post. Check your connection and try again.');
     }
   }
 
   // Auto-derive the slug from the title until the admin manually edits
-  // the slug field themselves — same UX WordPress uses.
+  // the slug field themselves. Same UX WordPress uses.
   useEffect(() => {
     if (!slugTouched) setSlug(slugify(title));
   }, [title, slugTouched]);
@@ -379,7 +389,7 @@ export default function AdminBlogPage() {
         setError(data.detail ? `${data.error ?? 'Failed to save post.'} (${data.detail})` : data.error ?? 'Failed to save post.');
       }
     } catch {
-      setError('Failed to save post — check your connection and try again.');
+      setError('Failed to save post. Check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -402,7 +412,7 @@ export default function AdminBlogPage() {
         {editingId ? 'Edit post' : 'Blog'}
       </h1>
       <p className="mt-1 text-sm text-ink-500">
-        Jobs and Scholarships listings are just posts tagged with those categories — pick them
+        Jobs and Scholarships listings are just posts tagged with those categories. Pick them
         below like any other post.
       </p>
 
@@ -442,6 +452,23 @@ export default function AdminBlogPage() {
               label="Raw HTML mode (paste a full HTML document as-is)"
             />
           </div>
+          <div className="mb-3 rounded-xl border border-ink-100 bg-ink-50/60 p-3">
+            {(() => {
+              const plainContent = content.replace(/<[^>]*>/g, ' ').replace(/[#*_`>]/g, ' ').replace(/\s+/g, ' ').trim();
+              const wordCount = plainContent ? plainContent.split(' ').length : 0;
+              const checks = [
+                { label: 'Article title', done: title.trim().length >= 8 },
+                { label: 'URL slug', done: slug.trim().length > 0 },
+                { label: 'Useful article content', done: wordCount >= 300 },
+                { label: 'Excerpt or summary', done: excerpt.trim().length >= 40 },
+                { label: 'Featured image', done: Boolean(featuredImageUrl.trim()) },
+                { label: 'SEO title', done: seoTitle.trim().length >= 20 && seoTitle.trim().length <= 65 },
+                { label: 'SEO description', done: seoDescription.trim().length >= 70 && seoDescription.trim().length <= 170 },
+                { label: 'Category', done: Boolean(blogCategoryId) },
+              ];
+              return <><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-700">Publishing checklist</p><p className="text-xs text-ink-500">{checks.filter((item) => item.done).length} of {checks.length} checks complete</p></div><div className="mt-2 grid gap-2 sm:grid-cols-2">{checks.map((item) => <p key={item.label} className={`flex items-center gap-2 text-xs ${item.done ? 'text-pulse-700' : 'text-ink-500'}`}><span aria-hidden="true">{item.done ? '✓' : '○'}</span>{item.label}</p>)}</div><p className="mt-2 text-xs text-ink-400">Approx. {wordCount.toLocaleString()} words · {Math.max(1, Math.ceil(wordCount / 220))} min read. These are suggestions, not publishing blockers.</p></>;
+            })()}
+          </div>
           <div className="mt-1">
             {isRawHtmlMode ? (
               <div className="rounded-md border border-ink-100">
@@ -473,7 +500,7 @@ export default function AdminBlogPage() {
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       rows={20}
-                      placeholder="Paste a full HTML document here (<!DOCTYPE html>...). Saved exactly as pasted — no parsing, no stripping."
+                      placeholder="Paste a full HTML document here (<!DOCTYPE html>...). Saved exactly as pasted. No parsing, no stripping."
                       spellCheck={false}
                       className="w-full resize-y border-0 px-4 py-2 font-mono text-xs text-ink-700 focus:outline-none"
                     />
@@ -484,7 +511,7 @@ export default function AdminBlogPage() {
                         <RawHtmlFrame html={content} maxHeightPx={600} />
                       ) : (
                         <p className="p-4 text-xs text-ink-400">
-                          Nothing to preview yet — paste or type HTML on the left.
+                          Nothing to preview yet. Paste or type HTML on the left.
                         </p>
                       )}
                     </div>
@@ -515,7 +542,7 @@ export default function AdminBlogPage() {
           )}
           {isRawHtmlMode && (
             <p className="mt-1 text-xs text-ink-400">
-              Raw HTML mode bypasses the rich-text editor entirely — pasted content, including &lt;style&gt; blocks
+              Raw HTML mode bypasses the rich-text editor entirely. Pasted content, including &lt;style&gt; blocks
               with @media queries, is saved unchanged and rendered in a sandboxed frame on the public page. The
               preview pane above renders the exact same way the published post will look.
             </p>
@@ -534,7 +561,7 @@ export default function AdminBlogPage() {
           <p className="mt-1 text-xs text-ink-400">{excerpt.length} characters</p>
         </div>
 
-        {/* SEO panel — WordPress/Yoast-style overrides, separate from the post title/content itself */}
+        {/* SEO panel: WordPress/Yoast-style overrides, separate from the post title/content itself */}
         <div className="rounded-md border border-ink-100 p-4">
           <p className="text-sm font-semibold text-ink-700">Search appearance (SEO)</p>
           <div className="mt-3">
@@ -633,13 +660,13 @@ export default function AdminBlogPage() {
 
           {sendAsNewsletter && status === 'draft' && (
             <p className="mt-3 text-xs text-flag-600">
-              Newsletter only sends when status is Published — saving as Draft now won&apos;t email anyone yet.
+              Newsletter only sends when status is Published. Saving as Draft now won&apos;t email anyone yet.
             </p>
           )}
 
           {sendPush && status === 'draft' && (
             <p className="mt-3 text-xs text-flag-600">
-              Push notification only sends when status is Published — saving as Draft now won&apos;t notify anyone yet.
+              Push notification only sends when status is Published. Saving as Draft now won&apos;t notify anyone yet.
             </p>
           )}
         </div>
@@ -661,12 +688,12 @@ export default function AdminBlogPage() {
         )}
         {!postsLoading && postsLoadError && (
           <Card className="p-4">
-            <p className="text-sm text-critical-500">Couldn&apos;t load posts — check your connection.</p>
+            <p className="text-sm text-critical-500">Couldn&apos;t load posts. Check your connection.</p>
             <Button size="sm" variant="secondary" className="mt-2" onClick={load}>Retry</Button>
           </Card>
         )}
         {!postsLoading && !postsLoadError && posts.length === 0 && (
-          <p className="text-sm text-ink-400">No posts yet — create your first one above.</p>
+          <p className="text-sm text-ink-400">No posts yet. Create your first one above.</p>
         )}
         {!postsLoading && !postsLoadError && posts.length > 0 && (() => {
           const pageCount = Math.max(1, Math.ceil(posts.length / POSTS_PER_PAGE));
@@ -679,7 +706,7 @@ export default function AdminBlogPage() {
             <>
               {pageCount > 1 && (
                 <p className="text-xs text-ink-400">
-                  Showing {(currentPage - 1) * POSTS_PER_PAGE + 1}–
+                  Showing {(currentPage - 1) * POSTS_PER_PAGE + 1}-
                   {Math.min(currentPage * POSTS_PER_PAGE, posts.length)} of {posts.length} posts
                 </p>
               )}
