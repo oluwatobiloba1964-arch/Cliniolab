@@ -48,19 +48,14 @@ export function HomeHero() {
 
       <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-8 sm:px-6 sm:pb-12 sm:pt-12 lg:px-8 lg:pb-14 lg:pt-14">
         <div className="mx-auto max-w-4xl text-center">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-teal-200/20 bg-white/[0.07] px-3.5 py-1.5 text-xs font-semibold tracking-wide text-teal-100 shadow-sm sm:text-sm">
-            <Sparkles className="h-4 w-4 text-teal-300" aria-hidden="true" />
-            Learn smarter. Practise with purpose.
-          </div>
-
           <h1 className="mx-auto mt-5 max-w-3xl text-[2rem] font-bold leading-[1.12] tracking-tight sm:mt-6 sm:text-5xl sm:leading-[1.08] lg:text-[3.5rem]">
-            Your next nursing exam starts with{' '}
+            Practice, Revise &amp; Master Your Clinical &amp;{' '}
             <span className="bg-gradient-to-r from-teal-200 via-emerald-200 to-cyan-200 bg-clip-text text-transparent">
-              better practice.
+              Nursing Exams
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:mt-5 sm:text-lg sm:leading-8">
-            Explore CBT-style quizzes, flashcards, clinical study notes and helpful articles, all in one place to support your revision.
+            Cliniolab brings together student-built quizzes, CBT-style exams, and clinical study notes in one place so you can revise a topic, test yourself on it, and track how you&apos;re improving, all before you ever get to the real exam.
           </p>
 
           <div className="relative mx-auto mt-6 max-w-2xl sm:mt-8">
