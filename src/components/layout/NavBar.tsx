@@ -4,10 +4,13 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
+import { publicFetchJson } from '@/lib/client/publicFetch';
+
+interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
 
 const navLinks = [
   { href: '/categories', label: 'Categories' },
@@ -26,6 +29,27 @@ export function NavBar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [learningOpen, setLearningOpen] = useState(false);
+  const [mobileLearningOpen, setMobileLearningOpen] = useState(false);
+  const [learningCategories, setLearningCategories] = useState<BlogCategoryOption[]>([]);
+  const learningRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    publicFetchJson<{ categories?: BlogCategoryOption[] }>('/api/blog-categories', 300_000)
+      .then((data) => setLearningCategories((data.categories ?? []).filter((c) => c.slug !== 'job' && c.slug !== 'scholarship')))
+      .catch(() => setLearningCategories([]));
+  }, []);
+
+  useEffect(() => {
+    if (!learningOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (learningRef.current && !learningRef.current.contains(e.target as Node)) {
+        setLearningOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [learningOpen]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-ink-100 bg-paper/95 backdrop-blur">
@@ -36,6 +60,34 @@ export function NavBar() {
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex">
+          <div ref={learningRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setLearningOpen((v) => !v)}
+              aria-expanded={learningOpen}
+              aria-haspopup="true"
+              className={`flex items-center gap-1 text-sm font-medium transition-colors ${
+                pathname?.startsWith('/blog/category') ? 'text-pulse-600' : 'text-ink-500 hover:text-ink-800'
+              }`}
+            >
+              Learning
+              <span aria-hidden="true" className={`text-xs transition-transform ${learningOpen ? 'rotate-180' : ''}`}>▾</span>
+            </button>
+            {learningOpen && learningCategories.length > 0 && (
+              <div className="absolute left-0 top-full z-50 mt-2 w-56 rounded-xl border border-ink-100 bg-paper p-2 shadow-lg">
+                {learningCategories.slice(0, 10).map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/blog/category/${c.slug}`}
+                    onClick={() => setLearningOpen(false)}
+                    className="block rounded-lg px-3 py-2 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50 hover:text-ink-900"
+                  >
+                    {c.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -177,6 +229,33 @@ export function NavBar() {
             >
               Search
             </button>
+            {learningCategories.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setMobileLearningOpen((v) => !v)}
+                  aria-expanded={mobileLearningOpen}
+                  className="flex w-full items-center justify-between text-left text-sm font-medium text-ink-600"
+                >
+                  Learning
+                  <span aria-hidden="true" className={`text-xs transition-transform ${mobileLearningOpen ? 'rotate-180' : ''}`}>▾</span>
+                </button>
+                {mobileLearningOpen && (
+                  <div className="mt-2 flex flex-col gap-2 border-l border-ink-100 pl-3">
+                    {learningCategories.slice(0, 10).map((c) => (
+                      <Link
+                        key={c.id}
+                        href={`/blog/category/${c.slug}`}
+                        onClick={() => setMobileOpen(false)}
+                        className="text-sm text-ink-500 hover:text-ink-800"
+                      >
+                        {c.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {navLinks.map((link) => (
               <Link
                 key={link.href}
