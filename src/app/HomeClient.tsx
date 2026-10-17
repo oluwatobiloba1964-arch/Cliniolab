@@ -60,11 +60,12 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       <HomeHero />
       <BannerSlot placement="header" />
 
+      <HomeLatestArticle blogCategories={blogCategories} data={home.data} />
+      <DailyQuizBanner />
+
       <HomeQuickActions signedIn={!!user} />
       <HomeStudyStrip />
-      <DailyQuizBanner />
       <HomeSubjectExplorer categories={initialCategories} />
-      <HomeLatestArticle blogCategories={blogCategories} data={home.data} />
 
       <HomeResumeSection items={resumeItems} />
       <HomeRecentlyViewed items={recentlyViewed} />
