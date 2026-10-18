@@ -98,7 +98,7 @@ export function ResourceCard({ resource }: { resource: Resource }) {
       />
 
       <div className="flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="rounded bg-ink-50 px-2 py-0.5 text-xs font-medium text-ink-500">
             {resource.kind === 'past_question_pack' ? 'Past Questions' : 'Book'}
           </span>
@@ -106,10 +106,10 @@ export function ResourceCard({ resource }: { resource: Resource }) {
           {resource.categoryName && (
             <span className="rounded bg-ink-50 px-2 py-0.5 text-xs text-ink-500">{resource.categoryName}</span>
           )}
-          <span className="ml-auto flex items-center gap-1">
-            <ShareButton url={shareUrl} title={resource.title} showWhatsApp={false} />
-            <BookmarkButton kind="resource" targetId={resource.id} />
-          </span>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <ShareButton url={shareUrl} title={resource.title} showWhatsApp={false} />
+          <BookmarkButton kind="resource" targetId={resource.id} />
         </div>
         <h3 className="mt-2 font-display text-sm font-semibold text-ink-800 sm:text-base">{resource.title}</h3>
         {resource.institutionName && (
