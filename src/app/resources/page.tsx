@@ -1,5 +1,7 @@
 'use client';
 
+// src/app/resources/page.tsx
+
 import { useEffect, useMemo, useState } from 'react';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import type { Resource, ResourceCategory } from '@/types';
@@ -41,6 +43,22 @@ export default function ResourcesPage() {
     if (categorySlug && r.categorySlug !== categorySlug) return false;
     return true;
   });
+
+  // A shared resource link is this page with a #resource-{id} hash (see
+  // ResourceCard's ShareButton). Once the matching resource has actually
+  // rendered, scroll it into view and briefly highlight it so it's easy
+  // to spot among everything else on the page.
+  useEffect(() => {
+    if (filtered.length === 0) return;
+    const hash = window.location.hash;
+    if (!hash.startsWith('#resource-')) return;
+    const el = document.getElementById(hash.slice(1));
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('ring-2', 'ring-pulse-400');
+    const timer = setTimeout(() => el.classList.remove('ring-2', 'ring-pulse-400'), 2000);
+    return () => clearTimeout(timer);
+  }, [filtered]);
 
   if (!enabled) {
     return (
