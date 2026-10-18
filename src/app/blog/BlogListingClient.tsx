@@ -16,6 +16,7 @@ import { BlogPostCard } from '@/components/cms/BlogPostCard';
 import type { BlogPost } from '@/types';
 
 const SAVED_KEY = 'cliniolab-reading-list-v1';
+const PAGE_SIZE = 20;
 
 export function BlogListingClient({ posts }: { posts: BlogPost[] }) {
   const [query, setQuery] = useState('');
@@ -24,6 +25,7 @@ export function BlogListingClient({ posts }: { posts: BlogPost[] }) {
   const [savedOnly, setSavedOnly] = useState(false);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     try {
@@ -54,6 +56,15 @@ export function BlogListingClient({ posts }: { posts: BlogPost[] }) {
       .sort((a, b) => sort === 'title' ? a.title.localeCompare(b.title) : sort === 'oldest' ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [posts, query, category, savedOnly, savedIds, sort]);
 
+  // Any change to what's being shown (search, filter, sort, reading list
+  // toggle) should restart pagination at the first page.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [query, category, savedOnly, sort]);
+
+  const pagedPosts = visiblePosts.slice(0, visibleCount);
+  const hasMore = visibleCount < visiblePosts.length;
+
   return (
     <>
       <section aria-label="Find articles" className="mt-7 rounded-2xl border border-ink-100 bg-ink-50/50 p-4 sm:p-5">
@@ -65,12 +76,23 @@ export function BlogListingClient({ posts }: { posts: BlogPost[] }) {
           <button type="button" onClick={() => setSavedOnly((value) => !value)} aria-pressed={savedOnly} className={`min-h-11 rounded-xl border px-4 text-sm font-semibold ${savedOnly ? 'border-pulse-500 bg-pulse-50 text-pulse-700' : 'border-ink-200 bg-white text-ink-600'}`}>{savedOnly ? 'Showing saved' : `Reading list (${ready ? savedIds.length : 0})`}</button>
         </div>
         {categories.length > 0 && <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => setCategory('all')} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${category === 'all' ? 'bg-ink-800 text-white' : 'bg-white text-ink-600 ring-1 ring-ink-100'}`}>All topics</button>{categories.map((item) => <button key={item} type="button" onClick={() => setCategory(item)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${category === item ? 'bg-ink-800 text-white' : 'bg-white text-ink-600 ring-1 ring-ink-100'}`}>{item}</button>)}</div>}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400"><span>{visiblePosts.length} of {posts.length} articles</span>{(query || category !== 'all' || savedOnly || sort !== 'newest') && <button type="button" onClick={() => { setQuery(''); setCategory('all'); setSavedOnly(false); setSort('newest'); }} className="font-semibold text-pulse-600">Reset filters</button>}</div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400"><span>Showing {pagedPosts.length} of {visiblePosts.length} articles{visiblePosts.length !== posts.length ? ` (filtered from ${posts.length})` : ''}</span>{(query || category !== 'all' || savedOnly || sort !== 'newest') && <button type="button" onClick={() => { setQuery(''); setCategory('all'); setSavedOnly(false); setSort('newest'); }} className="font-semibold text-pulse-600">Reset filters</button>}</div>
       </section>
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
-        {visiblePosts.map((post) => <div key={post.id} className="relative"><BlogPostCard post={post} /><button type="button" onClick={() => toggleSaved(post.id)} aria-pressed={savedIds.includes(post.id)} aria-label={savedIds.includes(post.id) ? `Remove ${post.title} from reading list` : `Save ${post.title} to reading list`} className="absolute right-3 top-3 z-10 rounded-full border border-ink-100 bg-white/95 px-3 py-2 text-xs font-semibold text-ink-700 shadow-sm hover:bg-pulse-50">{savedIds.includes(post.id) ? '♥ Saved' : '♡ Save'}</button></div>)}
+        {pagedPosts.map((post) => <div key={post.id} className="relative"><BlogPostCard post={post} /><button type="button" onClick={() => toggleSaved(post.id)} aria-pressed={savedIds.includes(post.id)} aria-label={savedIds.includes(post.id) ? `Remove ${post.title} from reading list` : `Save ${post.title} to reading list`} className="absolute right-3 top-3 z-10 rounded-full border border-ink-100 bg-white/95 px-3 py-2 text-xs font-semibold text-ink-700 shadow-sm hover:bg-pulse-50">{savedIds.includes(post.id) ? '♥ Saved' : '♡ Save'}</button></div>)}
         {visiblePosts.length === 0 && <div className="col-span-full rounded-2xl border border-dashed border-ink-200 px-5 py-12 text-center"><p className="font-semibold text-ink-700">No articles match these filters.</p><p className="mt-1 text-sm text-ink-400">Try another search or reset the filters.</p><button type="button" onClick={() => { setQuery(''); setCategory('all'); setSavedOnly(false); setSort('newest'); }} className="mt-3 text-sm font-semibold text-pulse-600">Reset filters</button></div>}
       </div>
+      {hasMore && (
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+            className="min-h-11 rounded-xl border border-ink-200 bg-white px-6 text-sm font-semibold text-ink-700 hover:bg-ink-50"
+          >
+            Load more articles ({visiblePosts.length - pagedPosts.length} remaining)
+          </button>
+        </div>
+      )}
       <p className="mt-5 text-xs text-ink-400">Your reading list is saved on this device only.</p>
     </>
   );
