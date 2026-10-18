@@ -8,7 +8,7 @@ import {
   type QuizRow,
   mapQuiz,
 } from './quizMappers';
-import type { Quiz, QuizInput } from '@/types';
+import type { Quiz, QuizInput, QuizQuestionInput } from '@/types';
 
 const D1_BATCH_CHUNK_SIZE = 50;
 
@@ -390,6 +390,86 @@ export async function updateQuiz(quizId: string, input: QuizInput): Promise<Quiz
     leaderboardEnabled: input.leaderboardEnabled ?? true,
     updatedAt: now,
   };
+}
+
+/**
+ * Appends new questions to an existing quiz without touching its other
+ * questions or any quiz-level fields (title, mode, pricing, etc). Unlike
+ * updateQuiz() — which treats the incoming `questions` array as the full,
+ * authoritative set and hard-deletes anything missing from it — this is
+ * purely additive: every item in `questions` is inserted as a brand-new
+ * question, appended after the quiz's current highest sort_order. Any
+ * `id` present on an input item is ignored; these are always new rows.
+ *
+ * Used by POST /api/quizzes/[quizId]/questions, the "add questions to an
+ * existing quiz" counterpart to the bulk upload flow (which only creates
+ * whole new quizzes via bulkCreateQuizzes).
+ */
+export async function addQuestionsToQuiz(
+  quizId: string,
+  newQuestions: QuizQuestionInput[]
+): Promise<Quiz> {
+  const db = getDb();
+  const now = nowIso();
+
+  const existing = await getQuizById(quizId);
+  if (!existing) throw new Error('Quiz not found');
+
+  if (newQuestions.length === 0) {
+    throw new Error('At least one question is required');
+  }
+
+  const maxSortRow = await db
+    .prepare('SELECT COALESCE(MAX(sort_order), -1) AS maxSort FROM questions WHERE quiz_id = ?')
+    .bind(quizId)
+    .first<{ maxSort: number }>();
+  const startSort = (maxSortRow?.maxSort ?? -1) + 1;
+
+  const insertedIds: string[] = [];
+  const questionStatements = newQuestions.map((q, index) => {
+    const questionId = generateId('q');
+    insertedIds.push(questionId);
+    return db
+      .prepare(
+        `INSERT INTO questions (
+          id, quiz_id, subcategory_id, type, prompt, normalized_prompt, options, correct_answer,
+          explanation, incorrect_rationale, sort_order, mark
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        questionId,
+        quizId,
+        existing.subcategoryId,
+        q.type,
+        q.prompt,
+        normalizeForDedup(q.prompt),
+        q.options ? JSON.stringify(q.options) : null,
+        q.correctAnswer,
+        q.explanation ?? null,
+        q.incorrectRationale?.trim() || null,
+        startSort + index,
+        q.mark ?? null
+      );
+  });
+
+  const touchQuizStatement = db
+    .prepare('UPDATE quizzes SET updated_at = ? WHERE id = ?')
+    .bind(now, quizId);
+
+  try {
+    await runBatchChunked(db, [touchQuizStatement, ...questionStatements]);
+  } catch (err) {
+    // All-or-nothing: if a later chunk fails, remove whatever this call
+    // managed to insert so a retry doesn't see partially-added questions
+    // (same reasoning as createQuiz's rollback, see above).
+    if (insertedIds.length > 0) {
+      const placeholders = insertedIds.map(() => '?').join(',');
+      await db.prepare(`DELETE FROM questions WHERE id IN (${placeholders})`).bind(...insertedIds).run().catch(() => {});
+    }
+    throw err;
+  }
+
+  return { ...existing, updatedAt: now };
 }
 
 export async function getQuizById(id: string): Promise<Quiz | null> {
