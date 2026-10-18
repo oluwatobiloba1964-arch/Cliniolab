@@ -1,9 +1,12 @@
 'use client';
 
+// src/components/resources/ResourceCard.tsx
+
 import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
+import { ShareButton } from '@/components/quiz/ShareButton';
 import type { Resource, ResourceAccessState } from '@/types';
 
 const FALLBACK_COVERS: Record<Resource['kind'], string> = {
@@ -80,8 +83,13 @@ export function ResourceCard({ resource }: { resource: Resource }) {
 
   const isFree = resource.pricing === 'free';
 
+  // Resources don't have their own page, so the share link points at the
+  // listing with an anchor; ResourcesPage scrolls to the matching card
+  // (via this same #resource-{id} id) when a shared link is opened.
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/resources#resource-${resource.id}` : '';
+
   return (
-    <Card className="flex flex-col p-3 sm:p-4">
+    <Card id={`resource-${resource.id}`} className="flex flex-col p-3 sm:p-4 scroll-mt-20">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={resource.coverImageUrl || FALLBACK_COVERS[resource.kind]}
@@ -98,7 +106,8 @@ export function ResourceCard({ resource }: { resource: Resource }) {
           {resource.categoryName && (
             <span className="rounded bg-ink-50 px-2 py-0.5 text-xs text-ink-500">{resource.categoryName}</span>
           )}
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-1">
+            <ShareButton url={shareUrl} title={resource.title} showWhatsApp={false} />
             <BookmarkButton kind="resource" targetId={resource.id} />
           </span>
         </div>
