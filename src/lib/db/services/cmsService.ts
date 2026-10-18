@@ -1,4 +1,5 @@
 import { getDb, generateId, nowIso } from '@/lib/db/client';
+import { indexPostInsert, indexPostUpdate, indexPostDelete } from '@/lib/db/services/searchService';
 import type { BlogContentFormat, BlogPost, BlogStatus, StaticPage } from '@/types';
 
 interface BlogRow {
@@ -303,6 +304,8 @@ export async function createPost(
       createdAt
     )
     .run();
+  // Indexing failures must never block the post save itself.
+  await indexPostInsert(id, input.title, input.content);
   return {
     id,
     authorId,
@@ -406,6 +409,14 @@ export async function updatePost(
   values.push(nowIso());
   values.push(id);
   await db.prepare(`UPDATE blog_posts SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+
+  // Re-index only when title/content could have changed, and always with
+  // the post's current title/content (not just what was in this partial
+  // update), since FTS re-indexing replaces the whole row's indexed text.
+  if (input.title !== undefined || input.content !== undefined) {
+    const row = await db.prepare('SELECT title, content FROM blog_posts WHERE id = ?').bind(id).first<{ title: string; content: string }>();
+    if (row) await indexPostUpdate(id, row.title, row.content);
+  }
 }
 
 export async function markNewsletterSent(postId: string): Promise<void> {
@@ -426,7 +437,9 @@ export async function markPushSent(postId: string): Promise<void> {
 
 export async function deletePost(id: string): Promise<void> {
   const db = getDb();
+  const row = await db.prepare('SELECT rowid AS rid FROM blog_posts WHERE id = ?').bind(id).first<{ rid: number }>();
   await db.prepare('DELETE FROM blog_posts WHERE id = ?').bind(id).run();
+  if (row) await indexPostDelete(row.rid);
 }
 
 export async function getPostById(id: string): Promise<BlogPost | null> {
