@@ -7,6 +7,7 @@
 export {
   createQuiz,
   updateQuiz,
+  addQuestionsToQuiz,
   getQuizById,
   getQuizByShareSlug,
   deleteQuiz,
