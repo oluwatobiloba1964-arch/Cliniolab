@@ -271,3 +271,58 @@ async function runWithFallback<T>(
   }
   return like();
 }
+
+// ---------------------------------------------------------------------
+// App-level FTS sync for blog_posts.
+//
+// The DB triggers (blog_posts_fts_ai/ad/au) that used to keep
+// blog_posts_fts in sync were dropped — on this D1 database they threw
+// "SQL logic error: SQLITE_ERROR" on every UPDATE/DELETE to blog_posts,
+// blocking the admin Edit/Delete post actions entirely. D1's FTS5
+// triggers are known to be unreliable against TEXT PRIMARY KEY tables
+// (relies on the hidden rowid lining up), so indexing is now done here
+// instead, right after each successful write in cmsService.
+//
+// Each function is a no-op-on-failure: search indexing must never be
+// the reason a post save/delete fails, so every call is wrapped and
+// errors are swallowed (logged) rather than thrown.
+
+export async function indexPostInsert(id: string, title: string, content: string): Promise<void> {
+  const db = getDb();
+  try {
+    const row = await db.prepare('SELECT rowid AS rid FROM blog_posts WHERE id = ?').bind(id).first<{ rid: number }>();
+    if (!row) return;
+    await db
+      .prepare('INSERT INTO blog_posts_fts(rowid, title, content) VALUES (?, ?, ?)')
+      .bind(row.rid, title, content ?? '')
+      .run();
+  } catch (err) {
+    console.error('FTS index insert failed for post', id, err);
+  }
+}
+
+export async function indexPostUpdate(id: string, title: string, content: string): Promise<void> {
+  const db = getDb();
+  try {
+    const row = await db.prepare('SELECT rowid AS rid FROM blog_posts WHERE id = ?').bind(id).first<{ rid: number }>();
+    if (!row) return;
+    // Plain (non-external-content) FTS5 table: re-indexing a rowid is a
+    // straight delete-then-insert, no need to know the previous text.
+    await db.prepare('DELETE FROM blog_posts_fts WHERE rowid = ?').bind(row.rid).run();
+    await db
+      .prepare('INSERT INTO blog_posts_fts(rowid, title, content) VALUES (?, ?, ?)')
+      .bind(row.rid, title, content ?? '')
+      .run();
+  } catch (err) {
+    console.error('FTS index update failed for post', id, err);
+  }
+}
+
+export async function indexPostDelete(rowid: number): Promise<void> {
+  const db = getDb();
+  try {
+    await db.prepare('DELETE FROM blog_posts_fts WHERE rowid = ?').bind(rowid).run();
+  } catch (err) {
+    console.error('FTS index delete failed for rowid', rowid, err);
+  }
+}
