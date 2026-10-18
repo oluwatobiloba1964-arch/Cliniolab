@@ -8,7 +8,6 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { FlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { LocalStudyToolkit } from '@/components/study/LocalStudyToolkit';
 import { LocalClinicalPractice } from '@/components/study/LocalClinicalPractice';
@@ -28,6 +27,14 @@ interface QuizAttemptTaker {
   timeTakenSeconds: number | null;
   startedAt: string;
   completedAt: string | null;
+}
+
+interface FlashcardAttemptTaker {
+  id: string;
+  userId: string;
+  displayName: string | null;
+  email: string;
+  completedAt: string;
 }
 
 export default function DashboardPage() {
@@ -88,6 +95,81 @@ export default function DashboardPage() {
       setAttemptsError('Network error while loading attempts. Please try again.');
     } finally {
       setLoadingAttempts(false);
+    }
+  }
+
+  // Which flashcard set's "people who completed this" list is currently open.
+  const [fcAttemptsSetId, setFcAttemptsSetId] = useState<string | null>(null);
+  const [fcAttemptsSetTitle, setFcAttemptsSetTitle] = useState<string>('');
+  const [fcAttemptsList, setFcAttemptsList] = useState<FlashcardAttemptTaker[]>([]);
+  const [loadingFcAttempts, setLoadingFcAttempts] = useState(false);
+  const [fcAttemptsError, setFcAttemptsError] = useState<string | null>(null);
+  const [deletingFcSetId, setDeletingFcSetId] = useState<string | null>(null);
+  const [fcDeleteError, setFcDeleteError] = useState<string | null>(null);
+  const [fcVisibilityError, setFcVisibilityError] = useState<string | null>(null);
+  const [updatingFcVisibilityId, setUpdatingFcVisibilityId] = useState<string | null>(null);
+
+  async function viewFlashcardAttempts(setId: string, title: string) {
+    setFcAttemptsSetId(setId);
+    setFcAttemptsSetTitle(title);
+    setFcAttemptsList([]);
+    setFcAttemptsError(null);
+    setLoadingFcAttempts(true);
+    try {
+      const res = await fetch(`/api/flashcards/${setId}/attempts/list`);
+      const data = await res.json();
+      if (!res.ok) {
+        setFcAttemptsError(data.error ?? 'Failed to load attempts');
+        return;
+      }
+      setFcAttemptsList(data.attempts ?? []);
+    } catch {
+      setFcAttemptsError('Network error while loading attempts. Please try again.');
+    } finally {
+      setLoadingFcAttempts(false);
+    }
+  }
+
+  async function setFlashcardVisibility(setId: string, visibility: 'public' | 'private' | 'guest') {
+    setFcVisibilityError(null);
+    setUpdatingFcVisibilityId(setId);
+    try {
+      const res = await fetch(`/api/flashcards/${setId}/visibility`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visibility }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFcVisibilityError(data.error ?? 'Failed to update visibility');
+        return;
+      }
+      const res2 = await fetch('/api/dashboard');
+      const data2 = await res2.json();
+      setMyFlashcardSets(data2.myFlashcardSets ?? []);
+    } catch {
+      setFcVisibilityError('Network error while updating visibility. Please try again.');
+    } finally {
+      setUpdatingFcVisibilityId(null);
+    }
+  }
+
+  async function deleteFlashcardSet(setId: string) {
+    if (!confirm('Delete this flashcard set permanently? This cannot be undone.')) return;
+    setFcDeleteError(null);
+    setDeletingFcSetId(setId);
+    try {
+      const res = await fetch(`/api/flashcards/${setId}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFcDeleteError(data.error ?? `Failed to delete flashcard set (${res.status})`);
+        return;
+      }
+      setMyFlashcardSets((prev) => prev.filter((s) => s.id !== setId));
+    } catch {
+      setFcDeleteError('Network error while deleting. Please try again.');
+    } finally {
+      setDeletingFcSetId(null);
     }
   }
 
@@ -796,9 +878,87 @@ export default function DashboardPage() {
             </Link>
             <Link href="/flashcards/new"><Button size="sm">+ New flashcard set</Button></Link>
           </div>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="mt-4 space-y-3">
+          {fcDeleteError && (
+            <p className="rounded-md border border-critical-200 bg-critical-50 px-4 py-3 text-sm text-critical-600">
+              {fcDeleteError}
+            </p>
+          )}
+          {fcVisibilityError && (
+            <p className="rounded-md border border-critical-200 bg-critical-50 px-4 py-3 text-sm text-critical-600">
+              {fcVisibilityError}
+            </p>
+          )}
           {myFlashcardSets.map((set) => (
-            <FlashcardSetCard key={set.id} set={set} />
+            <Card key={set.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
+              <div className="min-w-0">
+                <p className="font-medium text-ink-800">{set.title}</p>
+                <p className="text-xs text-ink-400">
+                  {set.visibility === 'public' ? 'Public' : set.visibility === 'guest' ? 'Guest' : 'Private'} ·{' '}
+                  {set.cardCount} cards · {set.attemptCount} attempts
+                </p>
+              </div>
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+                <Link href={`/flashcards/${set.id}/edit`}>
+                  <Button size="sm" variant="secondary">Edit</Button>
+                </Link>
+                <Button size="sm" variant="secondary" onClick={() => viewFlashcardAttempts(set.id, set.title)}>
+                  View attempts
+                </Button>
+                {set.visibility === 'public' && (
+                  <ShareButton
+                    url={typeof window !== 'undefined' ? `${window.location.origin}/flashcards/${set.id}` : ''}
+                    title={set.title}
+                    stats={{
+                      creatorName: set.creatorName,
+                      pricing: set.pricing,
+                      priceKobo: set.priceKobo,
+                      questionCount: set.cardCount,
+                      categoryName: set.categoryName,
+                      subcategoryName: set.subcategoryName,
+                    }}
+                  />
+                )}
+                {set.visibility !== 'public' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={updatingFcVisibilityId === set.id}
+                    onClick={() => setFlashcardVisibility(set.id, 'public')}
+                  >
+                    Make public
+                  </Button>
+                )}
+                {set.visibility !== 'private' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={updatingFcVisibilityId === set.id}
+                    onClick={() => setFlashcardVisibility(set.id, 'private')}
+                  >
+                    Make private
+                  </Button>
+                )}
+                {set.visibility !== 'guest' && set.pricing !== 'paid' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={updatingFcVisibilityId === set.id}
+                    onClick={() => setFlashcardVisibility(set.id, 'guest')}
+                  >
+                    Move to Guest
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => deleteFlashcardSet(set.id)}
+                  disabled={deletingFcSetId === set.id}
+                >
+                  {deletingFcSetId === set.id ? 'Deleting…' : 'Delete'}
+                </Button>
+              </div>
+            </Card>
           ))}
           {myFlashcardSets.length === 0 && (
             <p className="text-sm text-ink-400">You haven&apos;t created any flashcard sets yet.</p>
@@ -935,6 +1095,48 @@ export default function DashboardPage() {
                       </div>
                       <p className="text-sm font-semibold text-ink-700">
                         {a.score}/{a.totalQuestions} ({Math.round(a.percentage)}%)
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fcAttemptsSetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display text-lg font-semibold text-ink-800">People who completed this</h3>
+                <p className="text-xs text-ink-400">{fcAttemptsSetTitle}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFcAttemptsSetId(null)}
+                className="rounded-md px-2 py-1 text-sm text-ink-400 hover:bg-ink-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4">
+              {loadingFcAttempts && <p className="text-sm text-ink-400">Loading…</p>}
+              {fcAttemptsError && (
+                <p className="text-sm text-critical-500">{fcAttemptsError}</p>
+              )}
+              {!loadingFcAttempts && !fcAttemptsError && fcAttemptsList.length === 0 && (
+                <p className="text-sm text-ink-400">No one has completed this flashcard set yet.</p>
+              )}
+              {!loadingFcAttempts && fcAttemptsList.length > 0 && (
+                <ul className="divide-y divide-ink-100">
+                  {fcAttemptsList.map((a) => (
+                    <li key={a.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <p className="text-sm font-medium text-ink-800">{a.displayName ?? a.email}</p>
+                      <p className="text-xs text-ink-400">
+                        {new Date(a.completedAt).toLocaleDateString()}
                       </p>
                     </li>
                   ))}
