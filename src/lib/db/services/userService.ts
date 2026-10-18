@@ -311,7 +311,12 @@ export async function getUserDashboardStats(userId: string): Promise<UserDashboa
     .bind(userId)
     .first<{ count: number }>();
 
-  const { results: history } = await db
+  // Capped at the most recent 100 completed attempts: this only feeds the
+  // dashboard's progress-over-time chart, which has no use for a user's
+  // entire multi-year history, and an unbounded scan here was reading
+  // every attempt row on every dashboard load (a major contributor to
+  // daily D1 "rows read" usage for active users).
+  const { results: recentHistory } = await db
     .prepare(
       `SELECT a.completed_at as date,
               (CAST(a.score AS REAL) / a.total_questions * 100) as percentage,
@@ -319,10 +324,12 @@ export async function getUserDashboardStats(userId: string): Promise<UserDashboa
        FROM quiz_attempts a
        JOIN quizzes q ON q.id = a.quiz_id
        WHERE a.user_id = ? AND a.completed_at IS NOT NULL
-       ORDER BY a.completed_at ASC`
+       ORDER BY a.completed_at DESC
+       LIMIT 100`
     )
     .bind(userId)
     .all<{ date: string; percentage: number; quiz_title: string }>();
+  const history = recentHistory.slice().reverse(); // chart expects chronological (oldest first) order
 
   return {
     totalAttempts: summary?.total_attempts ?? 0,
