@@ -1,5 +1,7 @@
 'use client';
 
+// src/app/quizzes/[quizId]/edit/page.tsx
+
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -73,10 +75,17 @@ export default function EditQuizPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="font-display text-3xl font-semibold text-ink-800">Edit quiz</h1>
-      <p className="mt-2 text-ink-500">
-        Works the same for study, quiz, and exam mode — switch modes below if needed.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-semibold text-ink-800">Edit quiz</h1>
+          <p className="mt-2 text-ink-500">
+            Works the same for study, quiz, and exam mode — switch modes below if needed.
+          </p>
+        </div>
+        <Button variant="secondary" onClick={() => router.push(`/quizzes/${params.quizId}/add-questions`)}>
+          Upload more questions
+        </Button>
+      </div>
       <div className="mt-8">
         <QuizForm
           initialQuiz={quiz}
