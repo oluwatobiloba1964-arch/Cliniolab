@@ -1,8 +1,10 @@
+// FILE: src/components/ui/ImagePicker.tsx
 // src/components/ui/ImagePicker.tsx
 'use client';
 
 import { useRef, useState } from 'react';
 import { ImageLibraryModal } from './ImageLibraryModal';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 
 interface ImagePickerProps {
   value: string;
@@ -120,7 +122,7 @@ export function ImagePicker({ value, onChange, purpose, label, circularPreview }
       {value && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={value}
+          src={resolveImageUrl(value)}
           alt=""
           className={
             circularPreview
