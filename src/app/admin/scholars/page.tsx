@@ -1,3 +1,4 @@
+// FILE: src/app/admin/scholars/page.tsx
 // src/app/admin/scholars/page.tsx
 'use client';
 
@@ -5,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ImagePicker } from '@/components/ui/ImagePicker';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 import type { ScholarOfTheDay } from '@/types';
 
 export default function AdminScholarsPage() {
@@ -138,7 +140,7 @@ export default function AdminScholarsPage() {
             <div className="flex items-center gap-3">
               {s.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={s.photoUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                <img src={resolveImageUrl(s.photoUrl)} alt="" className="h-10 w-10 rounded-full object-cover" />
               ) : (
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pulse-50 text-sm font-semibold text-pulse-600">
                   {s.name.charAt(0)}
