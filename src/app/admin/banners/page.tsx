@@ -1,10 +1,13 @@
 'use client';
 
+// FILE: src/app/admin/banners/page.tsx
+
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
 import { ImagePicker } from '@/components/ui/ImagePicker';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 import type { Banner, BannerPlacement, BannerDisplayMode, BannerStats } from '@/types';
 
 const PLACEMENTS: { key: BannerPlacement; flagKey: 'banners_header' | 'banners_footer'; label: string; hint: string }[] = [
@@ -170,7 +173,7 @@ export default function AdminBannersPage() {
                   <Card key={banner.id} className="flex items-center gap-4 p-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={banner.imagePath}
+                      src={resolveImageUrl(banner.imagePath)}
                       alt={banner.title}
                       className="h-16 w-28 shrink-0 rounded-md object-cover"
                     />
