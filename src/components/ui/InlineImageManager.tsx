@@ -1,7 +1,10 @@
 'use client';
 
+// FILE: src/components/ui/InlineImageManager.tsx
+
 import { useRef, useState } from 'react';
 import { ImageLibraryModal } from './ImageLibraryModal';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 
 interface InlineImageManagerProps {
   purpose: 'blog' | 'resources' | 'banners' | 'scholars';
@@ -194,7 +197,7 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
       {activeMarker && lastPath && (
         <div className="mt-1 rounded-md border border-pulse-200 bg-white p-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lastPath} alt="" className="h-28 w-full rounded object-cover" />
+          <img src={resolveImageUrl(lastPath)} alt="" className="h-28 w-full rounded object-cover" />
           <input
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
