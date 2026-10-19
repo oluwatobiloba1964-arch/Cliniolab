@@ -1,10 +1,13 @@
 'use client';
 
+// FILE: src/components/cms/BlogPostCard.tsx
+
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { useBlogSubcategoryName } from '@/lib/hooks/useBlogSubcategoryName';
 import { useBlogCategorySlug } from '@/lib/hooks/useBlogCategorySlug';
 import { ReadingTimePill } from '@/components/blog/ReadingTimePill';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 import type { BlogPost } from '@/types';
 
 const FALLBACK_COVERS: Record<'job' | 'scholarship' | 'default', string> = {
@@ -14,7 +17,7 @@ const FALLBACK_COVERS: Record<'job' | 'scholarship' | 'default', string> = {
 };
 
 function resolveCoverImage(post: BlogPost, categorySlug: string | null): string {
-  if (post.featuredImageUrl) return post.featuredImageUrl;
+  if (post.featuredImageUrl) return resolveImageUrl(post.featuredImageUrl);
   if (categorySlug === 'job') return FALLBACK_COVERS.job;
   if (categorySlug === 'scholarship') return FALLBACK_COVERS.scholarship;
   return FALLBACK_COVERS.default;
