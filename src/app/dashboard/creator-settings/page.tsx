@@ -1,10 +1,13 @@
 'use client';
 
+// FILE: src/app/dashboard/creator-settings/page.tsx
+
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 
 export default function CreatorSettingsPage() {
   const { user, loading } = useAuth();
@@ -118,7 +121,7 @@ export default function CreatorSettingsPage() {
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-ink-100">
             {avatarPath ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarPath} alt="Your avatar" className="h-full w-full object-cover" />
+              <img src={resolveImageUrl(avatarPath)} alt="Your avatar" className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-ink-400">
                 {(displayName || user.email)[0]?.toUpperCase()}
