@@ -1,4 +1,6 @@
 'use client';
+
+// FILE: src/components/layout/BannerSlot.tsx
 // File: src/components/layout/BannerSlot.tsx
 
 import Image from 'next/image';
@@ -6,6 +8,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import type { Banner, BannerPlacement } from '@/types';
 import { getSiteWidgets } from '@/lib/client/siteWidgets';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 
 interface BannerSlotProps {
   placement: BannerPlacement;
@@ -194,7 +197,7 @@ function BannerImage({
           : `relative overflow-hidden rounded-lg border border-ink-100 bg-ink-50 shadow-sm ${className}`
       }
     >
-      <Image src={banner.imagePath} alt={banner.title} fill className="object-contain" unoptimized />
+      <Image src={resolveImageUrl(banner.imagePath)} alt={banner.title} fill className="object-contain" unoptimized />
     </div>
   );
 
