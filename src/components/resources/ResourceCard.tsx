@@ -1,5 +1,7 @@
 'use client';
 
+// FILE: src/components/resources/ResourceCard.tsx
+
 // src/components/resources/ResourceCard.tsx
 
 import { useState } from 'react';
@@ -7,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { ShareButton } from '@/components/quiz/ShareButton';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 import type { Resource, ResourceAccessState } from '@/types';
 
 const FALLBACK_COVERS: Record<Resource['kind'], string> = {
@@ -92,7 +95,7 @@ export function ResourceCard({ resource }: { resource: Resource }) {
     <Card id={`resource-${resource.id}`} className="flex flex-col p-3 sm:p-4 scroll-mt-20">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={resource.coverImageUrl || FALLBACK_COVERS[resource.kind]}
+        src={resource.coverImageUrl ? resolveImageUrl(resource.coverImageUrl) : FALLBACK_COVERS[resource.kind]}
         alt=""
         className="mb-3 h-28 w-full rounded-md object-cover sm:h-40"
       />
