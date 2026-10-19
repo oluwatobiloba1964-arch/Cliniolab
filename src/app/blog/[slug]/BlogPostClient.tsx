@@ -1,3 +1,4 @@
+// FILE: src/app/blog/[slug]/BlogPostClient.tsx
 // File: src/app/blog/[slug]/BlogPostClient.tsx
 // src/app/blog/[slug]/BlogPostClient.tsx
 'use client';
@@ -6,6 +7,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { markdownToHtml } from '@/components/ui/RichTextEditor';
 import { sanitizeHtml, wrapWithScopeClass } from '@/lib/utils/sanitizeHtml';
+import { resolveImageUrl, resolveImageUrlsInHtml } from '@/lib/storage/imageUrl';
 import { RawHtmlFrame, isFullRawDocument } from '@/components/ui/RawHtmlFrame';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { RelatedQuizzes } from '@/components/quiz/RelatedQuizzes';
@@ -28,7 +30,7 @@ const FALLBACK_COVERS: Record<'job' | 'scholarship' | 'default', string> = {
 };
 
 function resolveCoverImage(post: BlogPost, categorySlug: string | null): string {
-  if (post.featuredImageUrl) return post.featuredImageUrl;
+  if (post.featuredImageUrl) return resolveImageUrl(post.featuredImageUrl);
   if (categorySlug === 'job') return FALLBACK_COVERS.job;
   if (categorySlug === 'scholarship') return FALLBACK_COVERS.scholarship;
   return FALLBACK_COVERS.default;
@@ -284,7 +286,7 @@ function BlogPostBody({ post }: { post: BlogPost }) {
       <div className={displayMode === 'sepia' ? 'article-mode-sepia' : displayMode === 'contrast' ? 'article-mode-contrast' : ''}>
       {isRaw ? (
         <div className="mx-auto mt-6 max-w-6xl px-6">
-          <RawHtmlFrame html={post.content} />
+          <RawHtmlFrame html={resolveImageUrlsInHtml(post.content)} />
         </div>
       ) : (
         (() => {
@@ -296,7 +298,9 @@ function BlogPostBody({ post }: { post: BlogPost }) {
           // headings the post already has — nothing for the author to turn
           // on. It's skipped below MIN_HEADINGS_FOR_TOC since a nav for one
           // or two sections isn't worth the space.
-          const { html: htmlWithIds, items: tocItems } = extractTableOfContents(renderedHtml);
+          const { html: htmlWithIds, items: tocItems } = extractTableOfContents(
+            resolveImageUrlsInHtml(renderedHtml)
+          );
           const showToc = tocItems.length >= MIN_HEADINGS_FOR_TOC;
 
           return (
