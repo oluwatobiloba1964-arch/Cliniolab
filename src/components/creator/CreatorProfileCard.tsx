@@ -1,9 +1,12 @@
 'use client';
 
+// FILE: src/components/creator/CreatorProfileCard.tsx
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { resolveImageUrl } from '@/lib/storage/imageUrl';
 
 interface CreatorSummary {
   id: string;
@@ -84,7 +87,7 @@ export function CreatorProfileCard({ creatorId }: { creatorId: string }) {
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-ink-100 sm:h-24 sm:w-24">
           {profile.avatarPath ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatarPath} alt={name} className="h-full w-full object-cover" />
+            <img src={resolveImageUrl(profile.avatarPath)} alt={name} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-ink-400">
               {name[0]?.toUpperCase()}
