@@ -1,8 +1,8 @@
-// src/lib/hooks/useHomeData.ts
+// FILE: src/lib/hooks/useHomeData.ts
 'use client';
 
 import { useEffect, useState } from 'react';
-import { publicFetchJson, publicFetchJsonSessionCached } from '@/lib/client/publicFetch';
+import { fetchJsonNoStore, publicFetchJsonSessionCached } from '@/lib/client/publicFetch';
 import type {
   BlogPost,
   FlashcardSetWithStats,
@@ -56,15 +56,15 @@ export function useHomeData(): HomeDataResult {
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
 
   useEffect(() => {
-    publicFetchJsonSessionCached<HomeData>('/api/homepage-data', 60_000)
+    publicFetchJsonSessionCached<HomeData>('/api/homepage-data', 300_000)
       .then(setData)
       .catch(() => setFailed(true));
 
-    publicFetchJson<{
+    fetchJsonNoStore<{
       enabled: boolean;
       entries?: LeaderboardEntry[];
       currentUserRank?: number | null;
-    }>('/api/leaderboard/general', 60_000)
+    }>('/api/leaderboard/general')
       .then((d) => {
         if (!d) return;
         setLeaderboardEnabled(d.enabled);
@@ -75,7 +75,7 @@ export function useHomeData(): HomeDataResult {
         // ignore — leaderboard is a soft failure
       });
 
-    publicFetchJsonSessionCached<{ label?: string }>('/api/flags/leaderboard_general', 60_000)
+    publicFetchJsonSessionCached<{ label?: string }>('/api/flags/leaderboard_general', 300_000)
       .then((d) => {
         if (d?.label) setLeaderboardLabel(d.label);
       })
