@@ -1,3 +1,4 @@
+// FILE: src/app/guest/GuestHubClient.tsx
 // src/app/guest/GuestHubClient.tsx
 'use client';
 
@@ -7,6 +8,7 @@ import { Card, DifficultyBadge } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import type { GuestItem, GuestItemKind } from '@/lib/db/services/guestService';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 const KIND_LABEL: Record<GuestItem['kind'], string> = {
   quiz: 'Quiz',
@@ -32,16 +34,22 @@ export function GuestHubClient() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
     if (kind !== 'all') params.set('kind', kind);
-    fetch(`/api/guest/items?${params.toString()}`)
-      .then((res) => (res.ok ? res.json() : { items: [], total: 0 }))
+    publicFetchJson<{ items?: GuestItem[]; total?: number }>(`/api/guest/items?${params.toString()}`, 30_000)
       .then((data) => {
+        if (cancelled) return;
         setItems((prev) => (offset === 0 ? data.items ?? [] : [...prev, ...(data.items ?? [])]));
-        setTotal(data.total ?? 0);
+        setTotal(typeof data.total === 'number' ? data.total : 0);
       })
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (cancelled) return;
+        if (offset === 0) setItems([]);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [kind, offset]);
 
   if (!flags.guestPractice) {
