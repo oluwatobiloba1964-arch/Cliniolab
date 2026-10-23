@@ -435,3 +435,108 @@ select {
     white-space: nowrap;
   }
 }
+
+
+/* ------------------------------------------------------------------ */
+/* Client-only UI improvements (no network / no database)              */
+/* ------------------------------------------------------------------ */
+
+@keyframes correct-pulse-ring {
+  0% { transform: scale(0.6); opacity: 0.55; }
+  70% { transform: scale(1.15); opacity: 0.12; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+@keyframes correct-pulse-burst {
+  0% { transform: scale(0.4); opacity: 0.35; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+.correct-pulse-ring,
+.correct-pulse-burst {
+  position: absolute;
+  inset: 10%;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+.correct-pulse-ring {
+  border: 2px solid theme('colors.pulse.400');
+  animation: correct-pulse-ring 0.9s ease-out forwards;
+}
+
+.correct-pulse-burst {
+  background: radial-gradient(circle, theme('colors.pulse.200') 0%, transparent 70%);
+  animation: correct-pulse-burst 0.9s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .correct-pulse-ring,
+  .correct-pulse-burst {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* Print-friendly quiz / exam results */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .quiz-results-print {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .quiz-results-print .print\:hidden,
+  .quiz-results-print button,
+  .quiz-results-print a[href^="/quizzes"],
+  .quiz-results-print nav,
+  header,
+  footer,
+  .mobile-bottom-nav,
+  .page-tools,
+  .command-trigger,
+  .back-to-top,
+  .offline-pill,
+  .install-pill {
+    display: none !important;
+  }
+
+  .quiz-results-print .shadow-sm,
+  .quiz-results-print .shadow-md,
+  .quiz-results-print .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  .quiz-results-print * {
+    break-inside: avoid;
+  }
+}
+
+/* Lightweight skeleton utility for optional client loading states */
+.ui-skeleton {
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, #e8eef1 0%, #f4f7f8 50%, #e8eef1 100%);
+  background-size: 200% 100%;
+  animation: ui-skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.dark .ui-skeleton {
+  background: linear-gradient(90deg, #16232e 0%, #1c2c38 50%, #16232e 100%);
+  background-size: 200% 100%;
+}
+
+@keyframes ui-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton {
+    animation: none;
+  }
+}
