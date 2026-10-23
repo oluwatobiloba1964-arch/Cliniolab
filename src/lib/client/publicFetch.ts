@@ -1,6 +1,18 @@
 // FILE: src/lib/client/publicFetch.ts
+const MAX_PUBLIC_CACHE_ENTRIES = 100;
 const cache = new Map<string, { expiresAt: number; data: unknown }>();
 const pending = new Map<string, Promise<unknown>>();
+
+function rememberPublicValue(url: string, data: unknown, ttlMs: number) {
+  // Map insertion order gives us a small FIFO/LRU-like bound for long sessions.
+  cache.delete(url);
+  cache.set(url, { expiresAt: Date.now() + Math.max(0, ttlMs), data });
+  while (cache.size > MAX_PUBLIC_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey === undefined) break;
+    cache.delete(oldestKey);
+  }
+}
 
 /**
  * Small browser-side cache for public GET requests. It prevents duplicate
@@ -10,7 +22,13 @@ const pending = new Map<string, Promise<unknown>>();
 export async function publicFetchJson<T>(url: string, ttlMs = 30_000): Promise<T> {
   const now = Date.now();
   const cached = cache.get(url);
-  if (cached && cached.expiresAt > now) return cached.data as T;
+  if (cached && cached.expiresAt > now) {
+    // Refresh insertion order so frequently used entries survive the bound.
+    cache.delete(url);
+    cache.set(url, cached);
+    return cached.data as T;
+  }
+  if (cached) cache.delete(url);
 
   const active = pending.get(url);
   if (active) return active as Promise<T>;
@@ -19,7 +37,7 @@ export async function publicFetchJson<T>(url: string, ttlMs = 30_000): Promise<T
     .then(async (response) => {
       if (!response.ok) throw new Error(`Request failed: ${response.status}`);
       const data = (await response.json()) as T;
-      cache.set(url, { expiresAt: Date.now() + ttlMs, data });
+      rememberPublicValue(url, data, ttlMs);
       return data;
     })
     .finally(() => {
