@@ -381,11 +381,14 @@ export function QuizDetailClient({
         // Only cache the plain, unnarrowed fetch - a "missedOnly" response
         // is a subset of questions and would silently truncate a later
         // full retake if cached under the same key.
+        // Cache the same normalized (never 'combined') mode that was just
+        // set on screen, so the timed-quiz path of Combined Mode is cached
+        // and reused exactly like any other exam/quiz-mode attempt.
         if (!missedOnly) {
           saveDraft<CachedQuizPayload>('questions-cache', quizId, {
             updatedAt: data.quiz.updatedAt,
             savedAt: Date.now(),
-            quiz: data.quiz,
+            quiz: quizForAttempt,
             questions: data.questions,
           });
         }
