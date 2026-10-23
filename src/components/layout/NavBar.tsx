@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete';
 import { publicFetchJsonSessionCached } from '@/lib/client/publicFetch';
+import { Search, Menu, X } from 'lucide-react';
 
 interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
 
@@ -110,7 +111,7 @@ export function NavBar() {
             className="text-ink-500 hover:text-ink-800"
             aria-label="Search"
           >
-            🔍
+            <Search className="h-5 w-5" aria-hidden="true" />
           </button>
           {user ? (
             <>
@@ -167,7 +168,7 @@ export function NavBar() {
           onClick={() => setMobileOpen((v) => !v)}
           aria-label="Toggle menu"
         >
-          <span className="text-2xl text-ink-800">{mobileOpen ? '✕' : '☰'}</span>
+          {mobileOpen ? <X className="h-6 w-6 text-ink-800" aria-hidden="true" /> : <Menu className="h-6 w-6 text-ink-800" aria-hidden="true" />}
         </button>
       </div>
 
