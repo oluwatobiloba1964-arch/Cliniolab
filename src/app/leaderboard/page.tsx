@@ -1,3 +1,4 @@
+// FILE: src/app/leaderboard/page.tsx
 'use client';
 // File: src/app/leaderboard/page.tsx
 import { PageTools } from '@/components/layout/PageTools';
@@ -5,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { LeaderboardList } from '@/components/quiz/LeaderboardList';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import type { Category, LeaderboardEntry } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 export default function LeaderboardPage() {
   const { user } = useAuth();
@@ -16,23 +18,34 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/categories')
-      .then((res) => res.json())
-      .then((data) => setCategories(data.categories ?? []));
+    let cancelled = false;
+    publicFetchJson<{ categories?: Category[] }>('/api/categories', 5 * 60_000)
+      .then((data) => { if (!cancelled) setCategories(data.categories ?? []); })
+      .catch(() => { if (!cancelled) setCategories([]); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const endpoint =
       selected === 'general' ? '/api/leaderboard/general' : `/api/leaderboard/category/${selected}`;
-    fetch(endpoint)
-      .then((res) => res.json())
+    // Leaderboard responses can include the signed-in user's rank, so do not
+    // put them in the shared public cache. Only suppress stale UI updates.
+    fetch(endpoint, { cache: 'no-store', credentials: 'same-origin' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Leaderboard request failed: ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
+        if (cancelled) return;
         setEnabled(data.enabled);
         setEntries(data.entries ?? []);
         setCurrentUserRank(data.currentUserRank ?? null);
       })
-      .finally(() => setLoading(false));
+      .catch(() => { if (!cancelled) { setEntries([]); setCurrentUserRank(null); } })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [selected]);
 
   const title =
