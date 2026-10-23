@@ -85,6 +85,9 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  if ((input.mode === 'exam' || input.mode === 'combined') && (!Number.isFinite(input.timeLimitSeconds ?? NaN) || (input.timeLimitSeconds ?? 0) <= 0)) {
+    return NextResponse.json({ error: 'Exam and Combined modes require a positive time limit.' }, { status: 400 });
+  }
   if (input.visibility === 'private' && input.linkExpiry === 'custom' && !input.customExpiryDate) {
     return NextResponse.json(
       { error: 'customExpiryDate is required when linkExpiry is "custom"' },

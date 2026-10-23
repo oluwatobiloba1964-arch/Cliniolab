@@ -15,6 +15,7 @@ const MODE_LABELS: Record<Quiz['mode'], string> = {
   study: 'Study Mode',
   quiz: 'Quiz Mode',
   exam: 'Exam / CBT Mode',
+  combined: 'Combined Mode',
 };
 
 export function SharedQuizClient() {
@@ -24,6 +25,7 @@ export function SharedQuizClient() {
   const [questions, setQuestions] = useState<Omit<QuizQuestion, 'correctAnswer'>[]>([]);
   const [studyQuestions, setStudyQuestions] = useState<QuizQuestion[]>([]);
   const [started, setStarted] = useState(false);
+  const [combinedChoice, setCombinedChoice] = useState<'study' | 'quiz'>('quiz');
   const [attemptKey, setAttemptKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -51,20 +53,27 @@ export function SharedQuizClient() {
       }
       setPasswordRequired(false);
 
-      if (data.quiz.mode === 'study') {
-        const studyQs = password
-          ? `slug=${encodeURIComponent(params.slug)}&password=${encodeURIComponent(password)}`
-          : `slug=${encodeURIComponent(params.slug)}`;
+      // First resolve a combined link's access/password, then let the learner
+      // choose a path before loading answer-bearing study data.
+      if (data.quiz.mode === 'combined' && !quiz) {
+        setQuiz(data.quiz);
+        setQuestions(data.questions);
+        setHasAttempted(!!data.hasAttempted);
+        return;
+      }
+
+      if (data.quiz.mode === 'study' || (data.quiz.mode === 'combined' && combinedChoice === 'study')) {
+        const studyQs = new URLSearchParams({ slug: params.slug, ...(password ? { password } : {}) }).toString();
         const studyRes = await fetch(`/api/quizzes/${data.quiz.id}/study?${studyQs}`);
         const studyData = await studyRes.json();
         if (!studyRes.ok) {
           setError(studyData.error ?? 'This link is invalid or has expired.');
           return;
         }
-        setQuiz(studyData.quiz);
+        setQuiz({ ...studyData.quiz, mode: 'study' });
         setStudyQuestions(studyData.questions);
       } else {
-        setQuiz(data.quiz);
+        setQuiz(data.quiz.mode === 'combined' ? { ...data.quiz, mode: 'exam' } : data.quiz);
         setQuestions(data.questions);
       }
       setHasAttempted(!!data.hasAttempted);
@@ -153,8 +162,14 @@ export function SharedQuizClient() {
           </div>
         )}
         {error && <p className="mt-4 text-sm text-critical-500">{error}</p>}
+        {quiz?.mode === 'combined' && (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => setCombinedChoice('study')} className={`rounded-xl border p-4 text-left ${combinedChoice === 'study' ? 'border-pulse-500 bg-pulse-50 ring-2 ring-pulse-100' : 'border-ink-100 hover:border-pulse-300'}`}><span className="block font-semibold text-ink-800">Practice with Study Mode</span><span className="mt-1 block text-sm text-ink-500">Review answers and explanations at your own pace.</span></button>
+            <button type="button" onClick={() => setCombinedChoice('quiz')} className={`rounded-xl border p-4 text-left ${combinedChoice === 'quiz' ? 'border-pulse-500 bg-pulse-50 ring-2 ring-pulse-100' : 'border-ink-100 hover:border-pulse-300'}`}><span className="block font-semibold text-ink-800">Take Timed Quiz</span><span className="mt-1 block text-sm text-ink-500">Complete the quiz within the creator-set time.</span></button>
+          </div>
+        )}
         <Button className="mt-6" onClick={() => handleStart()} disabled={fetching || (passwordRequired && !passwordInput)}>
-          {fetching ? 'Loading…' : passwordRequired ? 'Unlock and start' : 'Start'}
+          {fetching ? 'Loading…' : passwordRequired ? 'Unlock and start' : quiz?.mode === 'combined' ? (combinedChoice === 'study' ? 'Start Study Practice' : 'Start Timed Quiz') : 'Start'}
         </Button>
       </Card>
     </div>

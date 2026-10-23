@@ -24,7 +24,7 @@ export function QuizCard({ quiz }: { quiz: QuizWithStats }) {
         <div className="mt-4 flex items-center gap-4 font-mono text-xs text-ink-400">
           <span>{quiz.questionCount} Qs</span>
           <span>
-            {quiz.mode === 'exam' ? 'Exam / CBT Mode' : quiz.mode === 'study' ? 'Study Mode' : 'Quiz Mode'}
+            {quiz.mode === 'combined' ? 'Combined Mode' : quiz.mode === 'exam' ? 'Exam / CBT Mode' : quiz.mode === 'study' ? 'Study Mode' : 'Quiz Mode'}
           </span>
           {quiz.mode !== 'study' ? (
             <>
@@ -112,7 +112,7 @@ export function FeaturedQuizCard({ quiz }: { quiz: QuizWithStats }) {
         <div className="mt-5 flex flex-wrap items-center gap-4 font-mono text-xs text-ink-400">
           <span>{quiz.questionCount} Qs</span>
           <span>
-            {quiz.mode === 'exam' ? 'Exam / CBT Mode' : quiz.mode === 'study' ? 'Study Mode' : 'Quiz Mode'}
+            {quiz.mode === 'combined' ? 'Combined Mode' : quiz.mode === 'exam' ? 'Exam / CBT Mode' : quiz.mode === 'study' ? 'Study Mode' : 'Quiz Mode'}
           </span>
           {quiz.mode !== 'study' ? (
             <>
@@ -195,7 +195,7 @@ export function CompactQuizCard({ quiz }: { quiz: QuizWithStats }) {
           <div className="mt-1 flex flex-wrap items-center gap-3 font-mono text-xs text-ink-400">
             <span>{quiz.questionCount} Qs</span>
             <span>
-              {quiz.mode === 'exam' ? 'Exam / CBT Mode' : quiz.mode === 'study' ? 'Study Mode' : 'Quiz Mode'}
+              {quiz.mode === 'combined' ? 'Combined Mode' : quiz.mode === 'exam' ? 'Exam / CBT Mode' : quiz.mode === 'study' ? 'Study Mode' : 'Quiz Mode'}
             </span>
             {quiz.mode !== 'study' ? (
               <>

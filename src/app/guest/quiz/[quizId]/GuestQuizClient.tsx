@@ -18,6 +18,7 @@ const MODE_LABELS: Record<Quiz['mode'], string> = {
   study: 'Study Mode',
   quiz: 'Quiz Mode',
   exam: 'Exam / CBT Mode',
+  combined: 'Combined Mode',
 };
 
 export function GuestQuizClient({ quizId }: { quizId: string }) {
@@ -27,6 +28,8 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [started, setStarted] = useState(false);
+  const [combinedChoice, setCombinedChoice] = useState<'study' | 'quiz'>('quiz');
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,8 +61,29 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
     );
   }
 
+  async function handleStart(choice: 'study' | 'quiz' = combinedChoice) {
+    setStarting(true);
+    setError(null);
+    try {
+      if (quiz?.mode === 'combined' && choice === 'study') {
+        const response = await fetch(`/api/guest/quizzes/${quizId}/study`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? 'Could not load study questions.');
+        setQuestions(data.questions ?? []);
+        setQuiz({ ...quiz, mode: 'study' });
+      } else if (quiz?.mode === 'combined') {
+        setQuiz({ ...quiz, mode: 'exam' });
+      }
+      setStarted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start this quiz.');
+    } finally {
+      setStarting(false);
+    }
+  }
+
   if (started) {
-    if (quiz.mode === 'study') {
+    if (quiz.mode === 'study' || (quiz.mode === 'combined' && combinedChoice === 'study')) {
       return (
         <StudyModeRunner
           quiz={quiz}
@@ -105,20 +129,27 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
             later attempts on this device are practice only and are not saved or ranked.
           </p>
         )}
+        {quiz.mode === 'combined' && (
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => setCombinedChoice('study')} className={`rounded-xl border p-4 text-left ${combinedChoice === 'study' ? 'border-pulse-500 bg-pulse-50 ring-2 ring-pulse-100' : 'border-ink-100 hover:border-pulse-300'}`}><span className="block font-semibold text-ink-800">Practice with Study Mode</span><span className="mt-1 block text-sm text-ink-500">Learn at your own pace with answers and explanations.</span></button>
+            <button type="button" onClick={() => setCombinedChoice('quiz')} className={`rounded-xl border p-4 text-left ${combinedChoice === 'quiz' ? 'border-pulse-500 bg-pulse-50 ring-2 ring-pulse-100' : 'border-ink-100 hover:border-pulse-300'}`}><span className="block font-semibold text-ink-800">Take Timed Quiz</span><span className="mt-1 block text-sm text-ink-500">Answer under the creator-set time limit.</span></button>
+          </div>
+        )}
+        {error && <p className="mt-4 text-sm text-critical-500">{error}</p>}
         <div className="mt-6 flex flex-wrap items-center gap-3">
           {user ? (
             <>
               <Button size="lg" onClick={() => router.push(`/quizzes/${quizId}`)}>
                 Start (first attempt is saved)
               </Button>
-              <Button size="lg" variant="secondary" onClick={() => setStarted(true)}>
+              <Button size="lg" variant="secondary" onClick={() => handleStart()} disabled={starting}>
                 Practice without saving
               </Button>
             </>
           ) : (
             <>
-              <Button size="lg" onClick={() => setStarted(true)}>
-                Start as guest
+              <Button size="lg" onClick={() => handleStart()} disabled={starting}>
+                {starting ? 'Loading…' : quiz.mode === 'combined' ? (combinedChoice === 'study' ? 'Start Study Practice' : 'Start Timed Quiz') : 'Start as guest'}
               </Button>
               <Button
                 size="lg"
@@ -135,7 +166,7 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
               </Link>
             </>
           )}
-          {quiz.mode === 'study' && (
+          {(quiz.mode === 'study' || quiz.mode === 'combined') && (
             <OfflineSaveButton
               kind="quiz"
               sourceId={quiz.id}

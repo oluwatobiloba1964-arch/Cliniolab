@@ -6,7 +6,7 @@ import { useState } from 'react';
 export interface ShareStats {
   creatorName?: string | null;
   creatorContact?: string | null;
-  mode?: 'study' | 'quiz' | 'exam';
+  mode?: 'study' | 'quiz' | 'exam' | 'combined';
   priceKobo?: number | null;
   pricing?: 'free' | 'paid';
   timeLimitSeconds?: number | null;
@@ -22,6 +22,7 @@ export interface ShareStats {
 
 const MODE_LABELS: Record<NonNullable<ShareStats['mode']>, string> = {
   study: 'Study Mode',
+  combined: 'Combined Mode',
   quiz: 'Quiz Mode',
   exam: 'CBT (Computer-Based Test) Mode',
 };

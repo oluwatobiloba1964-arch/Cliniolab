@@ -33,7 +33,7 @@ import type { QuizInput, QuizMode, QuizDifficulty, QuestionType, QuestionOption 
 //   question_type, prompt, option_1, option_2, option_3, option_4,
 //   correct_answer, explanation
 //
-// - mode: study | quiz | exam
+// - mode: study | quiz | exam | combined
 // - question_type: mcq | true_false | fill_blank
 // - For mcq: correct_answer must exactly match the text of one of the
 //   option_N columns for that row.
@@ -368,7 +368,7 @@ function rowsToQuizInputs(
       ? Math.round(minutes * 60)
       : undefined;
 
-    if (!['study', 'quiz', 'exam'].includes(mode)) {
+    if (!['study', 'quiz', 'exam', 'combined'].includes(mode)) {
       warnings.push(`Quiz "${title}": invalid mode "${meta.mode}", skipped.`);
       continue;
     }
@@ -380,8 +380,8 @@ function rowsToQuizInputs(
       warnings.push(`Quiz "${title}": time_limit_minutes must be a positive number, skipped.`);
       continue;
     }
-    if (mode === 'exam' && !timeLimitSeconds) {
-      warnings.push(`Quiz "${title}": exam mode requires time_limit_minutes, skipped.`);
+    if ((mode === 'exam' || mode === 'combined') && !timeLimitSeconds) {
+      warnings.push(`Quiz "${title}": exam and combined modes require time_limit_minutes, skipped.`);
       continue;
     }
 
@@ -920,11 +920,11 @@ export default function BulkUploadPage() {
             Set <code className="rounded bg-ink-50 px-1">mode</code> per quiz to{' '}
             <strong>study</strong> (see answers immediately), <strong>quiz</strong>{' '}
             (untimed by default, or timed for speed-drills), or <strong>exam</strong>{' '}
-            (always timed, CBT-style). All three are supported in the same upload.
+            (always timed, CBT-style), or <strong>combined</strong> (study practice plus timed quiz). All four are supported in the same upload.
           </li>
           <li>
             Set <code className="rounded bg-ink-50 px-1">time_limit_minutes</code> if you want a
-            timer - required for exam mode, optional for quiz mode, ignored for study mode.
+            timer - required for exam and combined modes, optional for quiz mode, ignored for study mode.
           </li>
           <li>
             Fill <code className="rounded bg-ink-50 px-1">subcategory</code> with an existing

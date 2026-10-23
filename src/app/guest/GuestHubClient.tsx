@@ -95,7 +95,7 @@ export function GuestHubClient() {
               <Card className="h-full p-5 transition-shadow hover:shadow-md">
                 <div className="flex items-center justify-between">
                   <span className="rounded bg-pulse-50 px-2 py-0.5 text-xs font-semibold text-pulse-600">
-                    {KIND_LABEL[item.kind]}
+                    {item.mode === 'combined' ? 'Combined Mode' : KIND_LABEL[item.kind]}
                   </span>
                   {item.difficulty && <DifficultyBadge difficulty={item.difficulty as 'easy' | 'medium' | 'hard'} />}
                 </div>

@@ -115,9 +115,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       { status: 400 }
     );
   }
-  if (input.mode === 'exam' && !input.timeLimitSeconds) {
+  if ((input.mode === 'exam' || input.mode === 'combined') && (!Number.isFinite(input.timeLimitSeconds ?? NaN) || (input.timeLimitSeconds ?? 0) <= 0)) {
     return NextResponse.json(
-      { error: 'Exam mode requires a time limit' },
+      { error: 'Exam and Combined modes require a positive time limit' },
       { status: 400 }
     );
   }

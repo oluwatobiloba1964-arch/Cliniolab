@@ -28,7 +28,7 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
   const [total, setTotal] = useState(initialTotal);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<'all' | 'quiz' | 'exam' | 'study'>('all');
+  const [mode, setMode] = useState<'all' | 'quiz' | 'exam' | 'study' | 'combined'>('all');
   const [difficulty, setDifficulty] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState<'newest' | 'questions' | 'attempts' | 'title'>('newest');
@@ -96,7 +96,7 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
           <label className="sr-only" htmlFor="quiz-search">Search quizzes</label>
           <input id="quiz-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search this page…" className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm outline-none focus:border-pulse-400 focus:ring-2 focus:ring-pulse-100" />
           <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
-            <option value="all">All modes</option><option value="quiz">Quiz</option><option value="exam">Exam / CBT</option><option value="study">Study</option>
+            <option value="all">All modes</option><option value="quiz">Quiz</option><option value="exam">Exam / CBT</option><option value="study">Study</option><option value="combined">Combined</option>
           </select>
           <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as typeof difficulty)} className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
             <option value="all">All difficulty</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>

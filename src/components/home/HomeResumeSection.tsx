@@ -38,7 +38,7 @@ export function HomeResumeSection({ items }: { items: QuizWithStats[] }) {
               </div>
               <p className="mt-2 text-xs text-ink-400">
                 {quiz.questionCount} questions ·{' '}
-                {quiz.mode === 'exam' ? 'Exam' : quiz.mode === 'study' ? 'Study' : 'Quiz'} mode
+                {quiz.mode === 'combined' ? 'Combined' : quiz.mode === 'exam' ? 'Exam' : quiz.mode === 'study' ? 'Study' : 'Quiz'} mode
               </p>
               <p className="mt-3 text-xs font-semibold text-pulse-600">Continue session</p>
             </Link>

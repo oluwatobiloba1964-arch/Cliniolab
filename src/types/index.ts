@@ -53,7 +53,7 @@ export interface Subcategory {
 // QUIZZES
 // ============================================
 
-export type QuizMode = 'study' | 'quiz' | 'exam';
+export type QuizMode = 'study' | 'quiz' | 'exam' | 'combined';
 export type QuizTimeLimitMode = 'fixed' | 'user_choice';
 export type QuizDifficulty = 'easy' | 'medium' | 'hard';
 export type QuizVisibility = 'public' | 'private' | 'guest';

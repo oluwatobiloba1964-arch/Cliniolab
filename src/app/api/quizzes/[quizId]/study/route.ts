@@ -30,7 +30,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
   const quiz = await quizService.getQuizById(quizId);
   if (!quiz) return NextResponse.json({ error: 'Quiz not found' }, { status: 404 });
-  if (quiz.mode !== 'study') {
+  if (quiz.mode !== 'study' && quiz.mode !== 'combined') {
     return NextResponse.json({ error: 'This quiz is not in Study Mode' }, { status: 400 });
   }
 
@@ -64,7 +64,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   }
 
   const questions = await quizService.getQuizQuestions(quizId);
-  return NextResponse.json({ quiz, questions });
+  return NextResponse.json({ quiz, questions }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
 /**
@@ -83,7 +83,7 @@ export async function POST(_request: Request, { params }: RouteParams) {
 
   const quiz = await quizService.getQuizById(quizId);
   if (!quiz) return NextResponse.json({ error: 'Quiz not found' }, { status: 404 });
-  if (quiz.mode !== 'study') {
+  if (quiz.mode !== 'study' && quiz.mode !== 'combined') {
     return NextResponse.json({ error: 'This quiz is not in Study Mode' }, { status: 400 });
   }
 

@@ -47,6 +47,7 @@ const MODE_LABELS: Record<Quiz['mode'], string> = {
   study: 'Study Mode',
   quiz: 'Quiz Mode',
   exam: 'Exam / CBT Mode',
+  combined: 'Combined Mode',
 };
 
 const RETAKE_LABELS: Record<Quiz['retakePolicy'], (limit: number | null) => string> = {
@@ -66,12 +67,12 @@ function hasFreshLocalRetakeCache(quizId: string): boolean {
   const quizCache = loadDraft<CachedQuizPayload>('questions-cache', quizId);
   if (quizCache && typeof quizCache.savedAt === 'number'
     && now - quizCache.savedAt >= 0 && now - quizCache.savedAt <= RETAKE_CACHE_MAX_AGE_MS
-    && Array.isArray(quizCache.questions) && quizCache.quiz?.mode !== 'study') return true;
+    && Array.isArray(quizCache.questions) && quizCache.quiz?.mode !== 'study' && quizCache.quiz?.mode !== 'combined') return true;
 
   const studyCache = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
   return !!studyCache && typeof studyCache.savedAt === 'number'
     && now - studyCache.savedAt >= 0 && now - studyCache.savedAt <= RETAKE_CACHE_MAX_AGE_MS
-    && Array.isArray(studyCache.questions) && studyCache.quiz?.mode === 'study';
+    && Array.isArray(studyCache.questions) && (studyCache.quiz?.mode === 'study' || studyCache.quiz?.mode === 'combined');
 }
 
 function formatNaira(kobo: number): string {
@@ -100,6 +101,7 @@ export function QuizDetailClient({
   const [questions, setQuestions] = useState<Omit<QuizQuestion, 'correctAnswer'>[]>([]);
   const [studyQuestions, setStudyQuestions] = useState<QuizQuestion[]>([]);
   const [started, setStarted] = useState(false);
+  const [combinedChoice, setCombinedChoice] = useState<'study' | 'quiz'>('quiz');
   const [attemptKey, setAttemptKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -273,10 +275,10 @@ export function QuizDetailClient({
         const now = Date.now();
         const freshQuizCache = !!cachedQuestions && typeof cachedQuestions.savedAt === 'number'
           && now - cachedQuestions.savedAt >= 0 && now - cachedQuestions.savedAt <= RETAKE_CACHE_MAX_AGE_MS
-          && Array.isArray(cachedQuestions.questions) && cachedQuestions.quiz.mode !== 'study';
+          && Array.isArray(cachedQuestions.questions) && cachedQuestions.quiz.mode !== 'study' && cachedQuestions.quiz.mode !== 'combined';
         const freshStudyCache = !!cachedStudy && typeof cachedStudy.savedAt === 'number'
           && now - cachedStudy.savedAt >= 0 && now - cachedStudy.savedAt <= RETAKE_CACHE_MAX_AGE_MS
-          && Array.isArray(cachedStudy.questions) && cachedStudy.quiz.mode === 'study';
+          && Array.isArray(cachedStudy.questions) && (cachedStudy.quiz.mode === 'study' || (cachedStudy.quiz.mode === 'combined' && combinedChoice === 'study'));
         if (freshQuizCache && cachedQuestions) {
           const cachedQuiz = cachedQuestions.quiz.timeLimitMode === 'user_choice'
             ? { ...cachedQuestions.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
@@ -288,7 +290,7 @@ export function QuizDetailClient({
           return;
         }
         if (freshStudyCache && cachedStudy) {
-          setQuiz(cachedStudy.quiz);
+          setQuiz({ ...cachedStudy.quiz, mode: 'study' });
           setStudyQuestions(cachedStudy.questions);
           if (typeof cachedStudy.savedAt !== 'number') {
             saveDraft<CachedStudyPayload>('study-questions-cache', quizId, { ...cachedStudy, savedAt: Date.now() });
@@ -301,7 +303,7 @@ export function QuizDetailClient({
 
       if (!missedOnly) {
         const cached = loadDraft<CachedQuizPayload>('questions-cache', quizId);
-        if (cached && quiz && cached.updatedAt === quiz.updatedAt && cached.quiz.mode !== 'study') {
+        if (cached && quiz && cached.updatedAt === quiz.updatedAt && cached.quiz.mode !== 'study' && cached.quiz.mode !== 'combined') {
           const cachedQuiz = cached.quiz.timeLimitMode === 'user_choice'
             ? { ...cached.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
             : cached.quiz;
@@ -319,8 +321,8 @@ export function QuizDetailClient({
         // here is already populated from the lightweight preview fetch
         // below, so this is safe to check before touching the network.
         const cachedStudy = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
-        if (cachedStudy && quiz && cachedStudy.updatedAt === quiz.updatedAt && cachedStudy.quiz.mode === 'study') {
-          setQuiz(cachedStudy.quiz);
+        if (cachedStudy && quiz && cachedStudy.updatedAt === quiz.updatedAt && (cachedStudy.quiz.mode === 'study' || (cachedStudy.quiz.mode === 'combined' && combinedChoice === 'study'))) {
+          setQuiz({ ...cachedStudy.quiz, mode: 'study' });
           setStudyQuestions(cachedStudy.questions);
           if (typeof cachedStudy.savedAt !== 'number') {
             saveDraft<CachedStudyPayload>('study-questions-cache', quizId, { ...cachedStudy, savedAt: Date.now() });
@@ -346,7 +348,7 @@ export function QuizDetailClient({
         return;
       }
 
-      if (data.quiz.mode === 'study') {
+      if (data.quiz.mode === 'study' || (data.quiz.mode === 'combined' && combinedChoice === 'study')) {
         const studyRes = await fetch(`/api/quizzes/${quizId}/study`);
         const studyData = await studyRes.json();
         if (!studyRes.ok) {
@@ -358,18 +360,20 @@ export function QuizDetailClient({
           }
           return;
         }
-        setQuiz(studyData.quiz);
+        setQuiz({ ...studyData.quiz, mode: 'study' });
         setStudyQuestions(studyData.questions);
         if (!missedOnly) {
           saveDraft<CachedStudyPayload>('study-questions-cache', quizId, {
             updatedAt: studyData.quiz.updatedAt,
             savedAt: Date.now(),
-            quiz: studyData.quiz,
+            quiz: { ...studyData.quiz, mode: 'study' },
             questions: studyData.questions,
           });
         }
       } else {
-        const quizForAttempt = data.quiz.timeLimitMode === 'user_choice' && data.quiz.mode !== 'study'
+        const quizForAttempt = data.quiz.mode === 'combined'
+          ? { ...data.quiz, mode: 'exam' as const, timeLimitSeconds: data.quiz.timeLimitMode === 'user_choice' ? Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 : data.quiz.timeLimitSeconds }
+          : data.quiz.timeLimitMode === 'user_choice' && data.quiz.mode !== 'study'
           ? { ...data.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
           : data.quiz;
         setQuiz(quizForAttempt);
@@ -540,7 +544,7 @@ export function QuizDetailClient({
                 {MODE_LABELS[quiz.mode]}
               </span>
             )}
-            {quiz && quiz.mode === 'study' && quiz.pricing !== 'paid' && (
+            {quiz && (quiz.mode === 'study' || quiz.mode === 'combined') && quiz.pricing !== 'paid' && studyQuestions.length > 0 && (
               <div className="mt-2">
                 <OfflineSaveButton
                   kind="quiz"
@@ -578,7 +582,9 @@ export function QuizDetailClient({
         {quiz?.description && <p className="mt-2 text-ink-500">{quiz.description}</p>}
         {quiz && (
           <p className="mt-3 text-sm text-ink-500">
-            {quiz.mode === 'exam'
+            {quiz.mode === 'combined'
+              ? 'Choose untimed study practice with explanations or a timed quiz using the same questions.'
+              : quiz.mode === 'exam'
               ? 'Timed CBT-style practice. Check the time limit before you begin.'
               : quiz.mode === 'study'
                 ? 'Study at your own pace, reveal explanations, and review difficult questions.'
@@ -652,7 +658,7 @@ export function QuizDetailClient({
           </div>
         )}
 
-        {(quiz ?? previewStats)?.timeLimitMode === 'user_choice' && (quiz ?? previewStats)?.mode !== 'study' && !requiresPurchase && (
+        {(quiz ?? previewStats)?.timeLimitMode === 'user_choice' && (quiz ?? previewStats)?.mode !== 'study' && !((quiz ?? previewStats)?.mode === 'combined' && combinedChoice === 'study') && !requiresPurchase && (
           <div className="mt-5 rounded-xl border border-pulse-100 bg-pulse-50/50 p-4">
             <label htmlFor="custom-quiz-time" className="block text-sm font-semibold text-ink-800">Choose your time before starting</label>
             <p className="mt-1 text-xs leading-5 text-ink-500">The creator allows a custom timer for this quiz. Your countdown starts when you begin.</p>
@@ -683,11 +689,19 @@ export function QuizDetailClient({
             </Button>
           </div>
         ) : (
-          <div className="mt-6 flex flex-wrap items-center gap-2">
+          <div className="mt-6 space-y-3">
+            {quiz?.mode === 'combined' && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button type="button" onClick={() => setCombinedChoice('study')} className={`rounded-xl border p-4 text-left transition ${combinedChoice === 'study' ? 'border-pulse-500 bg-pulse-50 ring-2 ring-pulse-100' : 'border-ink-100 hover:border-pulse-300'}`}><span className="block font-semibold text-ink-800">Practice with Study Mode</span><span className="mt-1 block text-sm text-ink-500">Learn at your own pace and review answers and explanations.</span></button>
+                <button type="button" onClick={() => setCombinedChoice('quiz')} className={`rounded-xl border p-4 text-left transition ${combinedChoice === 'quiz' ? 'border-pulse-500 bg-pulse-50 ring-2 ring-pulse-100' : 'border-ink-100 hover:border-pulse-300'}`}><span className="block font-semibold text-ink-800">Take Timed Quiz</span><span className="mt-1 block text-sm text-ink-500">Complete the questions before the creator-set time runs out.</span></button>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
             <Button onClick={handleStart} disabled={fetching}>
-              {fetching ? 'Loading…' : 'Start'}
+              {fetching ? 'Loading…' : quiz?.mode === 'combined' ? (combinedChoice === 'study' ? 'Start Study Practice' : 'Start Timed Quiz') : 'Start'}
             </Button>
             {quiz && <AddToQueueButton quizId={quiz.id} title={quiz.title} />}
+            </div>
           </div>
         )}
       </Card>

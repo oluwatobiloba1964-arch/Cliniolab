@@ -85,7 +85,7 @@ export function QuizForm({
   const [mode, setModeState] = useState<QuizMode>(initialQuiz?.mode ?? 'quiz');
   function setMode(next: QuizMode) {
     setModeState(next);
-    if (next === 'exam') {
+    if (next === 'exam' || next === 'combined') {
       // Exam / CBT mode always runs on a timer, so force it on.
       setTimerEnabled(true);
     }
@@ -169,7 +169,7 @@ export function QuizForm({
   // force-enables the timer toggle so the time-limit input always shows.
   // Study mode never shows a timer at all.
   useEffect(() => {
-    if (mode === 'exam') setTimerEnabled(true);
+    if (mode === 'exam' || mode === 'combined') setTimerEnabled(true);
   }, [mode]);
 
   useEffect(() => {
@@ -317,8 +317,8 @@ export function QuizForm({
       setError('Set a price greater than ₦0 for a paid quiz.');
       return;
     }
-    if (mode === 'exam' && !timerEnabled) {
-      setError('Exam / CBT mode requires a time limit.');
+    if ((mode === 'exam' || mode === 'combined') && !timerEnabled) {
+      setError('Exam / CBT and Combined modes require a time limit.');
       return;
     }
     if (defaultMark < 1) {
@@ -413,7 +413,7 @@ export function QuizForm({
 
       {learnerPreview && (
         <Card className="mb-6 space-y-5 p-6">
-          <div><p className="text-xs font-semibold uppercase tracking-wide text-pulse-600">Learner preview</p><h2 className="mt-1 font-display text-2xl font-semibold text-ink-800">{title.trim() || 'Untitled quiz'}</h2><p className="mt-1 text-sm text-ink-500">{description || 'No description added.'}</p><p className="mt-2 text-xs text-ink-400">{questions.length} questions · {mode === 'exam' ? 'Timed exam' : mode === 'study' ? 'Study mode' : 'Quiz mode'} · Answers shown here for creator review</p></div>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-pulse-600">Learner preview</p><h2 className="mt-1 font-display text-2xl font-semibold text-ink-800">{title.trim() || 'Untitled quiz'}</h2><p className="mt-1 text-sm text-ink-500">{description || 'No description added.'}</p><p className="mt-2 text-xs text-ink-400">{questions.length} questions · {mode === 'combined' ? 'Combined study and timed quiz' : mode === 'exam' ? 'Timed exam' : mode === 'study' ? 'Study mode' : 'Quiz mode'} · Answers shown here for creator review</p></div>
           {questions.map((question, index) => <div key={question.id ?? index} className="rounded-xl border border-ink-100 p-4"><p className="font-medium text-ink-800">{index + 1}. {question.prompt || 'Question prompt not entered yet'}</p>{question.type === 'mcq' && <ul className="mt-3 space-y-2">{(question.options ?? []).map((option, optionIndex) => <li key={option.id} className={`rounded-lg px-3 py-2 text-sm ${option.id === question.correctAnswer ? 'bg-pulse-50 font-semibold text-pulse-700 ring-1 ring-pulse-200' : 'bg-ink-50 text-ink-600'}`}>{String.fromCharCode(65 + optionIndex)}. {option.text || 'Empty option'} {option.id === question.correctAnswer ? '✓ Correct answer' : ''}</li>)}</ul>}{question.type !== 'mcq' && <p className="mt-2 text-sm text-ink-500">Expected answer: {question.correctAnswer || 'Not entered'}</p>}{question.explanation && <p className="mt-3 text-sm text-ink-500">Explanation: {question.explanation}</p>}</div>)}
           <Button variant="secondary" onClick={() => setLearnerPreview(false)}>Return to editing</Button>
         </Card>
@@ -468,6 +468,7 @@ export function QuizForm({
               <option value="study">Study Mode (see answers immediately)</option>
               <option value="quiz">Quiz Mode (untimed, graded)</option>
               <option value="exam">Exam / CBT Mode (timed, graded)</option>
+              <option value="combined">Combined Mode (Study Practice + Timed Quiz)</option>
             </select>
           </div>
           <div>
@@ -484,7 +485,7 @@ export function QuizForm({
           </div>
         </div>
 
-        {(mode === 'exam' || mode === 'quiz') && (
+        {(mode === 'exam' || mode === 'quiz' || mode === 'combined') && (
           <div>
             {mode === 'quiz' ? (
               <Toggle
@@ -495,9 +496,9 @@ export function QuizForm({
             ) : (
               <label className="text-sm font-medium text-ink-700">Time limit (minutes)</label>
             )}
-            {mode === 'exam' && (
+            {(mode === 'exam' || mode === 'combined') && (
               <p className="mt-1 text-xs text-ink-400">
-                Exam / CBT mode always runs on a timer.
+                {mode === 'combined' ? 'Combined Mode always includes a timed quiz. Learners can also choose untimed Study Mode.' : 'Exam / CBT mode always runs on a timer.'}
               </p>
             )}
             {timerEnabled && (

@@ -17,6 +17,7 @@ export type GuestItemKind = 'quiz' | 'study' | 'flashcards';
 
 export interface GuestItem {
   kind: GuestItemKind;
+  mode?: string;
   id: string;
   title: string;
   description: string | null;
@@ -91,6 +92,7 @@ export async function listGuestItems(opts: { limit?: number; offset?: number; ki
       const isStudy = r.mode === 'study';
       items.push({
         kind: isStudy ? 'study' : 'quiz',
+        mode: r.mode,
         id: r.id,
         title: r.title,
         description: r.description,

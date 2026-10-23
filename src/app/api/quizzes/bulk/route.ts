@@ -47,14 +47,14 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!['study', 'quiz', 'exam'].includes(quiz.mode) || !['easy', 'medium', 'hard'].includes(quiz.difficulty)) {
+    if (!['study', 'quiz', 'exam', 'combined'].includes(quiz.mode) || !['easy', 'medium', 'hard'].includes(quiz.difficulty)) {
       return NextResponse.json(
         { error: `Quiz at index ${index} has an invalid mode or difficulty` },
         { status: 400 }
       );
     }
 
-    if (quiz.mode === 'exam' && (!Number.isFinite(quiz.timeLimitSeconds ?? NaN) || (quiz.timeLimitSeconds ?? 0) <= 0)) {
+    if ((quiz.mode === 'exam' || quiz.mode === 'combined') && (!Number.isFinite(quiz.timeLimitSeconds ?? NaN) || (quiz.timeLimitSeconds ?? 0) <= 0)) {
       return NextResponse.json(
         { error: `Quiz at index ${index}: exam mode requires a positive time limit` },
         { status: 400 }
