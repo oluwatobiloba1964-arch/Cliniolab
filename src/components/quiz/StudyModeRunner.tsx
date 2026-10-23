@@ -31,6 +31,8 @@ import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
 import { QuizStudyToolkit } from '@/components/quiz/QuizStudyToolkit';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
 import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
+import { ShortcutsHelpPanel, STUDY_SHORTCUTS } from '@/components/ui/ShortcutsHelpPanel';
+import { CorrectPulse } from '@/components/ui/CorrectPulse';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { resolveEffectiveCorrectAnswer } from '@/lib/quizAnswers';
 import type { Quiz, QuizQuestion } from '@/types';
@@ -172,6 +174,8 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all');
   const [flashcardMode, setFlashcardMode] = useState<'all' | 'missed' | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showCorrectPulse, setShowCorrectPulse] = useState(false);
   const [recallFirst, setRecallFirst] = useState(true);
   const [recallChoicesVisible, setRecallChoicesVisible] = useState(false);
 
@@ -185,6 +189,15 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const target = event.target as HTMLElement | null;
       if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')) return;
+      if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
+        event.preventDefault();
+        setShowShortcuts((value) => !value);
+        return;
+      }
+      if (event.key === 'Escape') {
+        setShowShortcuts(false);
+        return;
+      }
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
         goPrevious();
@@ -202,6 +215,16 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
   const isLast = current === questions.length - 1;
   const isCorrect = selectedAnswer !== null &&
     selectedAnswer.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
+  useEffect(() => {
+    if (!revealed || !isCorrect) {
+      setShowCorrectPulse(false);
+      return;
+    }
+    setShowCorrectPulse(true);
+    const timer = window.setTimeout(() => setShowCorrectPulse(false), 900);
+    return () => window.clearTimeout(timer);
+  }, [revealed, isCorrect, current]);
+
   const correctAnswerDisplay =
     question.type === 'mcq'
       ? question.options?.find((o) => o.id === question.correctAnswer)?.text ?? question.correctAnswer
@@ -530,9 +553,14 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
   return (
     <div className={`mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-16 ${focusMode ? 'study-focus-mode' : ''}`}>
       <div className="mb-3 flex justify-end">
-        <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">
-          {focusMode ? 'Exit focus mode' : 'Focus mode'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setShowShortcuts(true)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700" aria-label="Keyboard shortcuts">
+            ? Shortcuts
+          </button>
+          <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">
+            {focusMode ? 'Exit focus mode' : 'Focus mode'}
+          </button>
+        </div>
       </div>
       <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
@@ -659,7 +687,8 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         </div>}
 
         {revealed && (
-          <div className={`mt-4 rounded-md border p-4 ${isCorrect ? 'border-pulse-200 bg-pulse-50' : 'border-critical-200 bg-critical-50'}`}>
+          <div className={`relative mt-4 overflow-hidden rounded-md border p-4 ${isCorrect ? 'border-pulse-200 bg-pulse-50' : 'border-critical-200 bg-critical-50'}`}>
+            <CorrectPulse active={showCorrectPulse && isCorrect} />
             <p className="text-sm font-medium text-ink-700">
               {isCorrect ? 'Correct!' : `Correct answer: ${correctAnswerDisplay}`}
             </p>
@@ -706,6 +735,13 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         className="mt-4 rounded-xl border border-ink-100 bg-white p-4 sm:p-5"
       />
       <QuizStudyToolkit quizId={quiz.id} quizTitle={quiz.title} />
+
+      <ShortcutsHelpPanel
+        open={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+        title="Study mode shortcuts"
+        rows={STUDY_SHORTCUTS}
+      />
     </div>
   );
 }
