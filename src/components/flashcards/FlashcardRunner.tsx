@@ -107,6 +107,19 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
     initialDraft && initialDraft.current < cards.length ? initialDraft.current : 0
   );
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [sessionSize, setSessionSize] = useState<'all' | '10' | '20' | '30'>('all');
+  const [largerCardText, setLargerCardText] = useState(false);
+  const [comfortableCardSpacing, setComfortableCardSpacing] = useState(false);
+  const [reduceStudyMotion, setReduceStudyMotion] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem('cliniolab_local_study_toolkit_v1') || '{}');
+      const prefs = stored.studyPreferences || {};
+      setLargerCardText(Boolean(prefs.largerText));
+      setComfortableCardSpacing(Boolean(prefs.comfortableSpacing));
+      setReduceStudyMotion(Boolean(prefs.reduceMotion));
+    } catch { /* Optional local preferences must never block flashcards. */ }
+  }, []);
   const [flipped, setFlipped] = useState(false);
   const [knownIds, setKnownIds] = useState<Set<string>>(new Set(initialDraft?.knownIds ?? []));
   const [reviewIds, setReviewIds] = useState<Set<string>>(new Set(initialDraft?.reviewIds ?? []));
@@ -117,7 +130,9 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
   });
 
   const card = cards[current];
-  const isLast = current === cards.length - 1;
+  const sessionLimit = Math.min(cards.length, sessionSize === 'all' ? cards.length : Number(sessionSize));
+  const isLast = current >= sessionLimit - 1;
+  const dueReviewCount = cards.filter((item) => { const dueAt = reviewSchedule[item.id]?.dueAt; const dueTime = dueAt ? Date.parse(dueAt) : Number.NaN; return Number.isFinite(dueTime) && dueTime <= Date.now(); }).length;
 
   // Keyboard shortcuts. Ignores typing fields and interactive controls so
   // Space/Enter still activate focused buttons and links elsewhere on the page.
@@ -240,14 +255,15 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
   }
 
   if (finished) {
-    const knownPercent = Math.round((knownIds.size / cards.length) * 100);
+    const knownPercent = Math.round((knownIds.size / Math.max(1, sessionLimit)) * 100);
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className={`mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14 ${reduceStudyMotion ? 'cliniolab-reduce-motion' : ''}`}>
+        {reduceStudyMotion && <style>{`.cliniolab-reduce-motion *, .cliniolab-reduce-motion *::before, .cliniolab-reduce-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }`}</style>}
         <Card className="overflow-hidden p-0">
           <div className="bg-gradient-to-br from-pulse-50 via-white to-ink-50 p-8 text-center">
             <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Session complete</p>
             <h2 className="mt-2 font-display text-3xl font-semibold text-ink-900">Nice work.</h2>
-            <p className="mt-2 text-sm text-ink-500">You finished every card in this study session.</p>
+            <p className="mt-2 text-sm text-ink-500">You completed {sessionLimit === cards.length ? 'the full deck' : `${sessionLimit} cards in your focused session`}.</p>
             <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-pulse-100 bg-white px-3 py-1.5 text-xs font-semibold text-pulse-700 shadow-sm">
               {knownPercent}% marked as known
             </div>
@@ -270,7 +286,7 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
             </div>
           </div>
           <div className="px-6 pt-4 text-center">
-            <p className="text-xs text-ink-500">Spaced repetition schedules your next review locally on this device.</p>
+            <p className="text-xs text-ink-500">Spaced repetition schedules your next review locally on this device. {reviewIds.size > 0 ? `${reviewIds.size} card${reviewIds.size === 1 ? '' : 's'} marked for another review.` : 'No cards were marked for another review this session.'}</p>
           </div>
           <div className="p-6 text-center">
           <div className="flex flex-wrap justify-center gap-2">
@@ -285,11 +301,12 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
     );
   }
 
-  const progressPercent = Math.round(((current + 1) / cards.length) * 100);
+  const progressPercent = Math.round(((current + 1) / Math.max(1, sessionLimit)) * 100);
   const reviewedCount = knownIds.size + reviewIds.size;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className={`mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12 ${reduceStudyMotion ? 'cliniolab-reduce-motion' : ''}`}>
+      {reduceStudyMotion && <style>{`.cliniolab-reduce-motion *, .cliniolab-reduce-motion *::before, .cliniolab-reduce-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }`}</style>}
       <div className="rounded-xl border border-ink-100 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
           <div>
@@ -304,9 +321,16 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
             style={{ width: `${progressPercent}%` }}
           />
         </div>
-        <div className="mt-2 flex items-center justify-between text-[11px] text-ink-400">
-          <span>{progressPercent}% through</span>
-          <span>{reviewedCount} reviewed</span>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-400">
+          <span>{progressPercent}% through · {current + 1} of {sessionLimit} in this session</span>
+          <span>{reviewedCount} rated · {dueReviewCount} due for review</span>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
+          <label htmlFor="flashcard-session-size" className="text-xs font-medium text-ink-500">Session target</label>
+          <select id="flashcard-session-size" value={sessionSize} onChange={(event) => { setSessionSize(event.target.value as typeof sessionSize); setCurrent(0); setFlipped(false); setKnownIds(new Set()); setReviewIds(new Set()); }} className="min-h-9 rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs text-ink-700 focus:border-pulse-400 focus:outline-none focus:ring-2 focus:ring-pulse-100">
+            <option value="all">Full deck ({cards.length})</option><option value="10">10 cards</option><option value="20">20 cards</option><option value="30">30 cards</option>
+          </select>
+          <span className="text-xs text-ink-400">Choose a smaller session when you have limited time.</span>
         </div>
       </div>
 
@@ -320,7 +344,7 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
           <div className="mx-auto rounded-full bg-pulse-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-pulse-700">
             {flipped ? 'Answer' : 'Recall'}
           </div>
-          <p className="mt-5 whitespace-pre-line font-display text-xl font-medium leading-8 text-ink-800 sm:text-2xl">
+          <p className={`mt-5 whitespace-pre-line font-display font-medium text-ink-800 ${largerCardText ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} ${comfortableCardSpacing ? 'leading-10 tracking-[0.01em]' : 'leading-8'}`}>
             {flipped ? card.back : card.front}
           </p>
           {flipped && card.explanation && (
@@ -342,6 +366,7 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
           {flipped ? '↺ Show front' : '↻ Reveal answer'}
         </Button>
       </div>
+      <div className="mt-3 flex justify-center gap-2"><button type="button" aria-pressed={largerCardText} onClick={() => setLargerCardText((value) => !value)} className="rounded-full border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-pulse-300">{largerCardText ? 'Standard text' : 'Larger text'}</button><button type="button" aria-pressed={comfortableCardSpacing} onClick={() => setComfortableCardSpacing((value) => !value)} className="rounded-full border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-pulse-300">{comfortableCardSpacing ? 'Standard spacing' : 'More spacing'}</button></div>
       <p className="mt-2 text-center text-[11px] text-ink-400">
         Space/Enter to flip · ←/→ to navigate ·{' '}
         <button type="button" onClick={() => setShowShortcuts(true)} className="font-semibold text-pulse-600 hover:underline">
