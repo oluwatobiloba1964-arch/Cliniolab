@@ -1,3 +1,4 @@
+// FILE: src/lib/client/publicFetch.ts
 const cache = new Map<string, { expiresAt: number; data: unknown }>();
 const pending = new Map<string, Promise<unknown>>();
 
@@ -26,6 +27,34 @@ export async function publicFetchJson<T>(url: string, ttlMs = 30_000): Promise<T
     });
 
   pending.set(url, request);
+  return request;
+}
+
+/**
+ * Fetches data that may vary by signed-in user without retaining it after the
+ * request completes. Concurrent callers share the same in-flight request,
+ * but a later user/session can never receive a previous user's cached result.
+ */
+const pendingNoStore = new Map<string, Promise<unknown>>();
+
+export async function fetchJsonNoStore<T>(url: string): Promise<T> {
+  const active = pendingNoStore.get(url);
+  if (active) return active as Promise<T>;
+
+  const request = fetch(url, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+    credentials: 'same-origin',
+  })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+      return (await response.json()) as T;
+    })
+    .finally(() => {
+      pendingNoStore.delete(url);
+    });
+
+  pendingNoStore.set(url, request);
   return request;
 }
 
