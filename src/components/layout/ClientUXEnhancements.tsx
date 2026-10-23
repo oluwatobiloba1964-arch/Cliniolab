@@ -2,21 +2,22 @@
 // File: src/components/layout/ClientUXEnhancements.tsx
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Home, CheckSquare, Layers, PenLine, Search, Bookmark, LayoutDashboard } from 'lucide-react';
 
-const NAV_ITEMS = [
-  { href: '/', label: 'Home', icon: '⌂' },
-  { href: '/quizzes', label: 'Quizzes', icon: '✓' },
-  { href: '/flashcards', label: 'Cards', icon: '▣' },
-  { href: '/blog', label: 'Articles', icon: '✎' },
+const NAV_ITEMS: { href: string; label: string; icon: ReactNode }[] = [
+  { href: '/', label: 'Home', icon: <Home className="h-5 w-5" aria-hidden="true" /> },
+  { href: '/quizzes', label: 'Quizzes', icon: <CheckSquare className="h-5 w-5" aria-hidden="true" /> },
+  { href: '/flashcards', label: 'Cards', icon: <Layers className="h-5 w-5" aria-hidden="true" /> },
+  { href: '/blog', label: 'Articles', icon: <PenLine className="h-5 w-5" aria-hidden="true" /> },
 ];
 
-const ACTIONS = [
-  { href: '/quizzes', label: 'Browse quizzes', icon: '✓' },
-  { href: '/flashcards', label: 'Study flashcards', icon: '▣' },
-  { href: '/search', label: 'Search Cliniolab', icon: '⌕' },
-  { href: '/dashboard/bookmarks', label: 'Open bookmarks', icon: '🔖' },
-  { href: '/dashboard', label: 'Open dashboard', icon: '◉' },
+const ACTIONS: { href: string; label: string; icon: ReactNode }[] = [
+  { href: '/quizzes', label: 'Browse quizzes', icon: <CheckSquare className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/flashcards', label: 'Study flashcards', icon: <Layers className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/search', label: 'Search Cliniolab', icon: <Search className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/dashboard/bookmarks', label: 'Open bookmarks', icon: <Bookmark className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/dashboard', label: 'Open dashboard', icon: <LayoutDashboard className="h-4 w-4" aria-hidden="true" /> },
 ];
 
 export function ClientUXEnhancements() {
@@ -136,7 +137,7 @@ export function ClientUXEnhancements() {
       {offline && <div className="offline-pill" role="status">Offline · cached content may still be available</div>}
       {installEvent && <button type="button" onClick={installApp} className="install-pill">Install Cliniolab</button>}
       <button type="button" className="command-trigger" onClick={() => setPaletteOpen(true)} aria-label="Open quick actions">
-        <span>⌕</span><span className="hidden sm:inline">Quick actions</span><kbd>Ctrl K</kbd>
+        <span className="inline-flex"><Search className="h-4 w-4" aria-hidden="true" /></span><span className="hidden sm:inline">Quick actions</span><kbd>Ctrl K</kbd>
       </button>
       <nav className="mobile-bottom-nav" aria-label="Quick navigation">
         {NAV_ITEMS.map((item) => (
@@ -149,7 +150,7 @@ export function ClientUXEnhancements() {
         <div className="command-overlay" role="dialog" aria-modal="true" aria-label="Quick actions" onMouseDown={(e) => { if (e.target === e.currentTarget) setPaletteOpen(false); }}>
           <div className="command-panel">
             <div className="flex items-center gap-3 border-b border-ink-100 p-3">
-              <span className="text-lg text-ink-400">⌕</span>
+              <span className="text-ink-400"><Search className="h-5 w-5" aria-hidden="true" /></span>
               <input autoFocus value={paletteQuery} onChange={(e) => setPaletteQuery(e.target.value)} placeholder="Search actions…" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
               <kbd>Esc</kbd>
             </div>
