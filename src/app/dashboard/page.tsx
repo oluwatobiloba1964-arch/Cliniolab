@@ -390,37 +390,48 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-2xl font-semibold text-ink-800 sm:text-3xl">
-          Welcome back, {user.displayName ?? user.email}
-        </h1>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href="/dashboard/creator-settings" className="text-sm font-medium text-pulse-600 hover:text-pulse-700">
-            Creator settings
-          </Link>
-          <Link href="/dashboard/email-preferences" className="text-sm font-medium text-pulse-600 hover:text-pulse-700">
-            Email preferences
-          </Link>
+    <div className="min-h-screen bg-gradient-to-b from-pulse-50/50 via-white to-ink-50/60">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
+      <header className="relative isolate overflow-hidden rounded-3xl border border-pulse-100 bg-white px-5 py-6 shadow-sm sm:px-8 sm:py-8">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-20 -z-10 h-64 w-64 rounded-full bg-pulse-100/70 blur-3xl" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-1/3 -z-10 h-48 w-48 rounded-full bg-sky-100/60 blur-3xl" />
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="inline-flex items-center gap-2 rounded-full border border-pulse-100 bg-pulse-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-pulse-700">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-pulse-500" /> Cliniolab learning hub
+            </p>
+            <h1 className="mt-3 break-words font-display text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl lg:text-4xl">
+              Welcome back, {user.displayName ?? user.email}
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500 sm:text-base">Your learning, practice and progress in one place. Choose a next step and keep building confidence.</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Link href="/dashboard/creator-settings" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-700 shadow-sm transition hover:border-pulse-200 hover:bg-pulse-50 hover:text-pulse-700 focus:outline-none focus:ring-2 focus:ring-pulse-300">
+              Creator settings
+            </Link>
+            <Link href="/dashboard/email-preferences" className="inline-flex min-h-10 items-center justify-center rounded-xl bg-pulse-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pulse-700 focus:outline-none focus:ring-2 focus:ring-pulse-300 focus:ring-offset-2">
+              Email preferences
+            </Link>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <nav aria-label="Dashboard shortcuts" className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <nav aria-label="Dashboard shortcuts" className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:grid-cols-4 sm:gap-3">
         {[
           { href: '#learning-overview', icon: '📈', label: 'Overview' },
           { href: '#study-toolkit', icon: '🧰', label: 'Study tools' },
           { href: '#clinical-practice', icon: '🩺', label: 'Clinical practice' },
           { href: '#my-content', icon: '📚', label: 'My content' },
         ].map((item) => (
-          <a key={item.href} href={item.href} className="flex min-h-11 items-center gap-2 rounded-xl border border-ink-100 bg-white px-3 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-pulse-200 hover:bg-pulse-50/40 hover:text-pulse-700">
+          <a key={item.href} href={item.href} className="group flex min-h-12 items-center gap-2.5 rounded-xl border border-ink-100/90 bg-white/90 px-3 py-3 text-sm font-semibold text-ink-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-pulse-200 hover:bg-pulse-50/70 hover:text-pulse-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-pulse-300">
             <span aria-hidden="true">{item.icon}</span><span>{item.label}</span>
           </a>
         ))}
       </nav>
 
-      <section id="learning-overview" className="mt-6 grid scroll-mt-6 gap-5 lg:grid-cols-[1.45fr_0.8fr]">
+      <section id="learning-overview" className="mt-5 grid scroll-mt-6 gap-4 sm:mt-6 sm:gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.8fr)]">
         <Card className="overflow-hidden p-0">
-          <div className="bg-gradient-to-br from-pulse-50 via-white to-ink-50 p-6 sm:p-7">
+          <div className="bg-gradient-to-br from-pulse-50/90 via-white to-sky-50/60 p-5 sm:p-7 lg:p-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-xl">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-pulse-600">Your learning space</p>
@@ -460,28 +471,28 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <Link href="/quizzes" className="group rounded-xl border border-ink-100 bg-white p-4 transition hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+              <Link href="/quizzes" className="group rounded-2xl border border-ink-100 bg-white/95 p-4 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-pulse-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-pulse-300">
                 <span className="text-xl">📝</span>
                 <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Practise</p>
                 <p className="mt-1 text-xs leading-5 text-ink-400">Test what you know with quizzes.</p>
               </Link>
-              <Link href="/flashcards" className="group rounded-xl border border-ink-100 bg-white p-4 transition hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
+              <Link href="/flashcards" className="group rounded-2xl border border-ink-100 bg-white/95 p-4 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-pulse-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-pulse-300">
                 <span className="text-xl">🧠</span>
                 <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Review</p>
                 <p className="mt-1 text-xs leading-5 text-ink-400">Refresh important concepts with flashcards.</p>
               </Link>
-              <Link href="/quizzes" className="group rounded-xl border border-ink-100 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
+              <Link href="/quizzes" className="group rounded-2xl border border-ink-100 bg-white/95 p-4 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-pulse-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-pulse-300">
                 <span className="text-xl">🎯</span>
                 <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Daily practice</p>
                 <p className="mt-1 text-xs leading-5 text-ink-400">Keep your daily learning habit going with a quick quiz.</p>
               </Link>
-              <Link href="/study/revision" className="group rounded-xl border border-ink-100 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
+              <Link href="/study/revision" className="group rounded-2xl border border-ink-100 bg-white/95 p-4 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-pulse-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-pulse-300">
                 <span className="text-xl">🔁</span>
                 <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Smart revision</p>
                 <p className="mt-1 text-xs leading-5 text-ink-400">Prioritise missed questions and due flashcards stored on this device.</p>
               </Link>
-              <Link href="/study/maps" className="group rounded-xl border border-ink-100 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-pulse-200 hover:shadow-sm">
+              <Link href="/study/maps" className="group rounded-2xl border border-ink-100 bg-white/95 p-4 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-pulse-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-pulse-300">
                 <span className="text-xl">🗺️</span>
                 <p className="mt-3 text-sm font-semibold text-ink-800 group-hover:text-pulse-700">Knowledge maps</p>
                 <p className="mt-1 text-xs leading-5 text-ink-400">Connect foundational topics to clinical learning and exam practice.</p>
@@ -507,7 +518,7 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="h-full rounded-2xl border border-ink-100/80 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">Learning path</p>
@@ -538,7 +549,7 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      <section id="study-toolkit" className="mt-8 scroll-mt-6 space-y-5">
+      <section id="study-toolkit" className="mt-10 scroll-mt-6 space-y-5 rounded-3xl border border-ink-100/80 bg-white/70 p-4 sm:mt-12 sm:p-6 lg:p-7">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.15em] text-pulse-600">Your workspace</p>
           <h2 className="mt-1 font-display text-xl font-semibold text-ink-900 sm:text-2xl">Study tools and revision</h2>
@@ -549,7 +560,7 @@ export default function DashboardPage() {
         <LocalStudyExtras />
       </section>
 
-      <section id="clinical-practice" className="mt-8 scroll-mt-6 space-y-3">
+      <section id="clinical-practice" className="mt-8 scroll-mt-6 space-y-4 rounded-3xl border border-pulse-100/80 bg-gradient-to-br from-pulse-50/60 to-white p-4 sm:mt-10 sm:p-6 lg:p-7">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.15em] text-pulse-600">Apply your knowledge</p>
           <h2 className="mt-1 font-display text-xl font-semibold text-ink-900 sm:text-2xl">Clinical practice</h2>
@@ -581,25 +592,25 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <div className={`mt-8 grid grid-cols-2 gap-4 ${certificatesEnabled ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
-        <Card className="p-5 text-center">
+      <div className={`mt-8 grid grid-cols-2 gap-3 sm:gap-4 ${certificatesEnabled ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+        <Card className="rounded-2xl border border-ink-100/80 bg-white p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
           <p className="font-mono text-3xl font-semibold text-ink-800">{stats?.totalAttempts ?? 0}</p>
           <p className="mt-1 text-xs text-ink-400">Attempts</p>
         </Card>
-        <Card className="p-5 text-center">
+        <Card className="rounded-2xl border border-ink-100/80 bg-white p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
           <p className="font-mono text-3xl font-semibold text-pulse-600">
             {stats ? Math.round(stats.averagePercentage) : 0}%
           </p>
           <p className="mt-1 text-xs text-ink-400">Average score</p>
         </Card>
-        <Card className="p-5 text-center">
+        <Card className="rounded-2xl border border-ink-100/80 bg-white p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
           <p className="font-mono text-3xl font-semibold text-flag-500">
             {stats ? Math.round(stats.bestPercentage) : 0}%
           </p>
           <p className="mt-1 text-xs text-ink-400">Best score</p>
         </Card>
         {certificatesEnabled && (
-          <Card className="p-5 text-center">
+          <Card className="rounded-2xl border border-ink-100/80 bg-white p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
             <p className="font-mono text-3xl font-semibold text-ink-800">{stats?.certificatesEarned ?? 0}</p>
             <p className="mt-1 text-xs text-ink-400">Certificates</p>
           </Card>
@@ -622,7 +633,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <div id="my-content" className="mt-10 scroll-mt-6 flex gap-2 border-b border-ink-100">
+      <div id="my-content" role="tablist" aria-label="Your content" className="mt-10 scroll-mt-6 flex gap-2 rounded-t-2xl border-b border-ink-100 bg-white/70 px-2 pt-2 sm:mt-12">
         <button
           type="button"
           onClick={() => setActiveTab('quizzes')}
@@ -659,9 +670,6 @@ export default function DashboardPage() {
             </Link>
             <Link href="/quizzes/new"><Button size="sm">+ New quiz</Button></Link>
           </div>
-          <p className="mt-3 text-xs text-ink-400">
-            Share copies a full message (title, mode, category, difficulty, price, time, questions, trials, and link). Use Copy link when you only need the URL.
-          </p>
         <div className="mt-4 space-y-3">
           {deleteError && (
             <p className="rounded-md border border-critical-200 bg-critical-50 px-4 py-3 text-sm text-critical-600">
@@ -669,30 +677,12 @@ export default function DashboardPage() {
             </p>
           )}
           {paginatedQuizzes.map((quiz) => (
-            <Card
-              key={quiz.id}
-              className="flex flex-wrap items-start justify-between gap-3 border border-transparent p-4 transition hover:border-ink-200 hover:shadow-md"
-            >
+            <Card key={quiz.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium text-ink-800">{quiz.title}</p>
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                      quiz.visibility === 'public'
-                        ? 'bg-pulse-100 text-pulse-700'
-                        : quiz.visibility === 'guest'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-ink-100 text-ink-600'
-                    }`}
-                  >
-                    {quiz.visibility === 'public' ? 'Public' : quiz.visibility === 'guest' ? 'Guest' : 'Private'}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-xs text-ink-400">
-                  {quiz.mode === 'exam' ? 'CBT' : quiz.mode === 'study' ? 'Study' : 'Quiz'}
-                  {quiz.difficulty ? ` · ${quiz.difficulty.charAt(0).toUpperCase()}${quiz.difficulty.slice(1)}` : ''}
-                  {' · '}
-                  {quiz.questionCount} questions · {quiz.attemptCount} attempts
+                <p className="font-medium text-ink-800">{quiz.title}</p>
+                <p className="text-xs text-ink-400">
+                  {quiz.visibility === 'public' ? 'Public' : quiz.visibility === 'guest' ? 'Guest' : 'Private'} · {quiz.questionCount} questions ·{' '}
+                  {quiz.attemptCount} attempts
                 </p>
                 {quiz.visibility === 'private' && quiz.accessMode === 'password' && (
                   <p className="mt-1 font-mono text-xs text-ink-400">
@@ -794,28 +784,17 @@ export default function DashboardPage() {
                 <Button size="sm" variant="secondary" onClick={() => viewAttempts(quiz.id, quiz.title)}>
                   View attempts
                 </Button>
-                {(quiz.visibility === 'public' || (quiz.visibility === 'private' && quiz.shareSlug)) && (
+                {quiz.visibility === 'public' && (
                   <ShareButton
-                    url={
-                      typeof window !== 'undefined'
-                        ? quiz.visibility === 'public'
-                          ? `${window.location.origin}/quizzes/${quiz.id}`
-                          : `${window.location.origin}/quizzes/shared/${quiz.shareSlug}`
-                        : ''
-                    }
+                    url={typeof window !== 'undefined' ? `${window.location.origin}/quizzes/${quiz.id}` : ''}
                     title={quiz.title}
                     showWhatsApp={false}
                     stats={{
-                      creatorName: quiz.creatorName,
-                      creatorContact: quiz.creatorContact,
+                      questionCount: quiz.questionCount,
+                      difficulty: quiz.difficulty,
                       mode: quiz.mode,
                       pricing: quiz.pricing,
                       priceKobo: quiz.priceKobo,
-                      timeLimitSeconds: quiz.timeLimitSeconds,
-                      questionCount: quiz.questionCount,
-                      retakePolicy: quiz.retakePolicy,
-                      retakeLimit: quiz.retakeLimit,
-                      difficulty: quiz.difficulty,
                       categoryName: quiz.categoryName,
                       subcategoryName: quiz.subcategoryName,
                       attemptCount: quiz.attemptCount,
@@ -1178,6 +1157,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
