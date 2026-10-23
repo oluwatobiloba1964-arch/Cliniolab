@@ -1,11 +1,14 @@
+// FILE: src/app/api/guest/items/route.ts
 import { NextResponse } from 'next/server';
 import { featureFlagService, guestService } from '@/lib/db';
 import type { GuestItemKind } from '@/lib/db/services/guestService';
 
+const PUBLIC_CACHE = 'public, max-age=30, s-maxage=30, stale-while-revalidate=120';
+
 /** Public list of Guest Practice items (homepage carousel and /guest hub). */
 export async function GET(request: Request) {
   if (!(await featureFlagService.isFeatureEnabled('guest_practice'))) {
-    return NextResponse.json({ enabled: false, items: [], total: 0 });
+    return NextResponse.json({ enabled: false, items: [], total: 0 }, { headers: { 'Cache-Control': PUBLIC_CACHE } });
   }
   const flashcardsOn = await featureFlagService.isFeatureEnabled('flashcards');
 
@@ -17,7 +20,7 @@ export async function GET(request: Request) {
     kindParam === 'quiz' || kindParam === 'study' || kindParam === 'flashcards' ? kindParam : undefined;
 
   if (kind === 'flashcards' && !flashcardsOn) {
-    return NextResponse.json({ enabled: true, items: [], total: 0 });
+    return NextResponse.json({ enabled: true, items: [], total: 0 }, { headers: { 'Cache-Control': PUBLIC_CACHE } });
   }
 
   const [items, total] = await Promise.all([
@@ -27,6 +30,6 @@ export async function GET(request: Request) {
   const visible = flashcardsOn ? items : items.filter((i) => i.kind !== 'flashcards');
   return NextResponse.json(
     { enabled: true, items: visible, total },
-    { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+    { headers: { 'Cache-Control': PUBLIC_CACHE } }
   );
 }
