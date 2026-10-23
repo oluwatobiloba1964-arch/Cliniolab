@@ -659,6 +659,9 @@ export default function DashboardPage() {
             </Link>
             <Link href="/quizzes/new"><Button size="sm">+ New quiz</Button></Link>
           </div>
+          <p className="mt-3 text-xs text-ink-400">
+            Share copies a full message (title, mode, category, difficulty, price, time, questions, trials, and link). Use Copy link when you only need the URL.
+          </p>
         <div className="mt-4 space-y-3">
           {deleteError && (
             <p className="rounded-md border border-critical-200 bg-critical-50 px-4 py-3 text-sm text-critical-600">
@@ -666,12 +669,30 @@ export default function DashboardPage() {
             </p>
           )}
           {paginatedQuizzes.map((quiz) => (
-            <Card key={quiz.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
+            <Card
+              key={quiz.id}
+              className="flex flex-wrap items-start justify-between gap-3 border border-transparent p-4 transition hover:border-ink-200 hover:shadow-md"
+            >
               <div className="min-w-0">
-                <p className="font-medium text-ink-800">{quiz.title}</p>
-                <p className="text-xs text-ink-400">
-                  {quiz.visibility === 'public' ? 'Public' : quiz.visibility === 'guest' ? 'Guest' : 'Private'} · {quiz.questionCount} questions ·{' '}
-                  {quiz.attemptCount} attempts
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-ink-800">{quiz.title}</p>
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      quiz.visibility === 'public'
+                        ? 'bg-pulse-100 text-pulse-700'
+                        : quiz.visibility === 'guest'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-ink-100 text-ink-600'
+                    }`}
+                  >
+                    {quiz.visibility === 'public' ? 'Public' : quiz.visibility === 'guest' ? 'Guest' : 'Private'}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-ink-400">
+                  {quiz.mode === 'exam' ? 'CBT' : quiz.mode === 'study' ? 'Study' : 'Quiz'}
+                  {quiz.difficulty ? ` · ${quiz.difficulty.charAt(0).toUpperCase()}${quiz.difficulty.slice(1)}` : ''}
+                  {' · '}
+                  {quiz.questionCount} questions · {quiz.attemptCount} attempts
                 </p>
                 {quiz.visibility === 'private' && quiz.accessMode === 'password' && (
                   <p className="mt-1 font-mono text-xs text-ink-400">
@@ -773,17 +794,28 @@ export default function DashboardPage() {
                 <Button size="sm" variant="secondary" onClick={() => viewAttempts(quiz.id, quiz.title)}>
                   View attempts
                 </Button>
-                {quiz.visibility === 'public' && (
+                {(quiz.visibility === 'public' || (quiz.visibility === 'private' && quiz.shareSlug)) && (
                   <ShareButton
-                    url={typeof window !== 'undefined' ? `${window.location.origin}/quizzes/${quiz.id}` : ''}
+                    url={
+                      typeof window !== 'undefined'
+                        ? quiz.visibility === 'public'
+                          ? `${window.location.origin}/quizzes/${quiz.id}`
+                          : `${window.location.origin}/quizzes/shared/${quiz.shareSlug}`
+                        : ''
+                    }
                     title={quiz.title}
                     showWhatsApp={false}
                     stats={{
-                      questionCount: quiz.questionCount,
-                      difficulty: quiz.difficulty,
+                      creatorName: quiz.creatorName,
+                      creatorContact: quiz.creatorContact,
                       mode: quiz.mode,
                       pricing: quiz.pricing,
                       priceKobo: quiz.priceKobo,
+                      timeLimitSeconds: quiz.timeLimitSeconds,
+                      questionCount: quiz.questionCount,
+                      retakePolicy: quiz.retakePolicy,
+                      retakeLimit: quiz.retakeLimit,
+                      difficulty: quiz.difficulty,
                       categoryName: quiz.categoryName,
                       subcategoryName: quiz.subcategoryName,
                       attemptCount: quiz.attemptCount,
