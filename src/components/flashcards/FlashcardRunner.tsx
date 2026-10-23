@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { ShortcutsHelpPanel, FLASHCARD_SHORTCUTS } from '@/components/ui/ShortcutsHelpPanel';
 import { Card } from '@/components/ui/Card';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 
@@ -105,6 +106,7 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
   const [current, setCurrent] = useState(
     initialDraft && initialDraft.current < cards.length ? initialDraft.current : 0
   );
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const [knownIds, setKnownIds] = useState<Set<string>>(new Set(initialDraft?.knownIds ?? []));
   const [reviewIds, setReviewIds] = useState<Set<string>>(new Set(initialDraft?.reviewIds ?? []));
@@ -130,6 +132,15 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
         target instanceof HTMLButtonElement ||
         target instanceof HTMLAnchorElement
       ) {
+        return;
+      }
+      if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
+        event.preventDefault();
+        setShowShortcuts((value) => !value);
+        return;
+      }
+      if (event.key === 'Escape') {
+        setShowShortcuts(false);
         return;
       }
       if (finished) return;
@@ -331,7 +342,19 @@ export function FlashcardRunner({ cards: rawCards, title, onDone, onComplete, dr
           {flipped ? '↺ Show front' : '↻ Reveal answer'}
         </Button>
       </div>
-      <p className="mt-2 text-center text-[11px] text-ink-400">Space/Enter to flip · ←/→ to navigate</p>
+      <p className="mt-2 text-center text-[11px] text-ink-400">
+        Space/Enter to flip · ←/→ to navigate ·{' '}
+        <button type="button" onClick={() => setShowShortcuts(true)} className="font-semibold text-pulse-600 hover:underline">
+          ? shortcuts
+        </button>
+      </p>
+
+      <ShortcutsHelpPanel
+        open={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+        title="Flashcard shortcuts"
+        rows={FLASHCARD_SHORTCUTS}
+      />
 
       <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:justify-between">
         <Button variant="secondary" onClick={goPrevious} disabled={current === 0}>
