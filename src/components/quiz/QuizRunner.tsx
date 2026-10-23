@@ -203,6 +203,19 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [dismissDraftBanner, setDismissDraftBanner] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [largerQuestionText, setLargerQuestionText] = useState(false);
+  const [comfortableQuestionSpacing, setComfortableQuestionSpacing] = useState(false);
+  const [reduceStudyMotion, setReduceStudyMotion] = useState(false);
+  const [attemptDurationSeconds, setAttemptDurationSeconds] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem('cliniolab_local_study_toolkit_v1') || '{}');
+      const prefs = stored.studyPreferences || {};
+      setLargerQuestionText(Boolean(prefs.largerText));
+      setComfortableQuestionSpacing(Boolean(prefs.comfortableSpacing));
+      setReduceStudyMotion(Boolean(prefs.reduceMotion));
+    } catch { /* Optional local preferences must never block a quiz. */ }
+  }, []);
   const [eliminatedOptions, setEliminatedOptions] = useState<Record<string, string[]>>({});
   useEffect(() => { document.body.classList.toggle('focus-session', focusMode); return () => document.body.classList.remove('focus-session'); }, [focusMode]);
   const [resultFilter, setResultFilter] = useState<'all' | 'correct' | 'incorrect' | 'marked' | 'skipped'>('all');
@@ -507,6 +520,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     setError(null);
     try {
       const timeTakenSeconds = Math.round((Date.now() - startedAt) / 1000);
+      setAttemptDurationSeconds(timeTakenSeconds);
       const submission = {
         questionIds: questions.map((q) => q.id),
         answers: Object.entries(answersRef.current).map(([questionId, submittedAnswer]) => ({
@@ -726,7 +740,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               </div>
             </div>
 
-            <div className="mt-7 grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="mt-7 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
               <div className="rounded-2xl border border-pulse-100 bg-white/90 p-3.5 text-center shadow-sm backdrop-blur-sm">
                 <p className="font-mono text-2xl font-semibold text-pulse-600">{correctCount}</p>
                 <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Correct</p>
@@ -738,6 +752,10 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               <div className="rounded-2xl border border-ink-100 bg-white/90 p-3.5 text-center shadow-sm backdrop-blur-sm">
                 <p className="font-mono text-2xl font-semibold text-ink-800">{result.totalQuestions}</p>
                 <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Questions</p>
+              </div>
+              <div className="rounded-2xl border border-ink-100 bg-white/90 p-3.5 text-center shadow-sm backdrop-blur-sm">
+                <p className="font-mono text-2xl font-semibold text-ink-800">{attemptDurationSeconds === null ? 'N/A' : `${Math.floor(attemptDurationSeconds / 60)}m ${attemptDurationSeconds % 60}s`}</p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Time spent</p>
               </div>
             </div>
 
@@ -780,6 +798,15 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           </div>
 
           <div className="p-6 sm:p-8">
+          <div className={`mb-5 rounded-xl border p-4 ${incorrectCount > 0 ? 'border-amber-200 bg-amber-50/70' : 'border-pulse-100 bg-pulse-50/60'}`} aria-live="polite">
+            <p className={`text-xs font-semibold uppercase tracking-wide ${incorrectCount > 0 ? 'text-amber-800' : 'text-pulse-700'}`}>Recommended next step</p>
+            <p className="mt-1 text-sm font-semibold text-ink-800">{incorrectCount > 0 ? `Review ${incorrectCount} question${incorrectCount === 1 ? '' : 's'} you missed, then retest your recall.` : 'You answered every question correctly. Reinforce recall with a short flashcard session.'}</p>
+            <p className="mt-1 text-xs leading-5 text-ink-600">Use the filters below to review the exact questions. Where supported, you can also turn questions into flashcards without creating new content.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {incorrectCount > 0 && <button type="button" onClick={() => setResultFilter('incorrect')} className="min-h-10 rounded-lg bg-amber-700 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800">Review incorrect answers</button>}
+              <button type="button" onClick={() => setFlashcardMode(incorrectCount > 0 ? 'missed' : 'all')} className="min-h-10 rounded-lg border border-pulse-200 bg-white px-3 py-2 text-xs font-semibold text-pulse-700 hover:bg-pulse-50">{incorrectCount > 0 ? 'Practise missed questions as flashcards' : 'Practise with flashcards'}</button>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-100 bg-ink-50/60 px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-ink-800">Review your answers</p>
@@ -1090,11 +1117,12 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   }
 
   return (
-    <div className={`${focusMode ? 'quiz-focus-mode' : ''} mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12`}>
-      <div className="mb-3 flex items-center justify-end">
-        <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">
-          {focusMode ? 'Exit focus mode' : 'Focus mode'}
-        </button>
+    <div className={`${focusMode ? 'quiz-focus-mode' : ''} ${reduceStudyMotion ? 'cliniolab-reduce-motion' : ''} mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12`}>
+      {reduceStudyMotion && <style>{`.cliniolab-reduce-motion *, .cliniolab-reduce-motion *::before, .cliniolab-reduce-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }`}</style>}
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+        <button type="button" onClick={() => setLargerQuestionText((value) => !value)} aria-pressed={largerQuestionText} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">{largerQuestionText ? 'Standard text' : 'Larger text'}</button>
+        <button type="button" onClick={() => setComfortableQuestionSpacing((value) => !value)} aria-pressed={comfortableQuestionSpacing} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">{comfortableQuestionSpacing ? 'Standard spacing' : 'More spacing'}</button>
+        <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">{focusMode ? 'Exit focus mode' : 'Focus mode'}</button>
       </div>
       {draftsEnabled && initialDraft && !dismissDraftBanner && !result && (
         <div className="mb-4 rounded-xl border border-pulse-200 bg-pulse-50 px-4 py-3 text-sm text-ink-700 shadow-sm" role="status">
@@ -1173,7 +1201,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         onContextMenu={isFirstAttempt ? blockCopy : undefined}
       >
         <h2
-          className={`font-display text-lg font-medium text-ink-800 ${isFirstAttempt ? 'select-none' : ''}`}
+          className={`font-display ${largerQuestionText ? 'text-xl sm:text-2xl' : 'text-lg'} ${comfortableQuestionSpacing ? 'leading-8 tracking-[0.01em]' : 'leading-normal'} font-medium text-ink-800 ${isFirstAttempt ? 'select-none' : ''}`}
         >
           {question.prompt}
         </h2>
