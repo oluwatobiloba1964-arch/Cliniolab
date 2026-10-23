@@ -1,4 +1,3 @@
-// File: src/components/quiz/StudyModeRunner.tsx
 /*
  * CHANGE SUMMARY (StudyModeRunner.tsx -- Study Mode screen)
  * - Focus mode toggle (hides bottom nav / command trigger while studying).
@@ -22,6 +21,7 @@
  * Reviewed: balanced braces, no new em-dash regressions. Approved with the fix.
  */
 'use client';
+// File: src/components/quiz/StudyModeRunner.tsx
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -430,6 +430,10 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         return answeredIds.has(q.id) && !isRight;
       });
 
+    const summaryPct = Math.round(percentage);
+    const summaryTone =
+      summaryPct >= 80 ? 'Strong study pass' : summaryPct >= 60 ? 'Solid progress' : 'Keep revising';
+
     return (
       <div className={`mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-16 ${focusMode ? 'study-focus-mode' : ''}`}>
         <div className="mb-3 flex justify-end">
@@ -437,19 +441,53 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
             {focusMode ? 'Exit focus mode' : 'Focus mode'}
           </button>
         </div>
-        <Card className="p-8 text-center">
-          <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Study Session Results</p>
-          <p className="mt-4 font-display text-5xl font-semibold text-ink-800">
-            {Math.round(percentage)}%
-          </p>
-          <p className="mt-2 text-ink-500">
-            {correctCount} / {answeredCount} answered correctly
-            {answeredCount < questions.length &&
-              ` · ${questions.length - answeredCount} question${questions.length - answeredCount === 1 ? '' : 's'} unanswered`}
-          </p>
-          <p className="mt-3 text-xs text-ink-400">
-            This is a personal recap of your study session, not an official exam result.
-          </p>
+        <Card className="overflow-hidden p-0 text-center">
+          <div className="relative overflow-hidden bg-gradient-to-br from-pulse-50 via-white to-flag-50/40 px-6 py-8 sm:px-8 sm:py-10">
+            <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-pulse-200/30 blur-3xl" />
+            <p className="relative font-mono text-xs uppercase tracking-widest text-pulse-600">Study session complete</p>
+            <p className="relative mt-1 line-clamp-2 text-sm font-medium text-ink-500">{quiz.title}</p>
+            <h2 className="relative mt-2 font-display text-xl font-semibold text-ink-900 sm:text-2xl">{summaryTone}</h2>
+            <div
+              className={`relative mx-auto mt-6 grid h-32 w-32 place-items-center rounded-full ${
+                summaryPct >= 80 ? 'text-pulse-500' : summaryPct >= 60 ? 'text-flag-500' : 'text-critical-400'
+              }`}
+              style={{
+                background: `conic-gradient(currentColor ${summaryPct}%, #e8eef1 ${summaryPct}% 100%)`,
+                boxShadow: '0 0 0 8px rgba(255,255,255,0.9), 0 12px 28px rgba(15,37,49,0.08)',
+              }}
+              aria-label={`Study accuracy ${summaryPct} percent`}
+            >
+              <div className="grid h-24 w-24 place-items-center rounded-full bg-white">
+                <div>
+                  <p className="font-mono text-3xl font-semibold text-ink-900">{summaryPct}%</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">accuracy</p>
+                </div>
+              </div>
+            </div>
+            <div className="relative mt-6 grid grid-cols-3 gap-2">
+              <div className="rounded-2xl border border-pulse-100 bg-white/90 p-3 shadow-sm">
+                <p className="font-mono text-xl font-semibold text-pulse-600">{correctCount}</p>
+                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Correct</p>
+              </div>
+              <div className="rounded-2xl border border-critical-100 bg-white/90 p-3 shadow-sm">
+                <p className="font-mono text-xl font-semibold text-critical-600">{Math.max(0, answeredCount - correctCount)}</p>
+                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Missed</p>
+              </div>
+              <div className="rounded-2xl border border-ink-100 bg-white/90 p-3 shadow-sm">
+                <p className="font-mono text-xl font-semibold text-ink-800">{questions.length}</p>
+                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Total</p>
+              </div>
+            </div>
+            <p className="relative mt-4 text-sm text-ink-500">
+              {correctCount} / {answeredCount} answered correctly
+              {answeredCount < questions.length &&
+                ` · ${questions.length - answeredCount} question${questions.length - answeredCount === 1 ? '' : 's'} unanswered`}
+            </p>
+            <p className="relative mt-2 text-xs text-ink-400">
+              Personal study recap only. This is not an official exam result.
+            </p>
+          </div>
+          <div className="p-6 sm:p-8">
           {(confidenceSummary.sureCount + confidenceSummary.guessingCount) > 0 && (
             <div className="mt-5 grid gap-3 text-left sm:grid-cols-2">
               <div className="rounded-lg border border-ink-100 p-3">
@@ -481,10 +519,10 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
                   key={f}
                   type="button"
                   onClick={() => setSummaryFilter(f)}
-                  className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
                     summaryFilter === f
-                      ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
-                      : 'border-ink-100 text-ink-500 hover:bg-ink-50'
+                      ? 'border-pulse-500 bg-pulse-500 text-white shadow-sm shadow-pulse-500/25'
+                      : 'border-ink-200 bg-white text-ink-500 hover:border-pulse-300 hover:text-pulse-700'
                   }`}
                 >
                   {f === 'all' ? 'All' : f === 'correct' ? 'Correct' : 'Incorrect'} ({count})
@@ -545,6 +583,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
             )}
             <Button onClick={finishStudying}>Done</Button>
           </div>
+          </div>
         </Card>
       </div>
     );
@@ -564,8 +603,14 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
       </div>
       <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
-          <span className="font-semibold text-ink-700">Question {current + 1} <span className="font-normal text-ink-400">of {questions.length}</span></span>
-          <span className="rounded-full bg-pulse-50 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-pulse-700">Study mode</span>
+          <div>
+            <span className="font-semibold text-ink-800">Question {current + 1}</span>
+            <span className="font-normal text-ink-400"> of {questions.length}</span>
+            <p className="mt-0.5 line-clamp-1 text-xs text-ink-400">{quiz.title}</p>
+          </div>
+          <span className="rounded-full bg-pulse-50 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-pulse-700 ring-1 ring-pulse-100">
+            Study mode
+          </span>
         </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(((current + 1) / questions.length) * 100)}>
           <div className="h-full rounded-full bg-gradient-to-r from-pulse-400 to-pulse-600 transition-all duration-300" style={{ width: `${((current + 1) / questions.length) * 100}%` }} />
@@ -642,15 +687,15 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
             question.options?.map((opt) => {
               const isSelected = selectedAnswer === opt.id;
               const isThisCorrect = opt.id === question.correctAnswer;
-              let stateClass = 'border-ink-100 text-ink-700 hover:bg-ink-50';
-              if (revealed && isThisCorrect) stateClass = 'border-pulse-400 bg-pulse-50 text-pulse-700';
-              else if (revealed && isSelected && !isThisCorrect) stateClass = 'border-critical-400 bg-critical-50 text-critical-600';
+              let stateClass = 'border-ink-100 bg-white text-ink-700 shadow-sm hover:border-pulse-200 hover:bg-pulse-50/40';
+              if (revealed && isThisCorrect) stateClass = 'border-pulse-400 bg-pulse-50 font-medium text-pulse-800 shadow-sm';
+              else if (revealed && isSelected && !isThisCorrect) stateClass = 'border-critical-400 bg-critical-50 font-medium text-critical-700 shadow-sm';
               return (
                 <button
                   key={opt.id}
                   onClick={() => selectAnswer(opt.id)}
                   disabled={revealed}
-                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors disabled:cursor-default ${stateClass}`}
+                  className={`w-full rounded-xl border px-4 py-3.5 text-left text-sm transition-all disabled:cursor-default ${stateClass}`}
                 >
                   {opt.text}
                 </button>
@@ -661,15 +706,15 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
             ['True', 'False'].map((label) => {
               const isSelected = selectedAnswer === label;
               const isThisCorrect = label === question.correctAnswer;
-              let stateClass = 'border-ink-100 text-ink-700 hover:bg-ink-50';
-              if (revealed && isThisCorrect) stateClass = 'border-pulse-400 bg-pulse-50 text-pulse-700';
-              else if (revealed && isSelected && !isThisCorrect) stateClass = 'border-critical-400 bg-critical-50 text-critical-600';
+              let stateClass = 'border-ink-100 bg-white text-ink-700 shadow-sm hover:border-pulse-200 hover:bg-pulse-50/40';
+              if (revealed && isThisCorrect) stateClass = 'border-pulse-400 bg-pulse-50 font-medium text-pulse-800 shadow-sm';
+              else if (revealed && isSelected && !isThisCorrect) stateClass = 'border-critical-400 bg-critical-50 font-medium text-critical-700 shadow-sm';
               return (
                 <button
                   key={label}
                   onClick={() => selectAnswer(label)}
                   disabled={revealed}
-                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors disabled:cursor-default ${stateClass}`}
+                  className={`w-full rounded-xl border px-4 py-3.5 text-left text-sm transition-all disabled:cursor-default ${stateClass}`}
                 >
                   {label}
                 </button>
@@ -689,8 +734,17 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         {revealed && (
           <div className={`relative mt-4 overflow-hidden rounded-md border p-4 ${isCorrect ? 'border-pulse-200 bg-pulse-50' : 'border-critical-200 bg-critical-50'}`}>
             <CorrectPulse active={showCorrectPulse && isCorrect} />
-            <p className="text-sm font-medium text-ink-700">
-              {isCorrect ? 'Correct!' : `Correct answer: ${correctAnswerDisplay}`}
+            <div className="relative z-[1] flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  isCorrect ? 'bg-pulse-100 text-pulse-800' : 'bg-critical-100 text-critical-800'
+                }`}
+              >
+                {isCorrect ? 'Correct' : 'Not quite'}
+              </span>
+            </div>
+            <p className="relative z-[1] mt-2 text-sm font-semibold text-ink-800">
+              {isCorrect ? 'Well done. That matches the key point.' : `Correct answer: ${correctAnswerDisplay}`}
             </p>
             {question.explanation && (
               <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600">
