@@ -30,6 +30,7 @@ import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
 import { QuizStudyToolkit } from '@/components/quiz/QuizStudyToolkit';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
 import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
+import { ShortcutsHelpPanel, QUIZ_SHORTCUTS } from '@/components/ui/ShortcutsHelpPanel';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { ATTEMPTED_QUIZZES_KEY, COPIED_EXPLANATIONS_KEY, makeId, readJson, writeJson } from '@/lib/services/localExtrasService';
 import type { AttemptResult, Quiz, QuizQuestion } from '@/types';
@@ -200,6 +201,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   const [result, setResult] = useState<AttemptResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [dismissDraftBanner, setDismissDraftBanner] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [eliminatedOptions, setEliminatedOptions] = useState<Record<string, string[]>>({});
   useEffect(() => { document.body.classList.toggle('focus-session', focusMode); return () => document.body.classList.remove('focus-session'); }, [focusMode]);
@@ -398,6 +401,17 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
       if (event.key.toLowerCase() === 'm') {
         event.preventDefault();
         toggleMarkForReview(question.id);
+        return;
+      }
+
+      if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
+        event.preventDefault();
+        setShowShortcuts((value) => !value);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        setShowShortcuts(false);
       }
     }
 
@@ -669,7 +683,16 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         : { label: 'Focused set', detail: 'Short enough for targeted revision.' };
 
     return (
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="quiz-results-print mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 shadow-sm hover:border-pulse-300 hover:text-pulse-700"
+          >
+            Print results
+          </button>
+        </div>
         <Card className="overflow-hidden p-0">
           <div className="bg-gradient-to-br from-pulse-50 via-white to-ink-50 p-6 sm:p-8">
             <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -1039,6 +1062,26 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           {focusMode ? 'Exit focus mode' : 'Focus mode'}
         </button>
       </div>
+      {draftsEnabled && initialDraft && !dismissDraftBanner && !result && (
+        <div className="mb-4 rounded-xl border border-pulse-200 bg-pulse-50 px-4 py-3 text-sm text-ink-700 shadow-sm" role="status">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-ink-800">Unfinished attempt on this device</p>
+              <p className="mt-1 text-xs text-ink-500">
+                Your previous answers were restored from local draft storage. Continue or dismiss this notice.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDismissDraftBanner(true)}
+              className="shrink-0 rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-semibold text-ink-600 hover:border-pulse-300 hover:text-pulse-700"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="sticky top-16 z-20 -mx-4 border-b border-ink-100 bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
         <div className="flex items-start justify-between gap-3 text-sm text-ink-500">
           <div className="min-w-0 flex-1">
@@ -1259,6 +1302,17 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         </div>
       )}
 
+      <div className="mb-3 flex justify-end print:hidden">
+        <button
+          type="button"
+          onClick={() => setShowShortcuts(true)}
+          className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700"
+          aria-label="Keyboard shortcuts"
+        >
+          ? Shortcuts
+        </button>
+      </div>
+
       <QuestionNavigator
         total={questions.length}
         current={current}
@@ -1272,6 +1326,13 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
       />
 
       <QuizStudyToolkit quizId={quiz.id} quizTitle={quiz.title} />
+
+      <ShortcutsHelpPanel
+        open={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+        title="Quiz and exam shortcuts"
+        rows={QUIZ_SHORTCUTS}
+      />
 
       {copyBlockedNotice && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-ink-900 px-4 py-2.5 text-sm text-white shadow-lg">
