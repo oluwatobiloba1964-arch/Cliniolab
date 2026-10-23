@@ -206,7 +206,7 @@ export function LeaderboardList({
                 </p>
                 <p className="mt-1 font-mono text-xs font-semibold text-pulse-700 sm:text-sm">{primary}</p>
                 <p className="mt-0.5 text-[10px] text-ink-400">
-                  {entry.attemptCount} attempt{entry.attemptCount === 1 ? '' : 's'}
+                  {entry.quizzesTaken} {entry.quizzesTaken === 1 ? 'quiz' : 'quizzes'}
                 </p>
               </div>
             );
@@ -259,7 +259,7 @@ export function LeaderboardList({
                     )}
                   </div>
                   <p className="mt-0.5 text-[11px] text-ink-400">
-                    {entry.attemptCount} attempt{entry.attemptCount === 1 ? '' : 's'}
+                    {entry.quizzesTaken} {entry.quizzesTaken === 1 ? 'quiz' : 'quizzes'}
                   </p>
                   <div className="mt-1.5 h-1 max-w-[10rem] overflow-hidden rounded-full bg-ink-100 sm:max-w-[14rem]">
                     <div
