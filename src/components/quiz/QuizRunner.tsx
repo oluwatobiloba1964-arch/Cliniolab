@@ -1,4 +1,3 @@
-// File: src/components/quiz/QuizRunner.tsx
 /*
  * CHANGE SUMMARY (QuizRunner.tsx -- live quiz/exam taking screen)
  * - Richer timer: color-coded urgency ring (teal -> amber -> red) with percentage
@@ -694,39 +693,51 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           </button>
         </div>
         <Card className="overflow-hidden p-0">
-          <div className="bg-gradient-to-br from-pulse-50 via-white to-ink-50 p-6 sm:p-8">
+          <div className="relative overflow-hidden bg-gradient-to-br from-pulse-50 via-white to-flag-50/40 p-6 sm:p-9">
             <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-center sm:text-left">
-                <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">Quiz complete</p>
+                <p className="font-mono text-xs uppercase tracking-widest text-pulse-600">
+                  {quiz.mode === 'exam' ? 'Exam complete' : 'Quiz complete'}
+                </p>
+                <p className="mt-1 line-clamp-2 text-sm font-medium text-ink-500">{quiz.title}</p>
                 <h2 className="mt-2 font-display text-2xl font-semibold text-ink-900 sm:text-3xl">{resultTone}</h2>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-ink-500">{resultMessage}</p>
               </div>
               <div
-                className="relative grid h-32 w-32 shrink-0 place-items-center rounded-full text-pulse-500"
-                style={{ background: `conic-gradient(currentColor ${roundedPercentage}%, #e5e7eb ${roundedPercentage}% 100%)` }}
+                className={`relative grid h-36 w-36 shrink-0 place-items-center rounded-full ${
+                  roundedPercentage >= 80
+                    ? 'text-pulse-500'
+                    : roundedPercentage >= 60
+                      ? 'text-flag-500'
+                      : 'text-critical-400'
+                }`}
+                style={{
+                  background: `conic-gradient(currentColor ${roundedPercentage}%, #e8eef1 ${roundedPercentage}% 100%)`,
+                  boxShadow: '0 0 0 8px rgba(255,255,255,0.9), 0 12px 28px rgba(15,37,49,0.08)',
+                }}
                 aria-label={`Score ${roundedPercentage} percent`}
               >
-                <div className="grid h-24 w-24 place-items-center rounded-full bg-white shadow-sm">
+                <div className="grid h-28 w-28 place-items-center rounded-full bg-white shadow-inner">
                   <div className="text-center">
-                    <p className="font-mono text-3xl font-semibold text-ink-900">{roundedPercentage}%</p>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">score</p>
+                    <p className="font-mono text-3xl font-semibold tracking-tight text-ink-900 sm:text-4xl">{roundedPercentage}%</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">score</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-xl border border-pulse-100 bg-white p-3 text-center shadow-sm">
-                <p className="font-mono text-xl font-semibold text-pulse-600">{correctCount}</p>
-                <p className="mt-1 text-[11px] font-medium text-ink-400">Correct</p>
+            <div className="mt-7 grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-2xl border border-pulse-100 bg-white/90 p-3.5 text-center shadow-sm backdrop-blur-sm">
+                <p className="font-mono text-2xl font-semibold text-pulse-600">{correctCount}</p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Correct</p>
               </div>
-              <div className="rounded-xl border border-critical-100 bg-white p-3 text-center shadow-sm">
-                <p className="font-mono text-xl font-semibold text-critical-600">{incorrectCount}</p>
-                <p className="mt-1 text-[11px] font-medium text-ink-400">To review</p>
+              <div className="rounded-2xl border border-critical-100 bg-white/90 p-3.5 text-center shadow-sm backdrop-blur-sm">
+                <p className="font-mono text-2xl font-semibold text-critical-600">{incorrectCount}</p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">To review</p>
               </div>
-              <div className="rounded-xl border border-ink-100 bg-white p-3 text-center shadow-sm">
-                <p className="font-mono text-xl font-semibold text-ink-800">{result.totalQuestions}</p>
-                <p className="mt-1 text-[11px] font-medium text-ink-400">Questions</p>
+              <div className="rounded-2xl border border-ink-100 bg-white/90 p-3.5 text-center shadow-sm backdrop-blur-sm">
+                <p className="font-mono text-2xl font-semibold text-ink-800">{result.totalQuestions}</p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Questions</p>
               </div>
             </div>
 
@@ -811,10 +822,10 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                   key={f}
                   type="button"
                   onClick={() => setResultFilter(f)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
                     resultFilter === f
-                      ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
-                      : 'border-ink-100 text-ink-500 hover:bg-ink-50'
+                      ? 'border-pulse-500 bg-pulse-500 text-white shadow-sm shadow-pulse-500/25'
+                      : 'border-ink-200 bg-white text-ink-500 hover:border-pulse-300 hover:text-pulse-700'
                   }`}
                 >
                   {f === 'all' ? 'All' : f === 'correct' ? 'Correct' : f === 'incorrect' ? 'Incorrect' : f === 'marked' ? 'Marked' : 'Skipped'} ({count})
@@ -837,11 +848,34 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               const submittedText = resolve(pq.submittedAnswer);
               const correctText = resolve(pq.correctAnswer);
               return (
-              <div key={pq.questionId} className="rounded-md border border-ink-100 bg-white p-4">
+              <div
+                key={pq.questionId}
+                className={`rounded-xl border bg-white p-4 shadow-sm sm:p-5 ${
+                  pq.isCorrect
+                    ? 'border-pulse-100 border-l-4 border-l-pulse-500'
+                    : 'border-critical-100 border-l-4 border-l-critical-400'
+                }`}
+              >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-medium text-ink-700">{i + 1}. {pq.prompt}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-ink-50 px-2 py-0.5 font-mono text-[10px] font-bold text-ink-500">
+                        Q{i + 1}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          pq.isCorrect
+                            ? 'bg-pulse-50 text-pulse-700'
+                            : 'bg-critical-50 text-critical-700'
+                        }`}
+                      >
+                        {pq.isCorrect ? 'Correct' : 'Review'}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium leading-6 text-ink-800">{pq.prompt}</p>
+                  </div>
                   {result.showMarks && (
-                    <span className="shrink-0 text-xs font-medium text-ink-400">
+                    <span className="shrink-0 rounded-lg bg-ink-50 px-2 py-1 text-xs font-semibold text-ink-500">
                       {pq.isCorrect ? pq.mark : 0} / {pq.mark} mark{pq.mark === 1 ? '' : 's'}
                     </span>
                   )}
@@ -860,12 +894,12 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                       return (
                         <li
                           key={opt.id}
-                          className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
                             isCorrectOpt
-                              ? 'border-pulse-300 bg-pulse-50 text-pulse-700'
+                              ? 'border-pulse-300 bg-pulse-50 font-medium text-pulse-800'
                               : isSubmittedOpt
-                                ? 'border-critical-300 bg-critical-50 text-critical-700'
-                                : 'border-ink-100 text-ink-600'
+                                ? 'border-critical-300 bg-critical-50 font-medium text-critical-700'
+                                : 'border-ink-100 bg-white text-ink-600'
                           }`}
                         >
                           <span>{opt.text}</span>
