@@ -1,3 +1,4 @@
+// FILE: src/components/layout/ClientUXEnhancements.tsx
 'use client';
 // File: src/components/layout/ClientUXEnhancements.tsx
 
@@ -75,14 +76,31 @@ export function ClientUXEnhancements() {
     };
     const onOnline = () => probeConnectivity();
     const onOffline = () => setOffline(true);
-    const resync = () => probeConnectivity();
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') resync();
+    const resync = () => {
+      if (document.visibilityState === 'visible') void probeConnectivity();
     };
-    // Fallback poll in case none of the above events fire for a while -
-    // this is what actually makes the pill disappear once you're back
-    // online even if the browser never sends an 'online' event.
-    const pollId = window.setInterval(resync, 15000);
+    let pollId: number | null = null;
+    const startPolling = () => {
+      if (pollId !== null || document.visibilityState !== 'visible') return;
+      pollId = window.setInterval(resync, 60_000);
+    };
+    const stopPolling = () => {
+      if (pollId !== null) {
+        window.clearInterval(pollId);
+        pollId = null;
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void resync();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+    // Connectivity checks are local static-asset probes, not API reads. Run
+    // them once per minute while visible and stop entirely in background tabs.
+    startPolling();
     const onBeforeInstall = (event: Event) => { event.preventDefault(); setInstallEvent(event); };
     setReadingPage(window.location.pathname.startsWith('/blog/'));
     try {
@@ -116,7 +134,7 @@ export function ClientUXEnhancements() {
       window.removeEventListener('focus', resync);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.clearInterval(pollId);
+      stopPolling();
     };
   }, []);
 
