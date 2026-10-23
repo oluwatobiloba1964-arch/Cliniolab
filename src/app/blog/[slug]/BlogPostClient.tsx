@@ -22,6 +22,7 @@ import { useBlogSubcategoryName } from '@/lib/hooks/useBlogSubcategoryName';
 import { useBlogCategorySlug } from '@/lib/hooks/useBlogCategorySlug';
 import { ArticleDisplayToggle } from '@/components/blog/ArticleDisplayToggle';
 import type { BlogPost } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 const FALLBACK_COVERS: Record<'job' | 'scholarship' | 'default', string> = {
   job: '/job-fallback.svg',
@@ -136,27 +137,16 @@ export function BlogPostClient({ slug }: { slug: string }) {
     setLoadError(false);
     setPost(null);
 
-    fetch(`/api/blog/${slug}`)
-      .then((res) => {
-        if (cancelled) return null;
-        if (!res.ok) {
-          setNotFound(true);
-          return null;
-        }
-        return res.json();
-      })
+    publicFetchJson<{ post?: BlogPost }>(`/api/blog/${encodeURIComponent(slug)}`, 60_000)
       .then((data) => {
         if (cancelled) return;
-        if (data?.post) {
-          setPost(data.post);
-        } else if (data) {
-          // Response was ok but the payload didn't include a post — treat
-          // as not-found rather than silently showing a blank page.
-          setNotFound(true);
-        }
+        if (data?.post) setPost(data.post);
+        else setNotFound(true);
       })
-      .catch(() => {
-        if (!cancelled) setLoadError(true);
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (error instanceof Error && error.message.includes('404')) setNotFound(true);
+        else setLoadError(true);
       });
 
     return () => {
