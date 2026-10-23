@@ -1,3 +1,4 @@
+// FILE: src/app/blog/category/[category]/page.tsx
 'use client';
 
 import { PageTools } from '@/components/layout/PageTools';
@@ -5,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { BlogPostCard } from '@/components/cms/BlogPostCard';
 import type { BlogPost } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
 interface BlogSubcategoryOption { id: string; blogCategoryId: string; name: string; slug: string; sortOrder: number }
@@ -24,37 +26,49 @@ export default function BlogCategoryPage() {
   // category's subcategories so the nav bar is available immediately —
   // it doesn't depend on which subcategory (if any) ends up selected.
   useEffect(() => {
-    fetch('/api/blog-categories')
-      .then((res) => res.json())
+    let cancelled = false;
+    setCategoryId(null);
+    setCategoryName(categorySlug);
+    setSubcategories([]);
+    setActiveSubcategoryId(null);
+    publicFetchJson<{ categories?: BlogCategoryOption[] }>('/api/blog-categories', 5 * 60_000)
       .then((data) => {
-        const match = (data.categories ?? []).find((c: BlogCategoryOption) => c.slug === categorySlug);
+        if (cancelled) return;
+        const match = (data.categories ?? []).find((c) => c.slug === categorySlug);
         if (match) {
           setCategoryName(match.name);
           setCategoryId(match.id);
         }
-      });
-    setActiveSubcategoryId(null);
+      })
+      .catch(() => { if (!cancelled) setCategoryId(null); });
+    return () => { cancelled = true; };
   }, [categorySlug]);
 
   useEffect(() => {
     if (!categoryId) return;
-    fetch(`/api/blog-subcategories?categoryId=${encodeURIComponent(categoryId)}`)
-      .then((res) => res.json())
-      .then((data) => setSubcategories(data.subcategories ?? []))
-      .catch(() => setSubcategories([]));
+    let cancelled = false;
+    publicFetchJson<{ subcategories?: BlogSubcategoryOption[] }>(
+      `/api/blog-subcategories?categoryId=${encodeURIComponent(categoryId)}`,
+      5 * 60_000,
+    )
+      .then((data) => { if (!cancelled) setSubcategories(data.subcategories ?? []); })
+      .catch(() => { if (!cancelled) setSubcategories([]); });
+    return () => { cancelled = true; };
   }, [categoryId]);
 
   // Reload posts whenever the category or the active subcategory filter
   // changes. Subcategory takes precedence when set.
   useEffect(() => {
+    let cancelled = false;
     setPostsLoading(true);
     const url = activeSubcategoryId
       ? `/api/blog?subcategoryId=${encodeURIComponent(activeSubcategoryId)}`
       : `/api/blog?categorySlug=${encodeURIComponent(categorySlug)}`;
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => setPosts(data.posts ?? []))
-      .finally(() => setPostsLoading(false));
+    publicFetchJson<{ posts?: BlogPost[] }>(url, 60_000)
+      .then((data) => { if (!cancelled) setPosts(data.posts ?? []); })
+      .catch(() => { if (!cancelled) setPosts([]); })
+      .finally(() => { if (!cancelled) setPostsLoading(false); });
+    return () => { cancelled = true; };
   }, [categorySlug, activeSubcategoryId]);
 
   return (
