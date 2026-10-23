@@ -1,3 +1,4 @@
+// FILE: src/app/flashcards/FlashcardsClient.tsx
 // src/app/flashcards/FlashcardsClient.tsx
 'use client';
 
@@ -7,6 +8,7 @@ import { FlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/ui/Pagination';
 import type { FlashcardSetWithStats } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 interface FlashcardsClientProps {
   initialSets: FlashcardSetWithStats[];
@@ -75,10 +77,11 @@ export function FlashcardsClient({ initialSets, initialTotal, pageSize }: Flashc
 
     setLoading(true);
     setLoadError(null);
-    fetch(`/api/flashcards?page=${page}&pageSize=${pageSize}`)
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? 'Could not load this page of flashcards.');
+    publicFetchJson<{ sets?: FlashcardSetWithStats[]; total?: number }>(
+      `/api/flashcards?page=${page}&pageSize=${pageSize}`,
+      30_000,
+    )
+      .then((data) => {
         if (cancelled) return;
         const nextSets = Array.isArray(data.sets) ? data.sets : [];
         const nextTotal = typeof data.total === 'number' ? data.total : 0;
