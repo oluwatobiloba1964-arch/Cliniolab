@@ -1,3 +1,4 @@
+// FILE: src/app/quizzes/QuizzesClient.tsx
 /*
  * CHANGE SUMMARY (quizzes/QuizzesClient.tsx)
  * - Adds a category filter dropdown and two more sort options ("Most attempts",
@@ -13,6 +14,7 @@ import { QuizCard } from '@/components/quiz/QuizCard';
 import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/ui/Pagination';
 import type { QuizWithStats } from '@/types';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 interface QuizzesClientProps {
   initialQuizzes: QuizWithStats[];
@@ -50,14 +52,22 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
       setTotal(initialTotal);
       return;
     }
+    let cancelled = false;
     setLoading(true);
-    fetch(`/api/quizzes?page=${page}&pageSize=${pageSize}`)
-      .then((res) => res.json())
+    publicFetchJson<{ quizzes?: QuizWithStats[]; total?: number }>(
+      `/api/quizzes?page=${page}&pageSize=${pageSize}`,
+      30_000,
+    )
       .then((data) => {
-        setQuizzes(data.quizzes ?? []);
-        setTotal(data.total ?? 0);
+        if (cancelled) return;
+        setQuizzes(Array.isArray(data.quizzes) ? data.quizzes : []);
+        setTotal(typeof data.total === 'number' ? data.total : 0);
       })
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!cancelled) setQuizzes([]);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [page, pageSize, initialQuizzes, initialTotal]);
 
   // Filters only apply to the quizzes already loaded for the current page,
