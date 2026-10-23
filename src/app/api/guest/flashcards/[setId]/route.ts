@@ -1,3 +1,4 @@
+// FILE: src/app/api/guest/flashcards/[setId]/route.ts
 import { NextResponse } from 'next/server';
 import { featureFlagService, guestService } from '@/lib/db';
 
@@ -17,5 +18,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const set = await guestService.getGuestFlashcardSet(setId);
   if (!set) return NextResponse.json({ error: 'This item is not available for guests.' }, { status: 404 });
   const cards = await guestService.getGuestFlashcards(setId);
-  return NextResponse.json({ set: { ...set, creatorId: '' }, cards });
+  return NextResponse.json(
+    { set: { ...set, creatorId: '' }, cards },
+    { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+  );
 }
