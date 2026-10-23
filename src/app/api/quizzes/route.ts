@@ -1,3 +1,4 @@
+// FILE: src/app/api/quizzes/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
@@ -43,7 +44,10 @@ export async function GET(request: Request) {
       return NextResponse.json(result, { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } });
     }
     const quizzes = await quizService.listQuizzesByCategory(categoryId, limit);
-    return NextResponse.json({ quizzes });
+    return NextResponse.json(
+      { quizzes },
+      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+    );
   }
 
   // Paginated browse mode (used by the /quizzes page) — opt in via ?page=
