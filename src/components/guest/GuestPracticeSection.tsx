@@ -1,3 +1,4 @@
+// FILE: src/components/guest/GuestPracticeSection.tsx
 'use client';
 
 import Link from 'next/link';
@@ -5,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Card, DifficultyBadge } from '@/components/ui/Card';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import type { GuestItem } from '@/lib/db/services/guestService';
+import { publicFetchJson } from '@/lib/client/publicFetch';
 
 /**
  * Homepage "Guest Practice" carousel. Auto-advances on a timer and can also
@@ -24,10 +26,11 @@ export function GuestPracticeSection() {
 
   useEffect(() => {
     if (!flags.guestPractice) return;
-    fetch(`/api/guest/items?limit=${guest.homepageCount}`)
-      .then((res) => (res.ok ? res.json() : { items: [] }))
-      .then((data) => setItems(data.items ?? []))
-      .catch(() => setItems([]));
+    let cancelled = false;
+    publicFetchJson<{ items?: GuestItem[] }>(`/api/guest/items?limit=${guest.homepageCount}`, 30_000)
+      .then((data) => { if (!cancelled) setItems(data.items ?? []); })
+      .catch(() => { if (!cancelled) setItems([]); });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flags.guestPractice, guest.homepageCount]);
 
