@@ -1,3 +1,4 @@
+// FILE: src/app/api/guest/quizzes/[quizId]/route.ts
 // src/app/api/guest/quizzes/[quizId]/route.ts
 import { NextResponse } from 'next/server';
 import { featureFlagService, guestService } from '@/lib/db';
@@ -33,5 +34,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
   // Never expose share internals to anonymous visitors. creatorId stays: it is
   // public (the creator profile card and /creator/[id] page are open to all).
   const publicQuiz = { ...quiz, shareSlug: null, linkExpiresAt: null, hasPassword: false };
-  return NextResponse.json({ quiz: publicQuiz, questions: safeQuestions });
+  return NextResponse.json(
+    { quiz: publicQuiz, questions: safeQuestions },
+    { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } }
+  );
 }
