@@ -1,3 +1,4 @@
+// File: src/components/quiz/QuizForm.tsx
 /*
  * CHANGE SUMMARY (QuizForm.tsx)
  * - Local-only draft autosave/recovery for the quiz builder (localStorage, no new API)
@@ -785,18 +786,18 @@ export function QuizForm({
       <div className="mt-4 space-y-6">
         {questions.map((q, qIndex) => (
           <Card key={qIndex} className={`p-5 ${selectedQuestions.has(qIndex) ? 'ring-2 ring-critical-300' : ''}`}><div id={`quiz-question-${qIndex}`} className="scroll-mt-24" />
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 items-center gap-2">
                 <input
                   type="checkbox"
                   checked={selectedQuestions.has(qIndex)}
                   onChange={() => toggleQuestionSelected(qIndex)}
-                  className="h-4 w-4 rounded border-ink-200"
+                  className="h-4 w-4 shrink-0 rounded border-ink-200"
                   aria-label={`Select question ${qIndex + 1}`}
                 />
                 <span className="text-sm font-medium text-ink-600">Question {qIndex + 1}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-1.5 text-xs text-ink-500">
                   Mark
                   <input
@@ -809,7 +810,7 @@ export function QuizForm({
                       })
                     }
                     placeholder={String(defaultMark)}
-                    className="w-16 rounded-md border border-ink-100 px-2 py-1 text-xs focus:border-pulse-400 focus:outline-none"
+                    className="w-14 rounded-md border border-ink-100 px-2 py-1 text-xs focus:border-pulse-400 focus:outline-none sm:w-16"
                   />
                 </label>
                 <select
@@ -818,7 +819,7 @@ export function QuizForm({
                     type: e.target.value as QuestionType,
                     options: e.target.value === 'mcq' ? [{ id: crypto.randomUUID(), text: '' }, { id: crypto.randomUUID(), text: '' }] : undefined,
                   })}
-                  className="rounded-md border border-ink-100 px-2 py-1 text-xs"
+                  className="max-w-full rounded-md border border-ink-100 px-2 py-1 text-xs"
                 >
                   <option value="mcq">Multiple choice</option>
                   <option value="true_false">True / False</option>
@@ -828,7 +829,8 @@ export function QuizForm({
                   <button
                     type="button"
                     onClick={() => removeQuestion(qIndex)}
-                    className="text-xs font-medium text-critical-500 hover:text-critical-600"
+                    className="ml-auto rounded-md border border-critical-100 bg-critical-50 px-2.5 py-1 text-xs font-semibold text-critical-600 hover:bg-critical-100 sm:ml-0"
+                    aria-label={`Remove question ${qIndex + 1}`}
                   >
                     Remove
                   </button>
