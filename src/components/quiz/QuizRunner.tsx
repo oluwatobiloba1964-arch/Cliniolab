@@ -142,6 +142,23 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     draftsEnabled && typeof window !== 'undefined' ? loadDraft<ResultReviewMeta>(RESULT_META_NAMESPACE, quiz.id) : null
   ).current;
 
+  // Whether the cached draft actually belongs to THIS attempt. A length
+  // match alone isn't enough -- two different attempts at the same quiz
+  // (e.g. an abandoned run, then a fresh restart) can both have 60
+  // questions, so a length-only check would silently reuse the old
+  // attempt's answers, progress, and -- critically -- its startedAt
+  // timestamp, producing a nonsense "time spent" on what is really a
+  // brand-new attempt. Comparing the full set of question ids (order
+  // doesn't matter here, only membership) is what actually tells us the
+  // draft is a resume of this exact attempt rather than a coincidentally
+  // same-sized stale one.
+  const draftMatchesAttempt = (() => {
+    if (!initialDraft?.questionOrder?.length) return false;
+    if (initialDraft.questionOrder.length !== rawQuestions.length) return false;
+    const currentIds = new Set(rawQuestions.map((q) => q.id));
+    return initialDraft.questionOrder.every((id) => currentIds.has(id));
+  })();
+
   // Shuffle once per attempt (on mount), not on every render, so the order
   // doesn't jump around as the user answers. Option IDs are preserved so
   // grading (which matches on option id) is unaffected by display order.
@@ -156,7 +173,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
       );
     }
 
-    if (initialDraft?.questionOrder?.length === list.length) {
+    if (draftMatchesAttempt && initialDraft) {
       const byId = new Map(list.map((q) => [q.id, q]));
       const reordered = initialDraft.questionOrder
         .map((id) => byId.get(id))
@@ -166,15 +183,20 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     return list;
   });
 
-  const [current, setCurrent] = useState(initialDraft?.current ?? 0);
-  const [answers, setAnswers] = useState<Record<string, string>>(initialDraft?.answers ?? {});
-  const [startedAt] = useState(() => initialDraft?.startedAt ?? Date.now());
+  // Every other draft field below is gated behind the same
+  // draftMatchesAttempt check as the question order above, so a
+  // non-matching (stale) draft never gets to silently supply progress,
+  // answers, or -- the actual bug this fixes -- a startedAt timestamp
+  // from an unrelated earlier attempt.
+  const [current, setCurrent] = useState(draftMatchesAttempt ? initialDraft?.current ?? 0 : 0);
+  const [answers, setAnswers] = useState<Record<string, string>>(draftMatchesAttempt ? initialDraft?.answers ?? {} : {});
+  const [startedAt] = useState(() => (draftMatchesAttempt ? initialDraft?.startedAt ?? Date.now() : Date.now()));
   // Fixed point in time the attempt must end by, computed once (either
   // recovered from the draft, or freshly derived from startedAt + the
   // quiz's time limit). Never recomputed from a countdown -- see
   // AttemptDraft.deadline above for why.
   const [deadline] = useState<number | null>(() => {
-    if (initialDraft?.deadline) return initialDraft.deadline;
+    if (draftMatchesAttempt && initialDraft?.deadline) return initialDraft.deadline;
     if (!quiz.timeLimitSeconds) return null;
     return startedAt + quiz.timeLimitSeconds * 1000;
   });
@@ -232,18 +254,18 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   // correctness isn't known (or shown) until after submit.
   const [progressFilter, setProgressFilter] = useState<'all' | 'unanswered' | 'answered' | 'skipped' | 'marked'>('all');
   const [confidence, setConfidence] = useState<Record<string, 'sure' | 'guessing'>>(
-    initialDraft?.confidence ?? {}
+    draftMatchesAttempt ? initialDraft?.confidence ?? {} : {}
   );
   // Questions explicitly skipped without answering, so they can be
   // revisited or filtered separately from "answered".
-  const [skipped, setSkipped] = useState<Set<string>>(new Set(initialDraft?.skipped ?? initialResultMeta?.skipped ?? []));
+  const [skipped, setSkipped] = useState<Set<string>>(new Set((draftMatchesAttempt ? initialDraft?.skipped : undefined) ?? initialResultMeta?.skipped ?? []));
   const [flaggedQuestionIds, setFlaggedQuestionIds] = useState<Set<string>>(new Set());
   const [flaggingQuestionId, setFlaggingQuestionId] = useState<string | null>(null);
   const [flagError, setFlagError] = useState<string | null>(null);
   // "Mark for review" during the attempt (CBT-style), distinct from the
   // post-result "report this question" flag above.
   const [markedForReview, setMarkedForReview] = useState<Set<string>>(
-    new Set(initialDraft?.markedForReview ?? initialResultMeta?.markedForReview ?? [])
+    new Set((draftMatchesAttempt ? initialDraft?.markedForReview : undefined) ?? initialResultMeta?.markedForReview ?? [])
   );
 
   // Single source of truth for the results-screen review filters.
@@ -1124,7 +1146,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         <button type="button" onClick={() => setComfortableQuestionSpacing((value) => !value)} aria-pressed={comfortableQuestionSpacing} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">{comfortableQuestionSpacing ? 'Standard spacing' : 'More spacing'}</button>
         <button type="button" onClick={() => setFocusMode((value) => !value)} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">{focusMode ? 'Exit focus mode' : 'Focus mode'}</button>
       </div>
-      {draftsEnabled && initialDraft && !dismissDraftBanner && !result && (
+      {draftsEnabled && initialDraft && draftMatchesAttempt && !dismissDraftBanner && !result && (
         <div className="mb-4 rounded-xl border border-pulse-200 bg-pulse-50 px-4 py-3 text-sm text-ink-700 shadow-sm" role="status">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
