@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { BlogPostCard } from '@/components/cms/BlogPostCard';
 import type { BlogPost } from '@/types';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
 interface BlogSubcategoryOption { id: string; blogCategoryId: string; name: string; slug: string; sortOrder: number }
@@ -31,7 +31,7 @@ export default function BlogCategoryPage() {
     setCategoryName(categorySlug);
     setSubcategories([]);
     setActiveSubcategoryId(null);
-    publicFetchJson<{ categories?: BlogCategoryOption[] }>('/api/blog-categories', 5 * 60_000)
+    publicFetchJsonLocalCached<{ categories?: BlogCategoryOption[] }>('/api/blog-categories', 5 * 60_000)
       .then((data) => {
         if (cancelled) return;
         const match = (data.categories ?? []).find((c) => c.slug === categorySlug);
@@ -47,7 +47,7 @@ export default function BlogCategoryPage() {
   useEffect(() => {
     if (!categoryId) return;
     let cancelled = false;
-    publicFetchJson<{ subcategories?: BlogSubcategoryOption[] }>(
+    publicFetchJsonLocalCached<{ subcategories?: BlogSubcategoryOption[] }>(
       `/api/blog-subcategories?categoryId=${encodeURIComponent(categoryId)}`,
       5 * 60_000,
     )
@@ -64,7 +64,7 @@ export default function BlogCategoryPage() {
     const url = activeSubcategoryId
       ? `/api/blog?subcategoryId=${encodeURIComponent(activeSubcategoryId)}`
       : `/api/blog?categorySlug=${encodeURIComponent(categorySlug)}`;
-    publicFetchJson<{ posts?: BlogPost[] }>(url, 60_000)
+    publicFetchJsonLocalCached<{ posts?: BlogPost[] }>(url, PUBLIC_LIST_TTL_MS)
       .then((data) => { if (!cancelled) setPosts(data.posts ?? []); })
       .catch(() => { if (!cancelled) setPosts([]); })
       .finally(() => { if (!cancelled) setPostsLoading(false); });

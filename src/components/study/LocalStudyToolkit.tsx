@@ -1,6 +1,7 @@
 // File: src/components/study/LocalStudyToolkit.tsx
 'use client';
 
+import { LocalStudyStreakHeatmap } from '@/components/study/LocalStudyStreakHeatmap';
 import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 
@@ -122,7 +123,36 @@ export function LocalStudyToolkit() {
             {data.notes.length === 0 && <p className="mt-4 text-sm text-ink-400">Your personal study notes will appear here.</p>}
           </div>}
           {activeTab === 'timer' && <div className="mx-auto max-w-md text-center"><p className="text-sm font-semibold text-ink-700">Focus session</p><div className="my-4 font-mono text-5xl font-semibold tracking-tight text-ink-900 tabular-nums" role="timer" aria-label={`${Math.floor(secondsLeft / 60)} minutes and ${secondsLeft % 60} seconds remaining`} aria-live="off">{String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}</div><label className="inline-flex items-center gap-2 text-sm text-ink-500">Session length <select disabled={running} value={minutes} onChange={(e) => { const value = Number(e.target.value); setMinutes(value); setSecondsLeft(value * 60); }} className="rounded-md border border-ink-200 bg-white px-2 py-1.5"><option value={5}>5 min</option><option value={10}>10 min</option><option value={15}>15 min</option><option value={25}>25 min</option><option value={45}>45 min</option><option value={60}>60 min</option></select></label><div className="mt-4 flex justify-center gap-2"><button type="button" onClick={() => setRunning((value) => !value)} aria-pressed={running} disabled={secondsLeft === 0} className="rounded-lg bg-pulse-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{running ? 'Pause' : 'Start focus'}</button><button type="button" onClick={() => { setRunning(false); setSecondsLeft(minutes * 60); }} className="rounded-lg border border-ink-200 px-4 py-2 text-sm font-semibold text-ink-700">Reset</button></div><p className="mt-3 text-xs text-ink-400">Completed sessions count toward your local daily study total. Leaving this page pauses the timer.</p></div>}
-          {activeTab === 'progress' && <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-ink-50 p-4"><p className="text-xs text-ink-500">Study streak</p><p className="mt-1 text-2xl font-semibold text-ink-900">{streak} day{streak === 1 ? '' : 's'}</p></div><div className="rounded-xl bg-ink-50 p-4"><p className="text-xs text-ink-500">Total focus time</p><p className="mt-1 text-2xl font-semibold text-ink-900">{Math.floor(totalStudyMinutes / 60)}h {totalStudyMinutes % 60}m</p></div><div className="rounded-xl bg-ink-50 p-4"><p className="text-xs text-ink-500">Tasks completed today</p><p className="mt-1 text-2xl font-semibold text-ink-900">{completedTasks}</p></div><div className="rounded-xl border border-pulse-100 bg-pulse-50 p-4 sm:col-span-3"><p className="text-sm font-semibold text-pulse-800">Milestones</p><p className="mt-1 text-sm text-pulse-700">{totalStudyMinutes >= 300 ? '5-hour focus milestone unlocked.' : totalStudyMinutes >= 60 ? 'First hour of focus completed.' : 'Complete your first focus session to start building your study record.'}</p><p className="mt-1 text-xs text-pulse-700">Stored on your device. It does not sync across devices or accounts.</p></div></div>}
+          {activeTab === 'progress' && (
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl bg-ink-50 p-4">
+                  <p className="text-xs text-ink-500">Study streak</p>
+                  <p className="mt-1 text-2xl font-semibold text-ink-900">{streak} day{streak === 1 ? '' : 's'}</p>
+                </div>
+                <div className="rounded-xl bg-ink-50 p-4">
+                  <p className="text-xs text-ink-500">Total focus time</p>
+                  <p className="mt-1 text-2xl font-semibold text-ink-900">{Math.floor(totalStudyMinutes / 60)}h {totalStudyMinutes % 60}m</p>
+                </div>
+                <div className="rounded-xl bg-ink-50 p-4">
+                  <p className="text-xs text-ink-500">Tasks completed today</p>
+                  <p className="mt-1 text-2xl font-semibold text-ink-900">{completedTasks}</p>
+                </div>
+              </div>
+              <LocalStudyStreakHeatmap studyDays={data.studyDays} minutesByDay={data.minutesByDay ?? {}} />
+              <div className="rounded-xl border border-pulse-100 bg-pulse-50 p-4">
+                <p className="text-sm font-semibold text-pulse-800">Milestones</p>
+                <p className="mt-1 text-sm text-pulse-700">
+                  {totalStudyMinutes >= 300
+                    ? '5-hour focus milestone unlocked.'
+                    : totalStudyMinutes >= 60
+                      ? 'First hour of focus completed.'
+                      : 'Complete your first focus session to start building your study record.'}
+                </p>
+                <p className="mt-1 text-xs text-pulse-700">Stored on your device. It does not sync across devices or accounts.</p>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </section>

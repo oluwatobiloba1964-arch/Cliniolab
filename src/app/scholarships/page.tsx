@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { BlogPostCard } from '@/components/cms/BlogPostCard';
 import { SCHOLARSHIP_CATEGORY_SLUG } from '@/lib/constants/blogCategories';
 import type { BlogPost } from '@/types';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS, PUBLIC_CONFIG_TTL_MS } from '@/lib/client/publicFetch';
 
 export default function ScholarshipsPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -13,8 +13,8 @@ export default function ScholarshipsPage() {
 
   useEffect(() => {
     Promise.all([
-      publicFetchJson<{ enabled?: boolean }>('/api/flags/scholarships_page', 60_000),
-      publicFetchJson<{ posts?: BlogPost[] }>(`/api/blog?categorySlug=${SCHOLARSHIP_CATEGORY_SLUG}`, 60_000),
+      publicFetchJsonLocalCached<{ enabled?: boolean }>('/api/flags/scholarships_page', PUBLIC_CONFIG_TTL_MS),
+      publicFetchJsonLocalCached<{ posts?: BlogPost[] }>(`/api/blog?categorySlug=${SCHOLARSHIP_CATEGORY_SLUG}`, PUBLIC_LIST_TTL_MS),
     ])
       .then(([flag, data]) => {
         setEnabled(flag.enabled !== false);

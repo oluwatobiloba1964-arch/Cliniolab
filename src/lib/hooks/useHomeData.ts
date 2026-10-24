@@ -56,7 +56,7 @@ export function useHomeData(): HomeDataResult {
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
 
   useEffect(() => {
-    publicFetchJsonSessionCached<HomeData>('/api/homepage-data', 300_000)
+    publicFetchJsonSessionCached<HomeData>('/api/homepage-data', 5 * 60_000)
       .then(setData)
       .catch(() => setFailed(true));
 
@@ -75,7 +75,7 @@ export function useHomeData(): HomeDataResult {
         // ignore — leaderboard is a soft failure
       });
 
-    publicFetchJsonSessionCached<{ label?: string }>('/api/flags/leaderboard_general', 300_000)
+    publicFetchJsonSessionCached<{ label?: string }>('/api/flags/leaderboard_general', 15 * 60_000)
       .then((d) => {
         if (d?.label) setLeaderboardLabel(d.label);
       })

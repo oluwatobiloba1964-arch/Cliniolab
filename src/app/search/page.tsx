@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 import type { SearchResults } from '@/lib/db/services/searchService';
 
 function SearchPageContent() {
@@ -24,7 +24,7 @@ function SearchPageContent() {
 
     let cancelled = false;
     setLoading(true);
-    publicFetchJson<{ enabled: boolean; results?: SearchResults | null }>(
+    publicFetchJsonLocalCached<{ enabled: boolean; results?: SearchResults | null }>(
       `/api/search?q=${encodeURIComponent(trimmed)}`,
       30_000,
     )

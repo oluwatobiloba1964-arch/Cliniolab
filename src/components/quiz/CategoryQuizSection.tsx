@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 import { FeaturedQuizCard, CompactQuizCard } from '@/components/quiz/QuizCard';
 import type { Category, QuizWithStats } from '@/types';
 
@@ -15,7 +15,7 @@ export function CategoryQuizSection({ category, initialQuizzes }: { category: Ca
       if (initialQuizzes !== null) setQuizzes(initialQuizzes);
       return;
     }
-    publicFetchJson<{ quizzes?: QuizWithStats[] }>(`/api/quizzes?categoryId=${category.id}&limit=4`, 30_000)
+    publicFetchJsonLocalCached<{ quizzes?: QuizWithStats[] }>(`/api/quizzes?categoryId=${category.id}&limit=4`, PUBLIC_LIST_TTL_MS)
       .then((data) => setQuizzes(data.quizzes ?? []))
       .catch(() => setQuizzes([]));
   }, [category.id, initialQuizzes]);

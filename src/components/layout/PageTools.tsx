@@ -1,18 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { readPageNote, writePageNote, clearPageNote } from '@/lib/services/localUiPrefs';
 
 export function PageTools({ reading = false, focus = false }: { reading?: boolean; focus?: boolean }) {
   const [open, setOpen] = useState(false);
   const [scale, setScale] = useState(1);
   const [focused, setFocused] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [note, setNote] = useState('');
+  const [noteSaved, setNoteSaved] = useState(false);
+  const [path, setPath] = useState('');
 
   useEffect(() => {
     const saved = Number(localStorage.getItem('cliniolab-text-scale') || '1');
     const next = Number.isFinite(saved) ? Math.min(1.15, Math.max(.9, saved)) : 1;
     setScale(next);
     document.documentElement.style.setProperty('--cliniolab-text-scale', String(next));
+    const currentPath = window.location.pathname;
+    setPath(currentPath);
+    const existing = readPageNote(currentPath);
+    if (existing?.text) setNote(existing.text);
   }, []);
 
   function changeScale(next: number) {
@@ -40,6 +48,12 @@ export function PageTools({ reading = false, focus = false }: { reading?: boolea
     } catch {}
   }
 
+  function saveNote() {
+    writePageNote(path || window.location.pathname, note);
+    setNoteSaved(true);
+    window.setTimeout(() => setNoteSaved(false), 1500);
+  }
+
   if (!reading && !focus) return null;
 
   return (
@@ -62,10 +76,36 @@ export function PageTools({ reading = false, focus = false }: { reading?: boolea
               {focused ? 'Exit focus mode' : 'Focus mode'}
             </button>
           )}
-          {reading && (
-            <button type="button" className="page-tools-action" onClick={() => window.print()}>Print / save PDF</button>
-          )}
-          <button type="button" className="page-tools-action" onClick={share}>{copied ? 'Link copied' : 'Share page'}</button>
+          <button type="button" className="page-tools-action" onClick={share}>
+            {copied ? 'Link copied' : 'Share / copy link'}
+          </button>
+          <div className="page-tools-group">
+            <span className="page-tools-label">Private note (this device)</span>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 2000))}
+              rows={3}
+              placeholder="Jot a reminder about this page…"
+              className="mt-1 w-full rounded-lg border border-ink-200 bg-white px-2 py-1.5 text-xs text-ink-700 outline-none focus:border-pulse-400"
+            />
+            <div className="mt-1 flex gap-2">
+              <button type="button" className="page-tools-action" onClick={saveNote}>
+                {noteSaved ? 'Saved' : 'Save note'}
+              </button>
+              {note.trim() && (
+                <button
+                  type="button"
+                  className="page-tools-action"
+                  onClick={() => {
+                    setNote('');
+                    clearPageNote(path || window.location.pathname);
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

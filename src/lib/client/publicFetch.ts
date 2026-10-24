@@ -3,6 +3,9 @@ const MAX_PUBLIC_CACHE_ENTRIES = 100;
 const cache = new Map<string, { expiresAt: number; data: unknown }>();
 const pending = new Map<string, Promise<unknown>>();
 
+const SESSION_PREFIX = 'cliniolab:public-session-cache:';
+const LOCAL_PREFIX = 'cliniolab:public-local-cache:';
+
 function rememberPublicValue(url: string, data: unknown, ttlMs: number) {
   // Map insertion order gives us a small FIFO/LRU-like bound for long sessions.
   cache.delete(url);
@@ -76,6 +79,25 @@ export async function fetchJsonNoStore<T>(url: string): Promise<T> {
   return request;
 }
 
+function clearStorageByPrefix(storage: Storage | undefined, prefix: string, urlPrefix?: string) {
+  if (!storage) return;
+  try {
+    for (let i = storage.length - 1; i >= 0; i--) {
+      const key = storage.key(i);
+      if (!key?.startsWith(prefix)) continue;
+      const cachedUrl = key.slice(prefix.length);
+      if (!urlPrefix || cachedUrl.startsWith(urlPrefix)) storage.removeItem(key);
+    }
+  } catch {
+    // Storage is optional.
+  }
+}
+
+/**
+ * Invalidate in-memory, sessionStorage, and localStorage public caches.
+ * Call after admin content edits so the next page load hits D1 for fresh data.
+ * Pass a URL prefix (e.g. "/api/blog") to clear only matching endpoints.
+ */
 export function clearPublicFetchCache(urlPrefix?: string) {
   if (!urlPrefix) {
     cache.clear();
@@ -84,16 +106,39 @@ export function clearPublicFetchCache(urlPrefix?: string) {
       if (key.startsWith(urlPrefix)) cache.delete(key);
     }
   }
-  // Keep session-persisted public data coherent when a caller explicitly
-  // invalidates the in-memory cache after an administrative edit.
+
+  if (typeof window === 'undefined') return;
+
   try {
-    if (typeof window !== 'undefined') {
-      const prefix = 'cliniolab:public-session-cache:';
-      for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
-        const key = window.sessionStorage.key(i);
-        if (!key?.startsWith(prefix)) continue;
-        const cachedUrl = key.slice(prefix.length);
-        if (!urlPrefix || cachedUrl.startsWith(urlPrefix)) window.sessionStorage.removeItem(key);
+    clearStorageByPrefix(window.sessionStorage, SESSION_PREFIX, urlPrefix);
+    clearStorageByPrefix(window.localStorage, LOCAL_PREFIX, urlPrefix);
+    // Legacy list caches written directly by some listing pages.
+    const legacyPrefixes = [
+      'cliniolab:flashcard-list:',
+      'cliniolab:quiz-list:',
+      'cliniolab:resource-list:',
+      'cliniolab:guest-items:',
+      'cliniolab:abbreviations:',
+    ];
+    for (const leg of legacyPrefixes) {
+      for (let i = window.localStorage.length - 1; i >= 0; i--) {
+        const key = window.localStorage.key(i);
+        if (!key?.startsWith(leg)) continue;
+        if (!urlPrefix) {
+          window.localStorage.removeItem(key);
+          continue;
+        }
+        // Best-effort: clear legacy keys when any related API prefix is invalidated.
+        if (
+          (leg.includes('flashcard') && urlPrefix.includes('flashcard')) ||
+          (leg.includes('quiz') && urlPrefix.includes('quiz')) ||
+          (leg.includes('resource') && urlPrefix.includes('resource')) ||
+          (leg.includes('guest') && urlPrefix.includes('guest')) ||
+          (leg.includes('abbreviation') && urlPrefix.includes('abbreviation')) ||
+          urlPrefix === '/'
+        ) {
+          window.localStorage.removeItem(key);
+        }
       }
     }
   } catch {
@@ -101,31 +146,141 @@ export function clearPublicFetchCache(urlPrefix?: string) {
   }
 }
 
+function readStorageCache<T>(
+  storage: Storage | undefined,
+  prefix: string,
+  url: string,
+): T | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(prefix + url);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as { expiresAt?: number; data?: T };
+    if (typeof cached.expiresAt === 'number' && cached.expiresAt > Date.now() && cached.data !== undefined) {
+      return cached.data;
+    }
+    storage.removeItem(prefix + url);
+  } catch {
+    // Corrupt or unavailable storage — fall through.
+  }
+  return null;
+}
+
+function writeStorageCache(storage: Storage | undefined, prefix: string, url: string, data: unknown, ttlMs: number) {
+  if (!storage) return;
+  try {
+    storage.setItem(prefix + url, JSON.stringify({ expiresAt: Date.now() + ttlMs, data }));
+  } catch {
+    // Quota / private mode — caching is optional.
+  }
+}
 
 /**
  * Session-persistent cache for explicitly public, non-personalized data that
  * is expensive to re-read after a hard refresh. Use only for public endpoints.
+ * Also mirrors into localStorage so a later visit in a new tab/session can
+ * still avoid a D1 round-trip until the TTL expires.
  */
 export async function publicFetchJsonSessionCached<T>(url: string, ttlMs = 30_000): Promise<T> {
-  const storageKey = `cliniolab:public-session-cache:${url}`;
-  try {
-    const raw = window.sessionStorage.getItem(storageKey);
-    if (raw) {
-      const cached = JSON.parse(raw) as { expiresAt?: number; data?: T };
-      if (typeof cached.expiresAt === 'number' && cached.expiresAt > Date.now() && cached.data !== undefined) {
-        return cached.data;
-      }
-      window.sessionStorage.removeItem(storageKey);
-    }
-  } catch {
-    // Fall through to the normal in-memory cache when storage is unavailable.
+  // Prefer sessionStorage (tab-scoped), then localStorage (cross-session).
+  const fromSession = readStorageCache<T>(
+    typeof window !== 'undefined' ? window.sessionStorage : undefined,
+    SESSION_PREFIX,
+    url,
+  );
+  if (fromSession !== null) return fromSession;
+
+  const fromLocal = readStorageCache<T>(
+    typeof window !== 'undefined' ? window.localStorage : undefined,
+    LOCAL_PREFIX,
+    url,
+  );
+  if (fromLocal !== null) {
+    // Rehydrate sessionStorage so subsequent navigations in this tab stay fast.
+    writeStorageCache(
+      typeof window !== 'undefined' ? window.sessionStorage : undefined,
+      SESSION_PREFIX,
+      url,
+      fromLocal,
+      ttlMs,
+    );
+    rememberPublicValue(url, fromLocal, ttlMs);
+    return fromLocal;
   }
 
   const data = await publicFetchJson<T>(url, ttlMs);
-  try {
-    window.sessionStorage.setItem(storageKey, JSON.stringify({ expiresAt: Date.now() + ttlMs, data }));
-  } catch {
-    // Storage is an optimization, never a requirement for loading navigation.
-  }
+  writeStorageCache(
+    typeof window !== 'undefined' ? window.sessionStorage : undefined,
+    SESSION_PREFIX,
+    url,
+    data,
+    ttlMs,
+  );
+  writeStorageCache(
+    typeof window !== 'undefined' ? window.localStorage : undefined,
+    LOCAL_PREFIX,
+    url,
+    data,
+    ttlMs,
+  );
   return data;
 }
+
+/**
+ * LocalStorage-first public cache. On first load hits the network (D1), stores
+ * the response locally, and on later loads returns local data until TTL expiry
+ * or until clearPublicFetchCache() runs (e.g. after an admin edit).
+ * Falls back to the network when storage is missing, corrupt, or expired.
+ */
+export async function publicFetchJsonLocalCached<T>(url: string, ttlMs = 5 * 60_000): Promise<T> {
+  const fromLocal = readStorageCache<T>(
+    typeof window !== 'undefined' ? window.localStorage : undefined,
+    LOCAL_PREFIX,
+    url,
+  );
+  if (fromLocal !== null) {
+    rememberPublicValue(url, fromLocal, ttlMs);
+    return fromLocal;
+  }
+
+  // Session hit is still useful within the same tab before local is written.
+  const fromSession = readStorageCache<T>(
+    typeof window !== 'undefined' ? window.sessionStorage : undefined,
+    SESSION_PREFIX,
+    url,
+  );
+  if (fromSession !== null) {
+    writeStorageCache(
+      typeof window !== 'undefined' ? window.localStorage : undefined,
+      LOCAL_PREFIX,
+      url,
+      fromSession,
+      ttlMs,
+    );
+    rememberPublicValue(url, fromSession, ttlMs);
+    return fromSession;
+  }
+
+  const data = await publicFetchJson<T>(url, ttlMs);
+  writeStorageCache(
+    typeof window !== 'undefined' ? window.localStorage : undefined,
+    LOCAL_PREFIX,
+    url,
+    data,
+    ttlMs,
+  );
+  writeStorageCache(
+    typeof window !== 'undefined' ? window.sessionStorage : undefined,
+    SESSION_PREFIX,
+    url,
+    data,
+    ttlMs,
+  );
+  return data;
+}
+
+/** Default TTL for public listing pages (5 minutes). */
+export const PUBLIC_LIST_TTL_MS = 5 * 60_000;
+
+/** Longer TTL for rarely changing config / flags (15 minutes). */
+export const PUBLIC_CONFIG_TTL_MS = 15 * 60_000;

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Card, DifficultyBadge } from '@/components/ui/Card';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import type { GuestItem } from '@/lib/db/services/guestService';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 /**
  * Homepage "Guest Practice" carousel. Auto-advances on a timer and can also
@@ -27,7 +27,7 @@ export function GuestPracticeSection() {
   useEffect(() => {
     if (!flags.guestPractice) return;
     let cancelled = false;
-    publicFetchJson<{ items?: GuestItem[] }>(`/api/guest/items?limit=${guest.homepageCount}`, 30_000)
+    publicFetchJsonLocalCached<{ items?: GuestItem[] }>(`/api/guest/items?limit=${guest.homepageCount}`, PUBLIC_LIST_TTL_MS)
       .then((data) => { if (!cancelled) setItems(data.items ?? []); })
       .catch(() => { if (!cancelled) setItems([]); });
     return () => { cancelled = true; };

@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 export interface SearchSuggestion {
   id: string;
@@ -59,7 +59,7 @@ export function SearchAutocomplete({
     let cancelled = false;
     const timer = setTimeout(() => {
       setLoading(true);
-      publicFetchJson<{ suggestions?: SearchSuggestion[] }>(
+      publicFetchJsonLocalCached<{ suggestions?: SearchSuggestion[] }>(
         `/api/search?q=${encodeURIComponent(query)}&mode=suggest`,
         30_000,
       )

@@ -49,7 +49,7 @@ let inflight: Promise<PublicConfig> | null = null;
 export function loadPublicConfig(): Promise<PublicConfig> {
   if (cached) return Promise.resolve(cached);
   if (!inflight) {
-    inflight = publicFetchJsonSessionCached<PublicConfig>('/api/public-config', 60_000)
+    inflight = publicFetchJsonSessionCached<PublicConfig>('/api/public-config', 15 * 60_000)
       .catch(() => DEFAULT_PUBLIC_CONFIG)
       .then((cfg) => {
         cached = cfg;

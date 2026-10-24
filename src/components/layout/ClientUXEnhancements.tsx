@@ -16,9 +16,17 @@ const NAV_ITEMS: { href: string; label: string; icon: ReactNode }[] = [
 const ACTIONS: { href: string; label: string; icon: ReactNode }[] = [
   { href: '/quizzes', label: 'Browse quizzes', icon: <CheckSquare className="h-4 w-4" aria-hidden="true" /> },
   { href: '/flashcards', label: 'Study flashcards', icon: <Layers className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/blog', label: 'Read articles', icon: <PenLine className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/guest', label: 'Guest practice', icon: <CheckSquare className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/abbreviations', label: 'Abbreviations & glossary', icon: <Search className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/resources', label: 'Resources library', icon: <Layers className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/jobs', label: 'Jobs board', icon: <LayoutDashboard className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/scholarships', label: 'Scholarships', icon: <Bookmark className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/leaderboard', label: 'Leaderboard', icon: <LayoutDashboard className="h-4 w-4" aria-hidden="true" /> },
   { href: '/search', label: 'Search Cliniolab', icon: <Search className="h-4 w-4" aria-hidden="true" /> },
   { href: '/dashboard/bookmarks', label: 'Open bookmarks', icon: <Bookmark className="h-4 w-4" aria-hidden="true" /> },
-  { href: '/dashboard', label: 'Open dashboard', icon: <LayoutDashboard className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/dashboard', label: 'Open dashboard / study space', icon: <LayoutDashboard className="h-4 w-4" aria-hidden="true" /> },
+  { href: '/offline', label: 'Offline saved items', icon: <Layers className="h-4 w-4" aria-hidden="true" /> },
 ];
 
 export function ClientUXEnhancements() {

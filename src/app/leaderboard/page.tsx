@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { LeaderboardList } from '@/components/quiz/LeaderboardList';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import type { Category, LeaderboardEntry } from '@/types';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 export default function LeaderboardPage() {
   const { user } = useAuth();
@@ -19,7 +19,7 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    publicFetchJson<{ categories?: Category[] }>('/api/categories', 5 * 60_000)
+    publicFetchJsonLocalCached<{ categories?: Category[] }>('/api/categories', PUBLIC_LIST_TTL_MS)
       .then((data) => { if (!cancelled) setCategories(data.categories ?? []); })
       .catch(() => { if (!cancelled) setCategories([]); });
     return () => { cancelled = true; };

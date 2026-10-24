@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 import { FeaturedBlogPostCard, CompactBlogPostCard } from '@/components/cms/BlogPostCard';
 import type { BlogPost } from '@/types';
 
@@ -21,7 +21,7 @@ export function CategoryBlogSection({ categoryId, categorySlug, categoryName, in
       if (initialPosts !== null) setPosts(initialPosts);
       return;
     }
-    publicFetchJson<{ posts?: BlogPost[] }>(`/api/blog?categoryId=${encodeURIComponent(categoryId)}&limit=7`, 30_000)
+    publicFetchJsonLocalCached<{ posts?: BlogPost[] }>(`/api/blog?categoryId=${encodeURIComponent(categoryId)}&limit=7`, PUBLIC_LIST_TTL_MS)
       .then((data) => setPosts(data.posts ?? []))
       .catch(() => setPosts([]));
   }, [categoryId, initialPosts]);

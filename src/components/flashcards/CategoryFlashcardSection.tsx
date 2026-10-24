@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 import { FeaturedFlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
 import type { Category, FlashcardSetWithStats } from '@/types';
 
@@ -15,7 +15,7 @@ export function CategoryFlashcardSection({ category, initialSets }: { category: 
       if (initialSets !== null) setSets(initialSets);
       return;
     }
-    publicFetchJson<{ sets?: FlashcardSetWithStats[] }>(`/api/flashcards?categoryId=${category.id}&limit=1`, 30_000)
+    publicFetchJsonLocalCached<{ sets?: FlashcardSetWithStats[] }>(`/api/flashcards?categoryId=${category.id}&limit=1`, PUBLIC_LIST_TTL_MS)
       .then((data) => setSets(data.sets ?? []))
       .catch(() => setSets([]));
   }, [category.id, initialSets]);

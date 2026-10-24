@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 /**
  * Routes where ads must never show:
@@ -53,7 +53,7 @@ let configPromise: Promise<AdSenseConfig> | null = null;
 
 function loadAdSenseConfig(): Promise<AdSenseConfig> {
   if (!configPromise) {
-    configPromise = publicFetchJson<{ enabled?: boolean; clientId?: string }>('/api/adsense-config', 300_000)
+    configPromise = publicFetchJsonLocalCached<{ enabled?: boolean; clientId?: string }>('/api/adsense-config', 300_000)
       .then((data) => ({ enabled: !!data?.enabled, clientId: data?.clientId ?? '' }))
       .catch(() => ({ enabled: false, clientId: '' }));
   }

@@ -4,6 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { BookOpen, FileQuestion, Search, SlidersHorizontal, X, LibraryBig } from 'lucide-react';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import type { Resource, ResourceCategory } from '@/types';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
+import {
+  readResourceFilters,
+  writeResourceFilters,
+  clearResourceFilters,
+  readListDensity,
+  writeListDensity,
+  type ListDensity,
+} from '@/lib/services/localUiPrefs';
 
 type KindFilter = 'all' | 'book' | 'past_question_pack';
 type PriceFilter = 'all' | 'free' | 'paid';
@@ -20,6 +29,8 @@ export default function ResourcesPage() {
   const [categorySlug, setCategorySlug] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('newest');
+  const [density, setDensity] = useState<ListDensity>('comfortable');
+  const [prefsReady, setPrefsReady] = useState(false);
 
   useEffect(() => {
     const initialQuery = new URLSearchParams(window.location.search).get('q');
@@ -27,13 +38,25 @@ export default function ResourcesPage() {
   }, []);
 
   useEffect(() => {
+    const saved = readResourceFilters();
+    if (saved.filter === 'all' || saved.filter === 'book' || saved.filter === 'past_question_pack') setFilter(saved.filter);
+    if (saved.priceFilter === 'all' || saved.priceFilter === 'free' || saved.priceFilter === 'paid') setPriceFilter(saved.priceFilter);
+    if (typeof saved.categorySlug === 'string' || saved.categorySlug === null) setCategorySlug(saved.categorySlug ?? null);
+    if (saved.sort === 'newest' || saved.sort === 'title' || saved.sort === 'free-first' || saved.sort === 'relevance') setSort(saved.sort);
+    setDensity(readListDensity('resources'));
+    setPrefsReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!prefsReady) return;
+    writeResourceFilters({ filter, priceFilter, categorySlug, sort });
+  }, [filter, priceFilter, categorySlug, sort, prefsReady]);
+
+  useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetch('/api/resources').then((res) => {
-        if (!res.ok) throw new Error('Unable to load resources');
-        return res.json();
-      }),
-      fetch('/api/admin/resource-categories').then((res) => (res.ok ? res.json() : { categories: [] })),
+      publicFetchJsonLocalCached<{ enabled?: boolean; resources?: Resource[] }>('/api/resources', PUBLIC_LIST_TTL_MS),
+      publicFetchJsonLocalCached<{ categories?: ResourceCategory[] }>('/api/admin/resource-categories', PUBLIC_LIST_TTL_MS).catch(() => ({ categories: [] as ResourceCategory[] })),
     ])
       .then(([resourceData, categoryData]) => {
         if (cancelled) return;
@@ -110,6 +133,7 @@ export default function ResourcesPage() {
     setPriceFilter('all');
     setCategorySlug(null);
     setSort('newest');
+    clearResourceFilters();
   }
 
   // Shared resource links use #resource-{id}. Scroll and briefly highlight the
@@ -145,7 +169,7 @@ export default function ResourcesPage() {
         <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-pulse-100/60 blur-3xl" />
       </section>
 
-      <section className="mt-6 rounded-2xl border border-ink-100 bg-white p-4 sm:p-5" aria-label="Filter resources">
+      <section className="sticky top-16 z-20 mt-6 rounded-2xl border border-ink-100 bg-white/95 p-4 shadow-sm backdrop-blur-sm sm:p-5" aria-label="Filter resources">
         <label htmlFor="resource-search" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink-500">Search library</label>
         <div className="flex flex-col gap-3 lg:flex-row">
           <div className="relative min-w-0 flex-1">
@@ -155,7 +179,7 @@ export default function ResourcesPage() {
           </div>
           <label className="flex min-h-11 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm text-ink-600 lg:w-56"><SlidersHorizontal className="h-4 w-4 shrink-0 text-ink-400" /><span className="sr-only">Sort resources</span><select aria-label="Sort resources" value={sort} onChange={(event) => setSort(event.target.value as SortMode)} className="min-w-0 flex-1 bg-transparent outline-none"><option value="newest">Newest first</option><option value="title">Title A–Z</option><option value="free-first">Free resources first</option><option value="relevance" disabled={!search.trim()}>Most relevant</option></select></label>
         </div>
-        <p className="mt-2 text-xs text-ink-400">Tip: press Ctrl+K or Cmd+K to search. Press Escape to clear the search.</p>
+        <p className="mt-2 text-xs text-ink-400">Tip: Ctrl/Cmd+K focuses search. Escape clears it. Filter choices are remembered on this device.</p>
 
         <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Resource type">
           {(['all', 'book', 'past_question_pack'] as const).map((kind) => {
@@ -178,7 +202,21 @@ export default function ResourcesPage() {
 
       <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
         <div><h2 className="font-display text-xl font-semibold text-ink-900">Browse resources</h2><p className="mt-1 text-sm text-ink-500">{loading ? 'Loading the library…' : `${filtered.length} ${filtered.length === 1 ? 'resource' : 'resources'} found`}</p></div>
-        {hasActiveFilters && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-pulse-700 hover:bg-pulse-50"><X className="h-4 w-4" />Clear filters</button>}
+        <div className="flex flex-wrap items-center gap-2">
+          {hasActiveFilters && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-pulse-700 hover:bg-pulse-50"><X className="h-4 w-4" />Clear filters</button>}
+          <button
+            type="button"
+            onClick={() => {
+              const next = density === 'compact' ? 'comfortable' : 'compact';
+              setDensity(next);
+              writeListDensity('resources', next);
+            }}
+            className="text-xs font-semibold text-ink-500 hover:text-pulse-700"
+            title="Toggle denser card grid (saved on this device)"
+          >
+            {density === 'compact' ? 'Comfortable view' : 'Compact view'}
+          </button>
+        </div>
       </div>
 
       {loading && <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading resources" aria-busy="true">{[1, 2, 3, 4, 5, 6].map((item) => <div key={item} className="animate-pulse rounded-xl border border-ink-100 p-4"><div className="h-32 rounded-lg bg-ink-100" /><div className="mt-4 h-3 w-1/3 rounded bg-ink-100" /><div className="mt-3 h-4 w-3/4 rounded bg-ink-100" /><div className="mt-2 h-3 w-full rounded bg-ink-50" /><div className="mt-4 h-9 rounded bg-ink-100" /></div>)}</div>}
@@ -186,7 +224,7 @@ export default function ResourcesPage() {
       {!loading && loadError && <div className="mt-4 rounded-xl border border-critical-100 bg-critical-50 p-6 text-center"><h3 className="font-semibold text-critical-700">We couldn’t load the resource library</h3><p className="mt-2 text-sm text-critical-600">Check your connection and refresh the page to try again.</p><button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-critical-700 ring-1 ring-critical-200 hover:bg-critical-50">Try again</button></div>}
 
       {!loading && !loadError && <>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">{filtered.map((resource) => <ResourceCard key={resource.id} resource={resource} />)}</div>
+        <div className={`mt-4 grid grid-cols-1 ${density === 'compact' ? 'gap-3 sm:grid-cols-2 xl:grid-cols-4' : 'gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3'}`}>{filtered.map((resource) => <ResourceCard key={resource.id} resource={resource} />)}</div>
         {filtered.length === 0 && <div className="mt-4 rounded-2xl border border-dashed border-ink-200 bg-ink-50/50 px-5 py-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-ink-400 shadow-sm"><Search className="h-5 w-5" /></div><h3 className="mt-4 font-semibold text-ink-800">No matching resources</h3><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-ink-500">Try a different keyword or remove one of your filters to see more books and past question packs.</p>{hasActiveFilters && <button type="button" onClick={clearFilters} className="mt-4 rounded-lg bg-pulse-600 px-4 py-2 text-sm font-semibold text-white hover:bg-pulse-700">Show all resources</button>}</div>}
       </>}
     </main>

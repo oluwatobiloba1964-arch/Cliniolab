@@ -8,7 +8,7 @@ import { Card, DifficultyBadge } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import type { GuestItem, GuestItemKind } from '@/lib/db/services/guestService';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 const KIND_LABEL: Record<GuestItem['kind'], string> = {
   quiz: 'Quiz',
@@ -38,7 +38,7 @@ export function GuestHubClient() {
     setLoading(true);
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
     if (kind !== 'all') params.set('kind', kind);
-    publicFetchJson<{ items?: GuestItem[]; total?: number }>(`/api/guest/items?${params.toString()}`, 30_000)
+    publicFetchJsonLocalCached<{ items?: GuestItem[]; total?: number }>(`/api/guest/items?${params.toString()}`, PUBLIC_LIST_TTL_MS)
       .then((data) => {
         if (cancelled) return;
         setItems((prev) => (offset === 0 ? data.items ?? [] : [...prev, ...(data.items ?? [])]));

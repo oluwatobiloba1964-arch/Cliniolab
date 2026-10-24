@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 import { QuizCard } from '@/components/quiz/QuizCard';
 import { CompactBlogPostCard } from '@/components/cms/BlogPostCard';
 import { CompactFlashcardSetCard } from '@/components/flashcards/FlashcardSetCard';
@@ -24,7 +24,7 @@ export function RelatedStudyMaterials({ endpoint }: RelatedStudyMaterialsProps) 
 
   useEffect(() => {
     let cancelled = false;
-    publicFetchJson<RelatedData>(endpoint, 60_000)
+    publicFetchJsonLocalCached<RelatedData>(endpoint, PUBLIC_LIST_TTL_MS)
       .then((value) => {
         if (!cancelled) setData(value);
       })

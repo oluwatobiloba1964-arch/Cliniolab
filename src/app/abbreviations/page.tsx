@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import type { MedicalAbbreviation } from '@/types';
-import { publicFetchJson } from '@/lib/client/publicFetch';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS, PUBLIC_CONFIG_TTL_MS } from '@/lib/client/publicFetch';
 
 const PAGE_SIZE = 40;
 
@@ -20,7 +20,7 @@ export default function AbbreviationsPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    publicFetchJson<{ enabled?: boolean }>('/api/flags/medical_abbreviations', 60_000)
+    publicFetchJsonLocalCached<{ enabled?: boolean }>('/api/flags/medical_abbreviations', PUBLIC_CONFIG_TTL_MS)
       .then((data) => setEnabled(data.enabled !== false))
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -39,7 +39,7 @@ export default function AbbreviationsPage() {
       params.set('page', String(page));
       params.set('pageSize', String(PAGE_SIZE));
 
-      publicFetchJson<{ abbreviations?: MedicalAbbreviation[]; totalPages?: number; total?: number }>(`/api/abbreviations?${params.toString()}`, 30_000)
+      publicFetchJsonLocalCached<{ abbreviations?: MedicalAbbreviation[]; totalPages?: number; total?: number }>(`/api/abbreviations?${params.toString()}`, PUBLIC_LIST_TTL_MS)
         .then((data) => {
           setAbbreviations(data.abbreviations ?? []);
           setTotalPages(data.totalPages ?? 1);

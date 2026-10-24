@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { BlogPostCard } from '@/components/cms/BlogPostCard';
 import { JOB_CATEGORY_SLUG } from '@/lib/constants/blogCategories';
 import type { BlogPost } from '@/types';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS, PUBLIC_CONFIG_TTL_MS } from '@/lib/client/publicFetch';
 
 export default function JobsPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -11,13 +12,16 @@ export default function JobsPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch('/api/flags/jobs_page')
-      .then((res) => res.json())
-      .then((data) => setEnabled(data.enabled))
+    Promise.all([
+      publicFetchJsonLocalCached<{ enabled?: boolean }>('/api/flags/jobs_page', PUBLIC_CONFIG_TTL_MS),
+      publicFetchJsonLocalCached<{ posts?: BlogPost[] }>(`/api/blog?categorySlug=${JOB_CATEGORY_SLUG}`, PUBLIC_LIST_TTL_MS),
+    ])
+      .then(([flag, data]) => {
+        setEnabled(flag.enabled !== false);
+        setPosts(data.posts ?? []);
+      })
+      .catch(() => {})
       .finally(() => setLoaded(true));
-    fetch(`/api/blog?categorySlug=${JOB_CATEGORY_SLUG}`)
-      .then((res) => res.json())
-      .then((data) => setPosts(data.posts ?? []));
   }, []);
 
   if (loaded && !enabled) {
