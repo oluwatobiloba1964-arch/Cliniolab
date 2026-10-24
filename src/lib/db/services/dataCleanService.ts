@@ -1,5 +1,7 @@
+// src/lib/db/services/dataCleanService.ts
 import { getDb, nowIso } from '@/lib/db/client';
 import { deleteQuiz } from '@/lib/db/services/quizService';
+import { cleanupImagesAfterDelete } from '@/lib/storage/mediaCleanup';
 import type { DataCleanTarget } from '@/types';
 
 /**
@@ -16,6 +18,10 @@ const MAX_ROWS_PER_RUN = 2000;
 const SETTINGS_KEY = 'data_clean';
 const MAX_DAYS = 3650;
 
+/** Fixed top-level category ids for Job and Scholarship posts (see schema.sql seed data). */
+const JOB_SCHOLARSHIP_CATEGORY_IDS = ['blogcat_job', 'blogcat_scholarship'] as const;
+const REDACTED_NOTICE = 'This listing has expired and is no longer accepting applications.';
+
 export type DataCleanKey =
   | 'expired_rate_limits'
   | 'guest_counters'
@@ -23,7 +29,8 @@ export type DataCleanKey =
   | 'open_reports'
   | 'resolved_feedback'
   | 'inactive_contributors'
-  | 'expired_private_quizzes';
+  | 'expired_private_quizzes'
+  | 'expired_job_scholarship_posts';
 
 export type DataCleanSettings = Record<DataCleanKey, number>;
 
@@ -80,6 +87,13 @@ const TARGETS: TargetDef[] = [
     label: 'Expired private quizzes with no attempts',
     description:
       'Private quizzes whose share link expired, that nobody ever attempted. Deletes the quiz and its questions.',
+    defaultOlderThanDays: 30,
+  },
+  {
+    key: 'expired_job_scholarship_posts',
+    label: 'Expired job & scholarship posts',
+    description:
+      "Job and Scholarship posts past the age below. Their body, excerpt, and picture are wiped and replaced with an expired notice; the post itself, title, and link stay so the URL doesn't break. This cannot be undone.",
     defaultOlderThanDays: 30,
   },
 ];
@@ -227,6 +241,24 @@ async function countFor(def: TargetDef, days: number): Promise<{ total: number; 
           cutoffIso(days)
         ),
       };
+    case 'expired_job_scholarship_posts': {
+      const catPlaceholders = placeholders(JOB_SCHOLARSHIP_CATEGORY_IDS.length);
+      return {
+        total: await one(
+          `SELECT COUNT(*) as n FROM blog_posts WHERE blog_category_id IN (${catPlaceholders})`,
+          ...JOB_SCHOLARSHIP_CATEGORY_IDS
+        ),
+        cleanable: await one(
+          `SELECT COUNT(*) as n FROM blog_posts
+           WHERE blog_category_id IN (${catPlaceholders})
+             AND created_at < ?
+             AND excerpt IS NOT ? `,
+          ...JOB_SCHOLARSHIP_CATEGORY_IDS,
+          cutoffSql(days),
+          REDACTED_NOTICE
+        ),
+      };
+    }
   }
 }
 
@@ -320,6 +352,48 @@ export async function runClean(key: DataCleanKey, olderThanDays?: number): Promi
         }
       }
       return { deleted };
+    }
+    case 'expired_job_scholarship_posts': {
+      const catPlaceholders = placeholders(JOB_SCHOLARSHIP_CATEGORY_IDS.length);
+      const { results } = await db
+        .prepare(
+          `SELECT id, content, excerpt, featured_image_url FROM blog_posts
+           WHERE blog_category_id IN (${catPlaceholders})
+             AND created_at < ?
+             AND excerpt IS NOT ?
+           LIMIT ?`
+        )
+        .bind(...JOB_SCHOLARSHIP_CATEGORY_IDS, cutoffSql(days), REDACTED_NOTICE, MAX_ROWS_PER_RUN)
+        .all<{ id: string; content: string | null; excerpt: string | null; featured_image_url: string | null }>();
+
+      let cleaned = 0;
+      for (let i = 0; i < results.length; i += CHUNK) {
+        const part = results.slice(i, i + CHUNK);
+        await db.batch(
+          part.map((row) =>
+            db
+              .prepare(
+                `UPDATE blog_posts
+                 SET content = ?, excerpt = ?, seo_description = ?, featured_image_url = NULL
+                 WHERE id = ?`
+              )
+              .bind(REDACTED_NOTICE, REDACTED_NOTICE, REDACTED_NOTICE, row.id)
+          )
+        );
+        cleaned += part.length;
+      }
+
+      // Images are only removed from R2 after the DB rows no longer
+      // reference them, and only if nothing else still does (an image can
+      // be reused across posts) - same best-effort contract as a real delete.
+      for (const row of results) {
+        await cleanupImagesAfterDelete([row.content, row.excerpt, row.featured_image_url], {
+          table: 'blog_posts',
+          id: row.id,
+        });
+      }
+
+      return { deleted: cleaned };
     }
   }
 }
