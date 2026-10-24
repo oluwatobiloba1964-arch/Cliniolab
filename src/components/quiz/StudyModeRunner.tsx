@@ -647,32 +647,34 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
       </div>
 
       <Card className="mt-6 p-4 sm:mt-8 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h2 className="min-w-0 flex-1 font-display text-lg font-medium text-ink-800">{question.prompt}</h2>
-          <button type="button" onClick={toggleRevisionMark} aria-pressed={markedForRevision.has(question.id)} className={`min-h-9 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${markedForRevision.has(question.id) ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-ink-200 text-ink-500 hover:border-amber-300 hover:text-amber-800'}`}>
+        <div>
+          <h2 className="font-display text-lg font-medium text-ink-800">{question.prompt}</h2>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {!revealed && (
+            <>
+              <span className="text-xs text-ink-400">How confident are you?</span>
+              {(['sure', 'guessing'] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => rateConfidence(level)}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
+                    confidence[question.id] === level
+                      ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
+                      : 'border-ink-100 text-ink-400 hover:bg-ink-50'
+                  }`}
+                >
+                  {level}
+                </button>
+              ))}
+            </>
+          )}
+          <button type="button" onClick={toggleRevisionMark} aria-pressed={markedForRevision.has(question.id)} className={`ml-auto min-h-9 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${markedForRevision.has(question.id) ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-ink-200 text-ink-500 hover:border-amber-300 hover:text-amber-800'}`}>
             {markedForRevision.has(question.id) ? 'Marked for revision' : 'Mark for revision'}
           </button>
         </div>
-
-        {!revealed && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-xs text-ink-400">How confident are you?</span>
-            {(['sure', 'guessing'] as const).map((level) => (
-              <button
-                key={level}
-                type="button"
-                onClick={() => rateConfidence(level)}
-                className={`rounded-md border px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
-                  confidence[question.id] === level
-                    ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
-                    : 'border-ink-100 text-ink-400 hover:bg-ink-50'
-                }`}
-              >
-                {level}
-              </button>
-            ))}
-          </div>
-        )}
 
         {recallFirst && !revealed && !recallChoicesVisible && (
           <div className="mt-5 rounded-xl border border-pulse-100 bg-pulse-50/70 p-4">
