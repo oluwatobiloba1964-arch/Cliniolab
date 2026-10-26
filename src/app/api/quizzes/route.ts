@@ -1,4 +1,4 @@
-// FILE: src/app/api/quizzes/route.ts
+// File: src/app/api/quizzes/route.ts
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
@@ -14,12 +14,22 @@ export async function GET(request: Request) {
   const limitParam = searchParams.get('limit');
   const limit = limitParam ? Number(limitParam) : undefined;
   const pageParam = searchParams.get('page');
+  const search = searchParams.get('search')?.trim();
 
   if (mine === 'true') {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     const quizzes = await quizService.listQuizzesByCreator(user.id);
     return NextResponse.json({ quizzes });
+  }
+
+  // DB-side title search — returns up to 50 matches across all pages
+  if (search && search.length >= 2) {
+    const quizzes = await quizService.searchPublicQuizzes(search);
+    return NextResponse.json(
+      { quizzes, total: quizzes.length, page: 1, pageSize: quizzes.length },
+      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } },
+    );
   }
 
   if (subcategoryId) {
@@ -50,7 +60,6 @@ export async function GET(request: Request) {
     );
   }
 
-  // Paginated browse mode (used by the /quizzes page) — opt in via ?page=
   if (pageParam) {
     const page = Math.max(1, Number(pageParam) || 1);
     const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? 12) || 12));
