@@ -43,6 +43,7 @@ export {
   listQuizzesByCreator,
   listPublicQuizzesByCreator,
   adminListAllQuizzes,
+  searchPublicQuizzes,
 } from './quiz/quizQueryService';
 
 export {
