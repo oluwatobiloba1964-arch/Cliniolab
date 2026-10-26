@@ -356,3 +356,33 @@ export async function adminListAllQuizzes(
 
   return { quizzes: results.map(mapQuizWithStats), total: countRow?.total ?? 0, page, pageSize };
 }
+
+export async function searchPublicQuizzes(query: string): Promise<QuizWithStats[]> {
+  const db = getDb();
+  const like = `%${query}%`;
+  const { results } = await db
+    .prepare(
+      `SELECT
+        q.*,
+        (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id) as question_count,
+        (SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id = q.id) as attempt_count,
+        (SELECT AVG(CAST(score AS REAL) / total_questions * 100)
+         FROM quiz_attempts WHERE quiz_id = q.id) as avg_score,
+        (SELECT COUNT(*) FROM comments WHERE quiz_id = q.id) as comment_count,
+        c.name as category_name,
+        s.name as subcategory_name,
+        u.display_name as creator_name,
+        u.contact_phone as creator_contact
+      FROM quizzes q
+      JOIN subcategories s ON s.id = q.subcategory_id
+      JOIN categories c ON c.id = s.category_id
+      JOIN users u ON u.id = q.creator_id
+      WHERE q.visibility = 'public' AND q.status = 'published'
+        AND (q.title LIKE ? OR s.name LIKE ? OR c.name LIKE ?)
+      ORDER BY q.updated_at DESC
+      LIMIT 50`
+    )
+    .bind(like, like, like)
+    .all<QuizStatsRow>();
+  return results.map(mapQuizWithStats);
+}
