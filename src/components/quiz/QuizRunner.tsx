@@ -1,3 +1,4 @@
+// File: src/components/quiz/QuizRunner.tsx
 /*
  * CHANGE SUMMARY (QuizRunner.tsx -- live quiz/exam taking screen)
  * - Richer timer: color-coded urgency ring (teal -> amber -> red) with percentage
@@ -32,6 +33,8 @@ import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { ShortcutsHelpPanel, QUIZ_SHORTCUTS } from '@/components/ui/ShortcutsHelpPanel';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { ATTEMPTED_QUIZZES_KEY, COPIED_EXPLANATIONS_KEY, makeId, readJson, writeJson } from '@/lib/services/localExtrasService';
+import { MissReasonJournal } from '@/components/study/MissReasonJournal';
+import { saveConfidenceEntries, saveScore } from '@/lib/services/localInsightsService';
 import type { AttemptResult, Quiz, QuizQuestion } from '@/types';
 
 interface QuizRunnerProps {
@@ -516,6 +519,42 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
+
+  // Log score history and confidence data locally for the insights panel,
+  // once per result. Reuses data already present once grading completes.
+  // Insights are a nicety and must never block or affect the results screen.
+  const loggedInsightsForAttempt = useRef<string | null>(null);
+  useEffect(() => {
+    if (!result || loggedInsightsForAttempt.current === result.attemptId) return;
+    loggedInsightsForAttempt.current = result.attemptId;
+    try {
+      const incorrectCount = result.perQuestion.filter((pq) => !pq.isCorrect).length;
+      const correctCount = result.perQuestion.length - incorrectCount;
+      saveScore({
+        quizId: quiz.id,
+        quizTitle: quiz.title,
+        percentage: Math.round(result.percentage),
+        totalQuestions: result.totalQuestions,
+        correctCount,
+        savedAt: new Date().toISOString(),
+      });
+      const confidenceEntries = result.perQuestion
+        .filter((pq) => confidence[pq.questionId])
+        .map((pq) => ({
+          questionId: pq.questionId,
+          quizId: quiz.id,
+          quizTitle: quiz.title,
+          prompt: pq.prompt.slice(0, 200),
+          confidence: confidence[pq.questionId],
+          isCorrect: pq.isCorrect,
+          savedAt: new Date().toISOString(),
+        }));
+      if (confidenceEntries.length) saveConfidenceEntries(confidenceEntries);
+    } catch {
+      // Insights are a nicety; never block results.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   // Autosave a resumable draft of the in-progress attempt. Skipped
   // entirely for anti-cheat exams (see draftsEnabled above), and stopped
@@ -1024,6 +1063,14 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                       Learn this topic →
                     </Link>
                   </div>
+                )}
+                {!pq.isCorrect && (
+                  <MissReasonJournal
+                    questionId={pq.questionId}
+                    quizId={quiz.id}
+                    quizTitle={quiz.title}
+                    prompt={pq.prompt}
+                  />
                 )}
                 {quiz.allowFlagging && !guest && (
                   <div className="mt-2">
