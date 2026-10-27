@@ -5,11 +5,13 @@
  * Feature #12 - Unified recent activity timeline.
  *
  * Pure client-side. Aggregates from every existing localStorage store
- * that records user activity (attempted quizzes, copied explanations,
- * study toolkit days, flashcard notes, miss-reason tags, confidence
- * tags) into one chronological timeline shown on the dashboard.
+ * that records user activity into one chronological timeline shown on
+ * the dashboard.
  *
- * No database, no API calls. Pure read of existing browser state.
+ * Hardened: every entry parse is wrapped in try/catch, and any item
+ * with an invalid or missing timestamp is silently skipped rather
+ * than crashing the dashboard. A single corrupt localStorage entry
+ * must never take the whole page down.
  */
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
@@ -36,19 +38,19 @@ interface ActivityItem {
 }
 
 interface AttemptedQuizEntry {
-  id: string;
-  quizId: string;
-  quizTitle: string;
+  id?: string;
+  quizId?: string;
+  quizTitle?: string;
   percentage?: number;
-  savedAt: string;
+  savedAt?: string;
 }
 
 interface CopiedExplanation {
-  id: string;
-  quizId: string;
-  quizTitle: string;
-  prompt: string;
-  savedAt: string;
+  id?: string;
+  quizId?: string;
+  quizTitle?: string;
+  prompt?: string;
+  savedAt?: string;
 }
 
 interface ToolkitData {
@@ -57,19 +59,37 @@ interface ToolkitData {
 }
 
 const KIND_META: Record<ActivityKind, { label: string; color: string; icon: string }> = {
-  quiz: { label: 'Quiz attempted', color: 'text-pulse-600 bg-pulse-50', icon: '✓' },
-  flashcard: { label: 'Flashcard studied', color: 'text-ink-600 bg-ink-50', icon: 'cards' },
-  study: { label: 'Study session', color: 'text-pulse-600 bg-pulse-50', icon: '⏱' },
-  confidence: { label: 'Confidence tagged', color: 'text-flag-700 bg-flag-50', icon: '◐' },
+  quiz: { label: 'Quiz attempted', color: 'text-pulse-600 bg-pulse-50', icon: 'V' },
+  flashcard: { label: 'Flashcard studied', color: 'text-ink-600 bg-ink-50', icon: 'F' },
+  study: { label: 'Study session', color: 'text-pulse-600 bg-pulse-50', icon: 'T' },
+  confidence: { label: 'Confidence tagged', color: 'text-flag-700 bg-flag-50', icon: 'C' },
   'miss-reason': { label: 'Miss reason tagged', color: 'text-critical-700 bg-critical-50', icon: '!' },
-  copy: { label: 'Explanation copied', color: 'text-ink-600 bg-ink-50', icon: '⧉' },
+  copy: { label: 'Explanation copied', color: 'text-ink-600 bg-ink-50', icon: 'S' },
   score: { label: 'Score recorded', color: 'text-pulse-600 bg-pulse-50', icon: '%' },
 };
 
-function toEpoch(s: string | undefined): number {
-  if (!s) return 0;
-  const n = new Date(s).getTime();
-  return Number.isFinite(n) ? n : 0;
+function safeToEpoch(s: string | undefined | null): number {
+  if (!s || typeof s !== 'string') return 0;
+  try {
+    const n = new Date(s).getTime();
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function safeFormat(at: number): string {
+  if (!Number.isFinite(at) || at <= 0) return '';
+  try {
+    return formatRelativeTime(new Date(at).toISOString());
+  } catch {
+    return '';
+  }
+}
+
+function safeStr(x: unknown, max = 60): string {
+  if (typeof x !== 'string') return '';
+  return x.length > max ? x.slice(0, max) : x;
 }
 
 export function RecentActivityTimeline() {
@@ -79,72 +99,111 @@ export function RecentActivityTimeline() {
     const collected: ActivityItem[] = [];
 
     // Attempted quizzes
-    const attempted = readJson<AttemptedQuizEntry[]>(ATTEMPTED_QUIZZES_KEY, []);
-    for (const a of attempted) {
-      collected.push({
-        kind: 'quiz',
-        at: toEpoch(a.savedAt),
-        title: a.quizTitle || 'Quiz attempt',
-        detail: typeof a.percentage === 'number' ? `${Math.round(a.percentage)}%` : undefined,
-      });
+    try {
+      const attempted = readJson<AttemptedQuizEntry[]>(ATTEMPTED_QUIZZES_KEY, []);
+      if (Array.isArray(attempted)) {
+        for (const a of attempted) {
+          if (!a) continue;
+          collected.push({
+            kind: 'quiz',
+            at: safeToEpoch(a.savedAt),
+            title: a.quizTitle || 'Quiz attempt',
+            detail: typeof a.percentage === 'number' && Number.isFinite(a.percentage)
+              ? `${Math.round(a.percentage)}%`
+              : undefined,
+          });
+        }
+      }
+    } catch {
+      // Corrupt store - skip silently.
     }
 
     // Copied explanations
-    const copied = readJson<CopiedExplanation[]>(COPIED_EXPLANATIONS_KEY, []);
-    for (const c of copied) {
-      collected.push({
-        kind: 'copy',
-        at: toEpoch(c.savedAt),
-        title: c.quizTitle || 'Explanation copied',
-        detail: c.prompt?.slice(0, 60) || undefined,
-      });
+    try {
+      const copied = readJson<CopiedExplanation[]>(COPIED_EXPLANATIONS_KEY, []);
+      if (Array.isArray(copied)) {
+        for (const c of copied) {
+          if (!c) continue;
+          collected.push({
+            kind: 'copy',
+            at: safeToEpoch(c.savedAt),
+            title: c.quizTitle || 'Explanation copied',
+            detail: safeStr(c.prompt) || undefined,
+          });
+        }
+      }
+    } catch {
+      // Corrupt store - skip silently.
     }
 
     // Confidence log
-    for (const c of getConfidenceLog()) {
-      collected.push({
-        kind: 'confidence',
-        at: toEpoch(c.savedAt),
-        title: c.quizTitle || 'Confidence tagged',
-        detail: `${c.confidence} · ${c.isCorrect ? 'correct' : 'wrong'}`,
-      });
+    try {
+      for (const c of getConfidenceLog()) {
+        if (!c) continue;
+        collected.push({
+          kind: 'confidence',
+          at: safeToEpoch(c.savedAt),
+          title: c.quizTitle || 'Confidence tagged',
+          detail: `${c.confidence || 'unknown'} - ${c.isCorrect ? 'correct' : 'wrong'}`,
+        });
+      }
+    } catch {
+      // Corrupt store - skip silently.
     }
 
-    // Miss reasons
-    for (const m of getMissReasons()) {
-      collected.push({
-        kind: 'miss-reason',
-        at: toEpoch(m.savedAt),
-        title: m.quizTitle || 'Miss reason tagged',
-        detail: m.prompt?.slice(0, 60) || undefined,
-      });
+    // Miss reason
+    try {
+      for (const m of getMissReasons()) {
+        if (!m) continue;
+        collected.push({
+          kind: 'miss-reason',
+          at: safeToEpoch(m.savedAt),
+          title: m.quizTitle || 'Miss reason tagged',
+          detail: safeStr(m.prompt) || undefined,
+        });
+      }
+    } catch {
+      // Corrupt store - skip silently.
     }
 
     // Score history
-    for (const s of getScoreHistory()) {
-      collected.push({
-        kind: 'score',
-        at: toEpoch(s.savedAt),
-        title: s.quizTitle || 'Score recorded',
-        detail: `${Math.round(s.percentage)}% (${s.correctCount}/${s.totalQuestions})`,
-      });
+    try {
+      for (const s of getScoreHistory()) {
+        if (!s) continue;
+        collected.push({
+          kind: 'score',
+          at: safeToEpoch(s.savedAt),
+          title: s.quizTitle || 'Score recorded',
+          detail:
+            typeof s.percentage === 'number' && Number.isFinite(s.percentage)
+              ? `${Math.round(s.percentage)}% (${s.correctCount ?? 0}/${s.totalQuestions ?? 0})`
+              : undefined,
+        });
+      }
+    } catch {
+      // Corrupt store - skip silently.
     }
 
     // Study days
-    const toolkit = readJson<ToolkitData>(TOOLKIT_KEY, {});
-    if (toolkit.studyDays) {
-      for (const day of toolkit.studyDays) {
-        const mins = toolkit.minutesByDay?.[day] ?? 0;
-        collected.push({
-          kind: 'study',
-          at: new Date(day + 'T00:00:00').getTime(),
-          title: 'Study session',
-          detail: mins > 0 ? `${mins} min` : undefined,
-        });
+    try {
+      const toolkit = readJson<ToolkitData>(TOOLKIT_KEY, {});
+      if (toolkit && Array.isArray(toolkit.studyDays)) {
+        for (const day of toolkit.studyDays) {
+          if (typeof day !== 'string') continue;
+          const mins = (toolkit.minutesByDay && toolkit.minutesByDay[day]) ?? 0;
+          collected.push({
+            kind: 'study',
+            at: safeToEpoch(day + 'T00:00:00'),
+            title: 'Study session',
+            detail: typeof mins === 'number' && mins > 0 ? `${mins} min` : undefined,
+          });
+        }
       }
+    } catch {
+      // Corrupt store - skip silently.
     }
 
-    collected.sort((a, b) => b.at - a.at);
+    collected.sort((a, b) => (b.at || 0) - (a.at || 0));
     setItems(collected.slice(0, 12));
   }, []);
 
@@ -173,7 +232,7 @@ export function RecentActivityTimeline() {
                 {item.detail && <p className="truncate text-xs text-ink-500">{item.detail}</p>}
               </div>
               <span className="shrink-0 text-[10px] text-ink-400">
-                {item.at > 0 ? formatRelativeTime(new Date(item.at).toISOString()) : ''}
+                {safeFormat(item.at)}
               </span>
             </li>
           );
