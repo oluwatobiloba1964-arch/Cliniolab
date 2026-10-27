@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
 import type { Flashcard, FlashcardSet } from '@/types';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 export function GuestFlashcardClient({ setId }: { setId: string }) {
   const router = useRouter();
@@ -24,15 +25,18 @@ export function GuestFlashcardClient({ setId }: { setId: string }) {
       setLoading(false);
       return;
     }
-    fetch(`/api/guest/flashcards/${setId}`)
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? 'Not available');
+    let cancelled = false;
+    // Only guest-visible public learning content is cached; completion events
+    // and other account/attempt data continue through their existing routes.
+    publicFetchJsonLocalCached<{ set: FlashcardSet; cards?: Flashcard[] }>(`/api/guest/flashcards/${setId}`, PUBLIC_LIST_TTL_MS)
+      .then((data) => {
+        if (cancelled) return;
         setSet(data.set);
         setCards(data.cards ?? []);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Not available'))
-      .finally(() => setLoading(false));
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Not available'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [setId, flags.guestPractice]);
 
   if (loading) return null;

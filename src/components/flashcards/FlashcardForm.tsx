@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Toggle } from '@/components/ui/Toggle';
+import { clearPublicFetchCache } from '@/lib/client/publicFetch';
 import type {
   Category,
   Flashcard,
@@ -106,6 +107,7 @@ export function FlashcardForm({
     try {
       const result = await onSubmit(input);
       if (result?.error) setError(result.error);
+      else clearPublicFetchCache('/api/flashcards');
     } finally {
       setSubmitting(false);
     }

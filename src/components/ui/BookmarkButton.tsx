@@ -4,6 +4,47 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import type { BookmarkKind } from '@/types';
 
+const BOOKMARK_CACHE_TTL_MS = 2 * 60 * 1000;
+const bookmarkLookups = new Map<string, Promise<Set<string>>>();
+
+function bookmarkCacheKey(userId: string, kind: BookmarkKind) {
+  return `cliniolab:bookmarks:v1:${userId}:${kind}`;
+}
+
+async function loadBookmarkIds(userId: string, kind: BookmarkKind): Promise<Set<string>> {
+  const key = bookmarkCacheKey(userId, kind);
+  try {
+    const raw = window.localStorage.getItem(key);
+    const cached = raw ? JSON.parse(raw) as { savedAt?: number; ids?: string[] } : null;
+    const age = typeof cached?.savedAt === 'number' ? Date.now() - cached.savedAt : Number.POSITIVE_INFINITY;
+    if (age >= 0 && age < BOOKMARK_CACHE_TTL_MS && Array.isArray(cached?.ids)) return new Set(cached.ids);
+  } catch { /* Storage is optional. */ }
+
+  const active = bookmarkLookups.get(key);
+  if (active) return active;
+
+  const request: Promise<Set<string>> = fetch(`/api/bookmarks?kind=${kind}`, { credentials: 'same-origin' })
+    .then(async (res): Promise<Set<string>> => {
+      if (!res.ok) throw new Error('Could not load bookmarks');
+      const data = await res.json();
+      const ids = Array.isArray(data.bookmarks)
+        ? data.bookmarks.map((item: { targetId?: unknown }) => item.targetId).filter((id: unknown): id is string => typeof id === 'string')
+        : [];
+      try { window.localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), ids })); } catch { /* Cache is optional. */ }
+      return new Set<string>(ids);
+    })
+    .finally(() => bookmarkLookups.delete(key)) as Promise<Set<string>>;
+  bookmarkLookups.set(key, request);
+  return request;
+}
+
+function invalidateBookmarkCache(userId: string, kind: BookmarkKind) {
+  try {
+    window.localStorage.removeItem(bookmarkCacheKey(userId, kind));
+    window.localStorage.removeItem(`cliniolab:bookmark-resolved:v1:${userId}`);
+  } catch { /* Cache is optional. */ }
+}
+
 interface BookmarkButtonProps {
   kind: BookmarkKind;
   targetId: string;
@@ -22,13 +63,11 @@ export function BookmarkButton({ kind, targetId, initialBookmarked, className = 
   // that already fetched bookmark state in bulk for efficiency).
   useEffect(() => {
     if (initialBookmarked !== undefined || !user) return;
-    fetch(`/api/bookmarks?kind=${kind}`)
-      .then((res) => res.json())
-      .then((data) => {
-        const isBookmarked = (data.bookmarks ?? []).some((b: { targetId: string }) => b.targetId === targetId);
-        setBookmarked(isBookmarked);
-      })
+    let cancelled = false;
+    loadBookmarkIds(user.id, kind)
+      .then((ids) => { if (!cancelled) setBookmarked(ids.has(targetId)); })
       .catch(() => {});
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, kind, targetId]);
 
@@ -46,6 +85,7 @@ export function BookmarkButton({ kind, targetId, initialBookmarked, className = 
         body: JSON.stringify({ kind, targetId }),
       });
       if (!res.ok) setBookmarked(previous);
+      else invalidateBookmarkCache(user.id, kind);
     } catch {
       setBookmarked(previous);
     } finally {

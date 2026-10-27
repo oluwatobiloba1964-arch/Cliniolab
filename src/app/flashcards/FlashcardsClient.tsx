@@ -64,19 +64,28 @@ export function FlashcardsClient({ initialSets, initialTotal, pageSize }: Flashc
   // first, then fall back to the existing pagination endpoint when needed.
   useEffect(() => {
     if (page === 1) {
-      let usedFallback = false;
-      if (initialSets.length === 0) {
-        try {
-          const raw = window.localStorage.getItem(`cliniolab:flashcard-list:1:${pageSize}`);
-          const cached = raw ? JSON.parse(raw) as { savedAt?: number; sets?: FlashcardSetWithStats[]; total?: number } : null;
-          if (cached && typeof cached.savedAt === 'number' && Date.now() - cached.savedAt >= 0 && Date.now() - cached.savedAt < PUBLIC_LIST_TTL_MS && Array.isArray(cached.sets) && cached.sets.length > 0) {
-            setSets(cached.sets); setTotal(typeof cached.total === 'number' ? cached.total : cached.sets.length); usedFallback = true;
-          }
-        } catch { /* Invalid cache falls back to the server-rendered result. */ }
-      }
-      if (!usedFallback) { setSets(initialSets); setTotal(initialTotal); }
-      setLoadError(null); setLoading(false);
-      if (initialSets.length > 0) { try { window.localStorage.setItem(`cliniolab:flashcard-list:1:${pageSize}`, JSON.stringify({ savedAt: Date.now(), sets: initialSets, total: initialTotal })); } catch { /* Cache is optional. */ } }
+      // Local-first: restore the saved public listing before using the
+      // server-rendered ISR payload. No client API request is needed on a hit.
+      try {
+        const raw = window.localStorage.getItem(`cliniolab:flashcard-list:1:${pageSize}`);
+        const cached = raw ? JSON.parse(raw) as { savedAt?: number; sets?: FlashcardSetWithStats[]; total?: number } : null;
+        const age = typeof cached?.savedAt === 'number' ? Date.now() - cached.savedAt : Number.POSITIVE_INFINITY;
+        if (age >= 0 && age < PUBLIC_LIST_TTL_MS && Array.isArray(cached?.sets)) {
+          setSets(cached.sets);
+          setTotal(typeof cached.total === 'number' ? cached.total : cached.sets.length);
+          setLoadError(null);
+          setLoading(false);
+          return;
+        }
+      } catch { /* Missing or corrupt cache falls back to the server payload. */ }
+
+      setSets(initialSets);
+      setTotal(initialTotal);
+      setLoadError(null);
+      setLoading(false);
+      try {
+        window.localStorage.setItem(`cliniolab:flashcard-list:1:${pageSize}`, JSON.stringify({ savedAt: Date.now(), sets: initialSets, total: initialTotal }));
+      } catch { /* Storage is optional and must never block learning. */ }
       return;
     }
 

@@ -72,6 +72,11 @@ export default function DashboardPage() {
   const [attemptsError, setAttemptsError] = useState<string | null>(null);
   const [attemptsSort, setAttemptsSort] = useState<'score' | 'date'>('score');
 
+  function invalidateDashboardLocalCache() {
+    if (!user?.id) return;
+    try { window.localStorage.removeItem(`cliniolab:dashboard-cache:v1:${user.id}`); } catch { /* Optional cache. */ }
+  }
+
   const sortedAttemptsList = [...attemptsList].sort((a, b) =>
     attemptsSort === 'score' ? b.percentage - a.percentage : b.startedAt.localeCompare(a.startedAt)
   );
@@ -147,6 +152,7 @@ export default function DashboardPage() {
       const res2 = await fetch('/api/dashboard');
       const data2 = await res2.json();
       setMyFlashcardSets(data2.myFlashcardSets ?? []);
+      invalidateDashboardLocalCache();
     } catch {
       setFcVisibilityError('Network error while updating visibility. Please try again.');
     } finally {
@@ -166,6 +172,7 @@ export default function DashboardPage() {
         return;
       }
       setMyFlashcardSets((prev) => prev.filter((s) => s.id !== setId));
+      invalidateDashboardLocalCache();
     } catch {
       setFcDeleteError('Network error while deleting. Please try again.');
     } finally {
@@ -193,22 +200,77 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (!user) return;
+    // Dashboard payloads contain user-specific information. Keep them in a
+    // user-scoped local cache, never in the shared public cache. A fresh hit
+    // avoids repeating the dashboard read on reload; expiry/missing data uses
+    // the existing endpoint as fallback. Signing out clears device copies.
+    const cachePrefix = 'cliniolab:dashboard-cache:v1:';
+    if (loading) return;
+    if (!user) {
+      setStats(null);
+      setCertificates([]);
+      setMyQuizzes([]);
+      setMyFlashcardSets([]);
+      setFlaggedQuestions([]);
+      try {
+        for (let i = window.localStorage.length - 1; i >= 0; i--) {
+          const key = window.localStorage.key(i);
+          if (key?.startsWith(cachePrefix)) window.localStorage.removeItem(key);
+        }
+      } catch { /* Browser storage is optional. */ }
+      return;
+    }
+
+    const cacheKey = `${cachePrefix}${user.id}`;
+    let cachedData: any = null;
+    let cachedAt = 0;
+    try {
+      const raw = window.localStorage.getItem(cacheKey);
+      const parsed = raw ? JSON.parse(raw) as { savedAt?: number; data?: any } : null;
+      if (parsed && typeof parsed.savedAt === 'number' && parsed.data && typeof parsed.data === 'object') {
+        cachedData = parsed.data;
+        cachedAt = parsed.savedAt;
+      }
+    } catch { /* Missing or malformed cache falls back to the endpoint. */ }
+
+    const applyDashboardData = (data: any) => {
+      setStats(data.stats ?? null);
+      setCertificates(data.certificates ?? []);
+      setCertificatesEnabled(data.certificatesEnabled !== false);
+      setMyQuizzes(data.myQuizzes ?? []);
+      setMyFlashcardSets(data.myFlashcardSets ?? []);
+      setFlaggedQuestions(data.flaggedQuestions ?? []);
+    };
+
+    const age = cachedAt ? Date.now() - cachedAt : Number.POSITIVE_INFINITY;
+    if (cachedData) applyDashboardData(cachedData);
+    if (cachedData && age >= 0 && age < 5 * 60 * 1000) return;
+    if (!cachedData) {
+      // Avoid leaving another account's private data visible during loading.
+      setStats(null);
+      setCertificates([]);
+      setMyQuizzes([]);
+      setMyFlashcardSets([]);
+      setFlaggedQuestions([]);
+    }
+
+    let cancelled = false;
     fetch('/api/dashboard')
       .then((res) => {
         if (!res.ok) throw new Error('Dashboard request failed');
         return res.json();
       })
       .then((data) => {
-        setStats(data.stats);
-        setCertificates(data.certificates ?? []);
-        setCertificatesEnabled(data.certificatesEnabled !== false);
-        setMyQuizzes(data.myQuizzes ?? []);
-        setMyFlashcardSets(data.myFlashcardSets ?? []);
-        setFlaggedQuestions(data.flaggedQuestions ?? []);
+        if (cancelled) return;
+        applyDashboardData(data);
+        try { window.localStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), data })); } catch { /* Cache failure must not block dashboard use. */ }
       })
-      .catch(() => {});
-  }, [user]);
+      .catch(() => {
+        // If a stale copy exists, keep it visible while offline; otherwise the
+        // dashboard's existing empty/loading states remain in control.
+      });
+    return () => { cancelled = true; };
+  }, [user, loading]);
 
   async function regenerateLink(quizId: string) {
     const res = await fetch(`/api/quizzes/${quizId}/regenerate-link`, { method: 'POST' });
@@ -216,6 +278,7 @@ export default function DashboardPage() {
       const res2 = await fetch('/api/quizzes?mine=true');
       const data = await res2.json();
       setMyQuizzes(data.quizzes ?? []);
+      invalidateDashboardLocalCache();
     }
   }
 
@@ -229,6 +292,7 @@ export default function DashboardPage() {
       const res2 = await fetch('/api/quizzes?mine=true');
       const data = await res2.json();
       setMyQuizzes(data.quizzes ?? []);
+      invalidateDashboardLocalCache();
     } else {
       const data = await res.json().catch(() => ({}));
       window.alert(data.error ?? 'Could not move this quiz to Guest Practice.');
@@ -256,6 +320,7 @@ export default function DashboardPage() {
       const res2 = await fetch('/api/quizzes?mine=true');
       const data = await res2.json();
       setMyQuizzes(data.quizzes ?? []);
+      invalidateDashboardLocalCache();
     }
   }
 
@@ -288,6 +353,7 @@ export default function DashboardPage() {
       const res2 = await fetch('/api/quizzes?mine=true');
       const data2 = await res2.json();
       setMyQuizzes(data2.quizzes ?? []);
+      invalidateDashboardLocalCache();
     } finally {
       setSavingAccess(false);
     }
@@ -312,6 +378,7 @@ export default function DashboardPage() {
         return;
       }
       setPasswordChangeQuizId(null);
+      invalidateDashboardLocalCache();
       setPasswordDraft('');
     } finally {
       setSavingAccess(false);
@@ -330,6 +397,7 @@ export default function DashboardPage() {
         return;
       }
       setMyQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+      invalidateDashboardLocalCache();
     } catch {
       setDeleteError('Network error while deleting. Please try again.');
     } finally {
@@ -347,6 +415,7 @@ export default function DashboardPage() {
       });
       if (res.ok) {
         setFlaggedQuestions((prev) => prev.filter((r) => r.id !== reportId));
+        invalidateDashboardLocalCache();
       }
     } finally {
       setDismissingReportId(null);

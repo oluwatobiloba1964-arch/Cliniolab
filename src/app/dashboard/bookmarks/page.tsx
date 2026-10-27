@@ -15,15 +15,51 @@ export default function BookmarksPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    fetch('/api/bookmarks/resolved')
-      .then((res) => res.json())
-      .then((data) => {
-        setQuizzes(data.quizzes ?? []);
-        setResources(data.resources ?? []);
+    if (loading) return;
+    const cachePrefix = 'cliniolab:bookmark-resolved:v1:';
+    if (!user) {
+      try {
+        for (let i = window.localStorage.length - 1; i >= 0; i--) {
+          const key = window.localStorage.key(i);
+          if (key?.startsWith(cachePrefix)) window.localStorage.removeItem(key);
+        }
+      } catch { /* Browser storage is optional. */ }
+      setLoaded(true);
+      return;
+    }
+
+    const cacheKey = `${cachePrefix}${user.id}`;
+    let cachedData: { quizzes?: QuizWithStats[]; resources?: Resource[] } | null = null;
+    let savedAt = 0;
+    try {
+      const raw = window.localStorage.getItem(cacheKey);
+      const cached = raw ? JSON.parse(raw) as { savedAt?: number; data?: { quizzes?: QuizWithStats[]; resources?: Resource[] } } : null;
+      if (cached?.data && typeof cached.savedAt === 'number') { cachedData = cached.data; savedAt = cached.savedAt; }
+    } catch { /* Missing or corrupt cache falls back to the existing endpoint. */ }
+
+    const apply = (data: { quizzes?: QuizWithStats[]; resources?: Resource[] }) => {
+      setQuizzes(data.quizzes ?? []);
+      setResources(data.resources ?? []);
+      setLoaded(true);
+    };
+    const age = savedAt ? Date.now() - savedAt : Number.POSITIVE_INFINITY;
+    if (cachedData) apply(cachedData);
+    if (cachedData && age >= 0 && age < 2 * 60 * 1000) return;
+
+    let cancelled = false;
+    fetch('/api/bookmarks/resolved', { credentials: 'same-origin' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Could not load bookmarks');
+        return res.json();
       })
-      .finally(() => setLoaded(true));
-  }, [user]);
+      .then((data) => {
+        if (cancelled) return;
+        apply(data);
+        try { window.localStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), data })); } catch { /* Cache is optional. */ }
+      })
+      .catch(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, [user, loading]);
 
   if (loading) return null;
   if (!user) {

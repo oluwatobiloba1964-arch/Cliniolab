@@ -56,9 +56,10 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
   // DB search when query >= 2 chars, debounced 400ms
   useEffect(() => {
     const trimmed = query.trim();
+    let cancelled = false;
     if (trimmed.length < 2) {
       setSearchResults(null);
-      return;
+      return () => { cancelled = true; };
     }
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
@@ -67,11 +68,14 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
         `/api/quizzes?search=${encodeURIComponent(trimmed)}`,
         30_000,
       )
-        .then((data) => setSearchResults(Array.isArray(data.quizzes) ? data.quizzes : []))
-        .catch(() => setSearchResults([]))
-        .finally(() => setLoading(false));
+        .then((data) => { if (!cancelled) setSearchResults(Array.isArray(data.quizzes) ? data.quizzes : []); })
+        .catch(() => { if (!cancelled) setSearchResults([]); })
+        .finally(() => { if (!cancelled) setLoading(false); });
     }, 400);
-    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+    return () => {
+      cancelled = true;
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
   }, [query]);
 
   const baseQuizzes = searchResults ?? quizzes;
@@ -105,28 +109,27 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
   useEffect(() => {
     if (searchResults !== null) return; // search result is active, skip page fetch
     if (page === 1) {
-      let usedFallback = false;
-      if (initialQuizzes.length === 0) {
-        try {
-          const raw = window.localStorage.getItem(`cliniolab:quiz-list:1:${pageSize}`);
-          const cached = raw ? (JSON.parse(raw) as { savedAt?: number; quizzes?: QuizWithStats[]; total?: number }) : null;
-          if (cached && typeof cached.savedAt === 'number' && Date.now() - cached.savedAt < PUBLIC_LIST_TTL_MS && Array.isArray(cached.quizzes) && cached.quizzes.length > 0) {
-            setQuizzes(cached.quizzes);
-            setTotal(typeof cached.total === 'number' ? cached.total : cached.quizzes.length);
-            usedFallback = true;
-          }
-        } catch { /* fallback */ }
-      }
-      if (!usedFallback) {
-        setQuizzes(initialQuizzes);
-        setTotal(initialTotal);
-      }
+      // Local-first: use the last known public listing on reload and avoid an
+      // unnecessary client request. The server-rendered ISR payload is the
+      // fallback when the browser cache is missing, expired, or malformed.
+      try {
+        const raw = window.localStorage.getItem(`cliniolab:quiz-list:1:${pageSize}`);
+        const cached = raw ? (JSON.parse(raw) as { savedAt?: number; quizzes?: QuizWithStats[]; total?: number }) : null;
+        const age = typeof cached?.savedAt === 'number' ? Date.now() - cached.savedAt : Number.POSITIVE_INFINITY;
+        if (age >= 0 && age < PUBLIC_LIST_TTL_MS && Array.isArray(cached?.quizzes)) {
+          setQuizzes(cached.quizzes);
+          setTotal(typeof cached.total === 'number' ? cached.total : cached.quizzes.length);
+          setLoading(false);
+          return;
+        }
+      } catch { /* Missing or corrupt cache falls back to the server payload. */ }
+
+      setQuizzes(initialQuizzes);
+      setTotal(initialTotal);
       setLoading(false);
-      if (initialQuizzes.length > 0) {
-        try {
-          window.localStorage.setItem(`cliniolab:quiz-list:1:${pageSize}`, JSON.stringify({ savedAt: Date.now(), quizzes: initialQuizzes, total: initialTotal }));
-        } catch { /* optional */ }
-      }
+      try {
+        window.localStorage.setItem(`cliniolab:quiz-list:1:${pageSize}`, JSON.stringify({ savedAt: Date.now(), quizzes: initialQuizzes, total: initialTotal }));
+      } catch { /* Storage is optional and must never block learning. */ }
       return;
     }
 

@@ -11,6 +11,7 @@ import { LeaderboardList } from '@/components/quiz/LeaderboardList';
 import { Pagination } from '@/components/ui/Pagination';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import type { Category, FlashcardSetWithStats, LeaderboardEntry, QuizWithStats, Subcategory } from '@/types';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 const PAGE_SIZE = 25;
 
@@ -34,24 +35,28 @@ export default function CategoryGroupPage() {
   // Category lookup + leaderboard only need to happen once per category,
   // not on every page change.
   useEffect(() => {
-    fetch('/api/categories')
-      .then((res) => res.json())
+    let cancelled = false;
+    publicFetchJsonLocalCached<{ categories?: Category[]; subcategories?: Subcategory[] }>('/api/categories', PUBLIC_LIST_TTL_MS)
       .then((data) => {
+        if (cancelled) return;
         const cat = (data.categories as Category[]).find((c) => c.slug === params.categorySlug) ?? null;
         setCategory(cat);
         setSubcategories(
           (data.subcategories as Subcategory[] | undefined)?.filter((sub) => sub.categoryId === cat?.id) ?? []
         );
         if (cat) {
-          fetch(`/api/leaderboard/category/${cat.id}`)
+          fetch(`/api/leaderboard/category/${cat.id}`, { cache: 'no-store', credentials: 'same-origin' })
             .then((res) => res.json())
             .then((lbData) => {
+              if (cancelled) return;
               setLeaderboardEnabled(lbData.enabled);
               setLeaderboard(lbData.entries ?? []);
               setLeaderboardCurrentUserRank(lbData.currentUserRank ?? null);
-            });
+            }).catch(() => { if (!cancelled) setLeaderboard([]); });
         }
-      });
+      })
+      .catch(() => { if (!cancelled) { setCategory(null); setSubcategories([]); } });
+    return () => { cancelled = true; };
   }, [params.categorySlug]);
 
   // Quiz list re-fetches whenever the category resolves or the page
@@ -59,22 +64,26 @@ export default function CategoryGroupPage() {
   // navigating directly between two category pages without a full reload).
   useEffect(() => {
     if (!category || tab !== 'quizzes') return;
-    fetch(`/api/quizzes?categoryId=${category.id}&page=${page}&pageSize=${PAGE_SIZE}`)
-      .then((res) => res.json())
+    let cancelled = false;
+    publicFetchJsonLocalCached<{ quizzes?: QuizWithStats[]; total?: number }>(`/api/quizzes?categoryId=${category.id}&page=${page}&pageSize=${PAGE_SIZE}`, PUBLIC_LIST_TTL_MS)
       .then((data) => {
+        if (cancelled) return;
         setQuizzes(data.quizzes ?? []);
         setTotal(data.total ?? 0);
-      });
+      }).catch(() => { if (!cancelled) setQuizzes([]); });
+    return () => { cancelled = true; };
   }, [category, page, tab]);
 
   useEffect(() => {
     if (!category || tab !== 'flashcards') return;
-    fetch(`/api/flashcards?categoryId=${category.id}&page=${page}&pageSize=${PAGE_SIZE}`)
-      .then((res) => res.json())
+    let cancelled = false;
+    publicFetchJsonLocalCached<{ sets?: FlashcardSetWithStats[]; total?: number }>(`/api/flashcards?categoryId=${category.id}&page=${page}&pageSize=${PAGE_SIZE}`, PUBLIC_LIST_TTL_MS)
       .then((data) => {
+        if (cancelled) return;
         setFlashcardSets(data.sets ?? []);
         setTotal(data.total ?? 0);
-      });
+      }).catch(() => { if (!cancelled) setFlashcardSets([]); });
+    return () => { cancelled = true; };
   }, [category, page, tab]);
 
   useEffect(() => {

@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import { OfflineSaveButton } from '@/lib/offline/OfflineSaveButton';
 import type { Quiz, QuizQuestion } from '@/types';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 const MODE_LABELS: Record<Quiz['mode'], string> = {
   study: 'Study Mode',
@@ -38,15 +39,19 @@ export function GuestQuizClient({ quizId }: { quizId: string }) {
       setLoading(false);
       return;
     }
-    fetch(`/api/guest/quizzes/${quizId}`)
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? 'Not available');
+    let cancelled = false;
+    // Guest-visible quiz content is public learning material. Cache it locally
+    // for reloads; the existing API remains the fallback for a missing/expired
+    // cache. This does not cache grades, attempts, or personal data.
+    publicFetchJsonLocalCached<{ quiz: Quiz; questions?: QuizQuestion[] }>(`/api/guest/quizzes/${quizId}`, PUBLIC_LIST_TTL_MS)
+      .then((data) => {
+        if (cancelled) return;
         setQuiz(data.quiz);
         setQuestions(data.questions ?? []);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Not available'))
-      .finally(() => setLoading(false));
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Not available'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [quizId, flags.guestPractice]);
 
   if (loading || authLoading) return null;

@@ -7,6 +7,7 @@ import { LeaderboardList } from '@/components/quiz/LeaderboardList';
 import { Pagination } from '@/components/ui/Pagination';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import type { Category, LeaderboardEntry, QuizWithStats, Subcategory } from '@/types';
+import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
 
 interface SubcategoryClientProps {
   category: Category | null;
@@ -36,29 +37,50 @@ export function SubcategoryClient({
   // quizzes already arrived server-rendered via props.
   useEffect(() => {
     if (!category) return;
-    fetch(`/api/leaderboard/category/${category.id}`)
+    let cancelled = false;
+    fetch(`/api/leaderboard/category/${category.id}`, { cache: 'no-store', credentials: 'same-origin' })
       .then((res) => res.json())
       .then((lbData) => {
+        if (cancelled) return;
         setLeaderboardEnabled(lbData.enabled);
         setLeaderboard(lbData.entries ?? []);
         setLeaderboardCurrentUserRank(lbData.currentUserRank ?? null);
-      });
+      }).catch(() => { if (!cancelled) setLeaderboard([]); });
+    return () => { cancelled = true; };
   }, [category]);
 
   // Skip refetching page 1 since server data already covers it.
   useEffect(() => {
     if (!subcategory) return;
+    let cancelled = false;
+    const cacheKey = `/api/quizzes?subcategoryId=${subcategory.id}&page=${page}&pageSize=${pageSize}`;
     if (page === 1) {
+      // Restore a local copy first; server-rendered data is the fallback.
+      try {
+        const raw = window.localStorage.getItem(`cliniolab:subcategory-quizzes:${subcategory.id}:1:${pageSize}`);
+        const cached = raw ? JSON.parse(raw) as { savedAt?: number; quizzes?: QuizWithStats[]; total?: number } : null;
+        const age = typeof cached?.savedAt === 'number' ? Date.now() - cached.savedAt : Number.POSITIVE_INFINITY;
+        if (age >= 0 && age < PUBLIC_LIST_TTL_MS && Array.isArray(cached?.quizzes)) {
+          setQuizzes(cached.quizzes);
+          setTotal(typeof cached.total === 'number' ? cached.total : 0);
+          return;
+        }
+      } catch { /* Use server-rendered fallback. */ }
       setQuizzes(initialQuizzes);
       setTotal(initialTotal);
+      try { window.localStorage.setItem(`cliniolab:subcategory-quizzes:${subcategory.id}:1:${pageSize}`, JSON.stringify({ savedAt: Date.now(), quizzes: initialQuizzes, total: initialTotal })); } catch { /* Optional cache. */ }
       return;
     }
-    fetch(`/api/quizzes?subcategoryId=${subcategory.id}&page=${page}&pageSize=${pageSize}`)
-      .then((res) => res.json())
+    publicFetchJsonLocalCached<{ quizzes?: QuizWithStats[]; total?: number }>(cacheKey, PUBLIC_LIST_TTL_MS)
       .then((data) => {
-        setQuizzes(data.quizzes ?? []);
-        setTotal(data.total ?? 0);
-      });
+        if (cancelled) return;
+        const nextQuizzes = data.quizzes ?? [];
+        const nextTotal = data.total ?? 0;
+        setQuizzes(nextQuizzes);
+        setTotal(nextTotal);
+        try { window.localStorage.setItem(`cliniolab:subcategory-quizzes:${subcategory.id}:${page}:${pageSize}`, JSON.stringify({ savedAt: Date.now(), quizzes: nextQuizzes, total: nextTotal })); } catch { /* Optional cache. */ }
+      }).catch(() => { if (!cancelled) setQuizzes([]); });
+    return () => { cancelled = true; };
   }, [subcategory, page, pageSize, initialQuizzes, initialTotal]);
 
   return (

@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Toggle } from '@/components/ui/Toggle';
+import { clearPublicFetchCache } from '@/lib/client/publicFetch';
 import type {
   Category,
   LinkExpiryOption,
@@ -293,7 +294,12 @@ export function QuizForm({
       };
       const result = await onSubmit(input);
       if (result?.error) setError(result.error);
-      else if (!initialQuiz) { try { window.localStorage.removeItem(draftKey); } catch { /* Ignore storage failures. */ } }
+      else {
+        // Invalidate only local public quiz caches after the existing save
+        // succeeds; no additional request or database operation is introduced.
+        clearPublicFetchCache('/api/quizzes');
+        if (!initialQuiz) { try { window.localStorage.removeItem(draftKey); } catch { /* Ignore storage failures. */ } }
+      }
     } finally {
       setSubmitting(false);
     }
