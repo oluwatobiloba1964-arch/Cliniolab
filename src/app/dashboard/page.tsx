@@ -14,6 +14,14 @@ import { LocalClinicalPractice } from '@/components/study/LocalClinicalPractice'
 import { LocalStudyExtras } from '@/components/study/LocalStudyExtras';
 import { TonightQueue } from '@/components/study/TonightQueue';
 import { LocalInsightsPanel } from '@/components/study/LocalInsightsPanel';
+// Feature #1: Confidence calibration chart (pure client-side).
+import { ConfidenceCalibrationChart } from '@/components/study/ConfidenceCalibrationChart';
+// Feature #10: Weekly focus time bar chart (pure client-side).
+import { WeeklyFocusChart } from '@/components/dashboard/WeeklyFocusChart';
+// Feature #11: Category progress radar (pure client-side SVG).
+import { CategoryProgressRadar } from '@/components/dashboard/CategoryProgressRadar';
+// Feature #12: Recent activity timeline (pure client-side, aggregates localStorage).
+import { RecentActivityTimeline } from '@/components/dashboard/RecentActivityTimeline';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 
@@ -629,6 +637,16 @@ export default function DashboardPage() {
         <TonightQueue />
         <LocalInsightsPanel />
         <LocalStudyExtras />
+
+        {/* Feature #1 + #10 + #12 - Pure client-side widgets reading
+            localStorage. No database reads, no API calls. They render
+            only when there is data, so they are invisible on a fresh
+            device. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <WeeklyFocusChart />
+          <ConfidenceCalibrationChart />
+        </div>
+        <RecentActivityTimeline />
       </section>
 
       <section id="clinical-practice" className="mt-8 scroll-mt-6 space-y-4 rounded-3xl border border-pulse-100/80 bg-gradient-to-br from-pulse-50/60 to-white p-4 sm:mt-10 sm:p-6 lg:p-7">

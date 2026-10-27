@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { sanitizeHtml } from '@/lib/utils/sanitizeHtml';
+// Feature #19: Floating markdown cheat sheet for blog editor authors.
+import { MarkdownCheatsheet } from '@/components/ui/MarkdownCheatsheet';
 
 interface RichTextEditorProps {
   value: string;
@@ -126,6 +128,9 @@ export function RichTextEditor({ value, onChange, rows = 12, format = 'markdown'
             </button>
           ))}
         <div className="ml-auto">
+          {/* Feature #19 - Markdown cheat sheet, opens a modal with the
+              supported syntax. Pure client-side, no DB / API. */}
+          <MarkdownCheatsheet />
           <button
             type="button"
             onClick={() => setShowPreview((v) => !v)}

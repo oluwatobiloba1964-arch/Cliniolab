@@ -36,6 +36,16 @@ import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { ATTEMPTED_QUIZZES_KEY, COPIED_EXPLANATIONS_KEY, makeId, readJson, writeJson } from '@/lib/services/localExtrasService';
 import { MissReasonJournal } from '@/components/study/MissReasonJournal';
 import { saveConfidenceEntries, saveScore } from '@/lib/services/localInsightsService';
+// Feature #5: Animated score reveal + shareable PNG
+import { AnimatedScoreReveal } from '@/components/quiz/AnimatedScoreReveal';
+// Feature #13: Haptic feedback
+import { haptic } from '@/lib/utils/haptics';
+// Feature #14: Read-aloud for accessibility
+import { ReadAloudButton } from '@/components/quiz/ReadAloudButton';
+// NOTE: Feature #7 (keyboard nav) is implemented inline in this file
+// (J/K/Arrow keys, 1-4 option select, F/M flag-for-review). The
+// reusable useQuizKeyboardNav hook in ./KeyboardNav remains available
+// for callers like StudyModeRunner that don't want to reimplement it.
 import type { AttemptResult, Quiz, QuizQuestion } from '@/types';
 
 interface QuizRunnerProps {
@@ -314,6 +324,9 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
       next.delete(questionId);
       return next;
     });
+    // Feature #13 - Haptic feedback on mobile when an answer is selected.
+    // Light vibration only; safe no-op on desktop (feature-detected).
+    haptic('light');
   }
 
   function skipQuestion() {
@@ -424,19 +437,21 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         return;
       }
 
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'k') {
         event.preventDefault();
         setCurrent((c) => Math.max(0, c - 1));
         return;
       }
 
-      if (event.key === 'ArrowRight' || event.key === 'Enter') {
+      if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key.toLowerCase() === 'j') {
         event.preventDefault();
         setCurrent((c) => Math.min(questions.length - 1, c + 1));
         return;
       }
 
-      if (event.key.toLowerCase() === 'm') {
+      // Feature #7 - 'f' is an alias for 'm' to mark/flag for review.
+      // Matches the convention used by some CBT software.
+      if (event.key.toLowerCase() === 'm' || event.key.toLowerCase() === 'f') {
         event.preventDefault();
         toggleMarkForReview(question.id);
         return;
@@ -470,8 +485,25 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         answered: answers[q.id] !== undefined && answers[q.id] !== '',
         flagged: markedForReview.has(q.id),
         skipped: skipped.has(q.id),
+        // Feature #3 - Ghost answer marker: indicates this question was
+        // answered on a previous attempt of this quiz (cache lookup of
+        // the missed-IDs record which only exists once the user has
+        // attempted this quiz before). Pure visual aid; no behavior
+        // change. Looked up once at memo time; safe if storage is empty.
+        previouslyAnswered: (() => {
+          if (typeof window === 'undefined') return false;
+          try {
+            const cacheOwner = guest ? 'guest' : (user?.id ?? 'anonymous');
+            const raw = window.localStorage.getItem(`cl-missed:${quiz.id}:${cacheOwner}`);
+            if (!raw) return false;
+            const parsed = JSON.parse(raw) as { questionIds?: string[] };
+            return Array.isArray(parsed.questionIds) && parsed.questionIds.includes(q.id);
+          } catch {
+            return false;
+          }
+        })(),
       })),
-    [questions, answers, markedForReview, skipped]
+    [questions, answers, markedForReview, skipped, quiz.id, guest, user?.id]
   );
   const unansweredCount = useMemo(
     () => questions.filter((q) => answers[q.id] === undefined || answers[q.id] === '').length,
@@ -759,15 +791,10 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
 
     return (
       <div className="quiz-results-print mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2 print:hidden">
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 shadow-sm hover:border-pulse-300 hover:text-pulse-700"
-          >
-            Print results
-          </button>
-        </div>
+        {/* Print button intentionally removed: per project policy,
+            no visitor should be able to print quiz content from the
+            site, including results screens. window.print() would
+            allow exactly that. */}
         <Card className="overflow-hidden p-0">
           <div className="relative overflow-hidden bg-gradient-to-br from-pulse-50 via-white to-flag-50/40 p-6 sm:p-9">
             <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -819,6 +846,19 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                 <p className="font-mono text-2xl font-semibold text-ink-800">{attemptDurationSeconds === null ? 'N/A' : `${Math.floor(attemptDurationSeconds / 60)}m ${attemptDurationSeconds % 60}s`}</p>
                 <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Time spent</p>
               </div>
+            </div>
+
+            {/* Feature #5 - Animated score reveal + shareable PNG. Count-up
+                animation on mount + a "Share as image" button that draws a
+                branded result card on canvas and triggers Web Share / download.
+                Pure client-side; no DB, no API call. */}
+            <div className="mt-5 flex justify-center">
+              <AnimatedScoreReveal
+                percentage={result.percentage}
+                correctCount={result.perQuestion.filter((pq) => pq.isCorrect).length}
+                totalQuestions={result.totalQuestions}
+                quizTitle={quiz.title}
+              />
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -1397,6 +1437,10 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         >
           {question.prompt}
         </h2>
+        {/* Feature #14 - Read-aloud button for accessibility. Pure client-side SpeechSynthesis. */}
+        <div className="mt-1">
+          <ReadAloudButton text={question.prompt} variant="ghost" />
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"

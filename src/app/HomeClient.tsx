@@ -13,6 +13,10 @@ import { AbbreviationsTeaser } from '@/components/layout/AbbreviationsTeaser';
 import { GuestPracticeSection } from '@/components/guest/GuestPracticeSection';
 import { LocalClinicalPractice } from '@/components/study/LocalClinicalPractice';
 import { CompactTeaserBlogSection } from '@/components/cms/CompactTeaserBlogSection';
+// Feature #16: Instant 3-question demo quiz, no signup, no API call.
+import { InstantDemoQuiz } from '@/components/home/InstantDemoQuiz';
+// Feature #17: Daily clinical pearl, bundled 365-pearl collection.
+import { DailyClinicalPearl } from '@/components/home/DailyClinicalPearl';
 
 import {
   HomeHero,
@@ -59,6 +63,11 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
     <div className="bg-white">
       <HomeHero />
       <BannerSlot placement="header" />
+
+      {/* Feature #16 - 3-question instant demo quiz. Pure client-side,
+          no signup, no DB, no API call. Lets every homepage visitor
+          experience the QuizRunner UX within 10 seconds. */}
+      <InstantDemoQuiz />
 
       <HomeLatestArticle blogCategories={blogCategories} data={home.data} />
       <DailyQuizBanner />
@@ -126,6 +135,11 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
       </div>
 
       <AbbreviationsTeaser />
+
+      {/* Feature #17 - Daily clinical pearl, bundled 365-pearl collection.
+          Pure client-side; no DB, no API. Rotates by day-of-year so every
+          visitor on the same day sees the same pearl. */}
+      <DailyClinicalPearl />
     </div>
   );
 }

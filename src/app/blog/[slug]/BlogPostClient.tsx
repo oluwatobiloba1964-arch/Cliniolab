@@ -15,7 +15,12 @@ import { AuthorBox } from '@/components/blog/AuthorBox';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import { RelatedPosts } from '@/components/cms/RelatedPosts';
 import { CommentThread } from '@/components/quiz/CommentThread';
-import { TableOfContents } from '@/components/blog/TableOfContents';
+// Feature #15: Enhanced sticky scroll-spy TOC with reading progress bar.
+// Replaces the previous TableOfContents import; the StickyTableOfContents
+// implementation extends the same scroll-spy behavior with a reading
+// progress bar and refined sticky positioning. The original
+// TableOfContents component remains available for other callers.
+import { StickyTableOfContents } from '@/components/blog/StickyTableOfContents';
 import { ArticleStudyMode } from '@/components/study/ArticleStudyMode';
 import { extractTableOfContents, MIN_HEADINGS_FOR_TOC } from '@/lib/utils/tableOfContents';
 import { useBlogSubcategoryName } from '@/lib/hooks/useBlogSubcategoryName';
@@ -297,7 +302,7 @@ function BlogPostBody({ post }: { post: BlogPost }) {
             <div className={`mx-auto px-6 ${wide ? 'max-w-6xl' : showToc ? 'max-w-4xl' : 'max-w-2xl'}`}>
               <style>{FLATTEN_BOXED_CONTENT_CSS}</style>
               <div className={showToc ? 'mt-6 grid grid-cols-1 gap-10 lg:grid-cols-[220px_1fr]' : undefined}>
-                {showToc && <TableOfContents items={tocItems} />}
+                {showToc && <StickyTableOfContents items={tocItems} />}
                 <div
                   className={`post-content-flatten prose prose-sm max-w-none text-ink-700 ${
                     showToc ? '' : 'mt-6'

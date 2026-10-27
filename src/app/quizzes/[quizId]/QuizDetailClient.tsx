@@ -8,6 +8,8 @@ import { QuizRunner } from '@/components/quiz/QuizRunner';
 import { StudyModeRunner } from '@/components/quiz/StudyModeRunner';
 import { CommentThread } from '@/components/quiz/CommentThread';
 import { ShareButton } from '@/components/quiz/ShareButton';
+// Feature #18: Anonymous quick-save bookmark button (localStorage only).
+import { QuickSaveButton } from '@/components/quiz/QuickSaveButton';
 import { QuizLeaderboardSection } from '@/components/quiz/QuizLeaderboardSection';
 import { CreatorProfileCard } from '@/components/creator/CreatorProfileCard';
 import { RelatedStudyMaterials } from '@/components/quiz/RelatedStudyMaterials';
@@ -579,6 +581,18 @@ export function QuizDetailClient({
                 attemptCount: previewStats.attemptCount,
                 averageScorePercent: previewStats.averageScorePercent,
               }}
+            />
+          )}
+          {/* Feature #18 - Quick-save bookmark for logged-out visitors.
+              Saves to localStorage; sync-to-account prompt shows after
+              sign-in. Pure client-side; no DB. */}
+          {previewStats && !user && (
+            <QuickSaveButton
+              kind="quiz"
+              id={previewStats.id}
+              title={previewStats.title}
+              href={typeof window !== 'undefined' ? window.location.pathname : `/quizzes/${quizId}`}
+              variant="default"
             />
           )}
         </div>

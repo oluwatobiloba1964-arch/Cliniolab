@@ -23,6 +23,14 @@ export interface NavigatorQuestionState {
   flagged?: boolean;
   skipped?: boolean;
   highlighted?: boolean;
+  /**
+   * Feature #3 - Ghost answer marker. When set, this question was
+   * answered on a previous attempt; the navigator renders a small
+   * ghost dot (light grey) in the corner so the learner can see at
+   * a glance which questions they have already engaged with on a
+   * prior run. Pure visual aid, no behavior change.
+   */
+  previouslyAnswered?: boolean;
 }
 
 interface QuestionNavigatorProps {
@@ -56,6 +64,7 @@ export function QuestionNavigator({
         <LegendDot className="bg-flag-400" label="Flagged" />
         <LegendDot className="bg-amber-100 ring-1 ring-inset ring-amber-300" label="Skipped" />
         <LegendDot className="bg-white ring-1 ring-inset ring-ink-200" label="Unanswered" />
+        <LegendDot className="bg-ink-200" label="Prior attempt" />
       </div>
       {summary && <p className="mb-3 text-xs text-ink-500">{summary}</p>}
       <div className="grid grid-cols-8 gap-1.5 sm:grid-cols-10">
@@ -82,13 +91,20 @@ export function QuestionNavigator({
               key={i}
               type="button"
               onClick={() => onJump(i)}
-              aria-label={`Go to question ${i + 1}${state.answered ? ', answered' : state.skipped ? ', skipped' : ', unanswered'}${state.flagged ? ', flagged' : ''}`}
+              aria-label={`Go to question ${i + 1}${state.answered ? ', answered' : state.skipped ? ', skipped' : ', unanswered'}${state.flagged ? ', flagged' : ''}${state.previouslyAnswered ? ', answered on a prior attempt' : ''}`}
               aria-current={isCurrent ? 'true' : undefined}
               className={classes}
             >
               {i + 1}
               {state.flagged && (
                 <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-flag-400" />
+              )}
+              {state.previouslyAnswered && !state.flagged && (
+                <span
+                  className="absolute -left-0.5 -bottom-0.5 h-1.5 w-1.5 rounded-full bg-ink-300"
+                  aria-hidden="true"
+                  title="Answered on a prior attempt"
+                />
               )}
             </button>
           );

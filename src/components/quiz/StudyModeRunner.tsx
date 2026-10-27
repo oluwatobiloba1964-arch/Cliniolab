@@ -34,7 +34,7 @@ import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { ShortcutsHelpPanel, STUDY_SHORTCUTS } from '@/components/ui/ShortcutsHelpPanel';
 import { CorrectPulse } from '@/components/ui/CorrectPulse';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
-import { resolveEffectiveCorrectAnswer } from '@/lib/quizAnswers';
+import { resolveEffectiveCorrectAnswer, parseArrayAnswer, parseObjectAnswer } from '@/lib/quizAnswers';
 import type { Quiz, QuizQuestion } from '@/types';
 
 interface StudyModeRunnerProps {
