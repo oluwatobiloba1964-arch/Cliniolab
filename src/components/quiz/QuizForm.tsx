@@ -203,12 +203,112 @@ export function QuizForm({
 
   function addOption(qIndex: number) {
     setQuestions((prev) =>
-      prev.map((q, i) =>
-        i === qIndex && q.options
-          ? { ...q, options: [...q.options, { id: crypto.randomUUID(), text: '' }] }
-          : q
-      )
+      prev.map((q, i) => {
+        if (i !== qIndex) return q;
+        const newId = crypto.randomUUID();
+        const options = [...(q.options ?? []), { id: newId, text: '' }];
+        let correctAnswer = q.correctAnswer;
+        if (q.type === 'ordering') {
+          correctAnswer = JSON.stringify(options.map((o) => o.id));
+        } else if (q.type === 'matrix') {
+          try {
+            const map = JSON.parse(correctAnswer || '{}');
+            map[newId] = 'indicated';
+            correctAnswer = JSON.stringify(map);
+          } catch {
+            correctAnswer = JSON.stringify({ [newId]: 'indicated' });
+          }
+        }
+        return { ...q, options, correctAnswer };
+      })
     );
+  }
+
+  function removeOption(qIndex: number, optIndex: number) {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIndex || !q.options) return q;
+        const targetId = q.options[optIndex].id;
+        const options = q.options.filter((_, idx) => idx !== optIndex);
+        let correctAnswer = q.correctAnswer;
+        if (q.type === 'mcq' && correctAnswer === targetId) {
+          correctAnswer = '';
+        } else if (q.type === 'sata' || q.type === 'highlight') {
+          try {
+            const list = JSON.parse(correctAnswer || '[]');
+            correctAnswer = JSON.stringify(list.filter((id: string) => id !== targetId));
+          } catch {
+            correctAnswer = JSON.stringify([]);
+          }
+        } else if (q.type === 'ordering') {
+          correctAnswer = JSON.stringify(options.map((o) => o.id));
+        } else if (q.type === 'matrix') {
+          try {
+            const map = JSON.parse(correctAnswer || '{}');
+            delete map[targetId];
+            correctAnswer = JSON.stringify(map);
+          } catch {
+            correctAnswer = JSON.stringify({});
+          }
+        }
+        return { ...q, options, correctAnswer };
+      })
+    );
+  }
+
+  function toggleSataOption(qIndex: number, optId: string) {
+    const q = questions[qIndex];
+    let selected: string[] = [];
+    try {
+      const parsed = JSON.parse(q.correctAnswer || '[]');
+      selected = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      selected = [];
+    }
+    const next = selected.includes(optId)
+      ? selected.filter((id) => id !== optId)
+      : [...selected, optId];
+    updateQuestion(qIndex, { correctAnswer: JSON.stringify(next) });
+  }
+
+  function moveOrderingStep(qIndex: number, fromIdx: number, toIdx: number) {
+    const q = questions[qIndex];
+    const opts = [...(q.options ?? [])];
+    if (fromIdx < 0 || fromIdx >= opts.length || toIdx < 0 || toIdx >= opts.length) return;
+    const [moved] = opts.splice(fromIdx, 1);
+    opts.splice(toIdx, 0, moved);
+    updateQuestion(qIndex, {
+      options: opts,
+      correctAnswer: JSON.stringify(opts.map((o) => o.id)),
+    });
+  }
+
+  function updateMatrixRowChoice(qIndex: number, rowId: string, choice: string) {
+    const q = questions[qIndex];
+    let map: Record<string, string> = {};
+    try {
+      map = JSON.parse(q.correctAnswer || '{}');
+      if (typeof map !== 'object' || Array.isArray(map)) map = {};
+    } catch {
+      map = {};
+    }
+    map[rowId] = choice;
+    updateQuestion(qIndex, { correctAnswer: JSON.stringify(map) });
+  }
+
+  function toggleHighlightCue(qIndex: number, cueId: string) {
+    const q = questions[qIndex];
+    let selected: string[] = [];
+    try {
+      const parsed = JSON.parse(q.correctAnswer || '[]');
+      selected = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      selected = [];
+    }
+    const next = selected.includes(cueId)
+      ? selected.filter((id) => id !== cueId)
+      : [...selected, cueId];
+    updateQuestion(qIndex, { correctAnswer: JSON.stringify(next) });
   }
 
   function removeQuestion(index: number) {
@@ -341,6 +441,42 @@ export function QuizForm({
         const options = (q.options ?? []).filter((option) => option.text.trim());
         return options.length < 2 || !q.correctAnswer || !options.some((option) => option.id === q.correctAnswer);
       }
+      if (q.type === 'sata') {
+        const options = (q.options ?? []).filter((option) => option.text.trim());
+        let selected = [];
+        try {
+          const parsed = JSON.parse(q.correctAnswer || '[]');
+          selected = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          selected = [];
+        }
+        return options.length < 2 || selected.length === 0;
+      }
+      if (q.type === 'ordering') {
+        const options = (q.options ?? []).filter((option) => option.text.trim());
+        return options.length < 2;
+      }
+      if (q.type === 'matrix') {
+        const rows = (q.options ?? []).filter((option) => option.text.trim());
+        let mapping = {};
+        try {
+          mapping = JSON.parse(q.correctAnswer || '{}');
+        } catch {
+          mapping = {};
+        }
+        return rows.length < 1 || Object.keys(mapping).length < rows.length;
+      }
+      if (q.type === 'highlight') {
+        const cues = (q.options ?? []).filter((option) => option.text.trim());
+        let selected = [];
+        try {
+          const parsed = JSON.parse(q.correctAnswer || '[]');
+          selected = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          selected = [];
+        }
+        return cues.length < 2 || selected.length === 0;
+      }
       return !q.correctAnswer.trim();
     });
     if (incomplete !== -1) {
@@ -420,7 +556,80 @@ export function QuizForm({
       {learnerPreview && (
         <Card className="mb-6 space-y-5 p-6">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-pulse-600">Learner preview</p><h2 className="mt-1 font-display text-2xl font-semibold text-ink-800">{title.trim() || 'Untitled quiz'}</h2><p className="mt-1 text-sm text-ink-500">{description || 'No description added.'}</p><p className="mt-2 text-xs text-ink-400">{questions.length} questions · {mode === 'combined' ? 'Combined study and timed quiz' : mode === 'exam' ? 'Timed exam' : mode === 'study' ? 'Study mode' : 'Quiz mode'} · Answers shown here for creator review</p></div>
-          {questions.map((question, index) => <div key={question.id ?? index} className="rounded-xl border border-ink-100 p-4"><p className="font-medium text-ink-800">{index + 1}. {question.prompt || 'Question prompt not entered yet'}</p>{question.type === 'mcq' && <ul className="mt-3 space-y-2">{(question.options ?? []).map((option, optionIndex) => <li key={option.id} className={`rounded-lg px-3 py-2 text-sm ${option.id === question.correctAnswer ? 'bg-pulse-50 font-semibold text-pulse-700 ring-1 ring-pulse-200' : 'bg-ink-50 text-ink-600'}`}>{String.fromCharCode(65 + optionIndex)}. {option.text || 'Empty option'} {option.id === question.correctAnswer ? '✓ Correct answer' : ''}</li>)}</ul>}{question.type !== 'mcq' && <p className="mt-2 text-sm text-ink-500">Expected answer: {question.correctAnswer || 'Not entered'}</p>}{question.explanation && <p className="mt-3 text-sm text-ink-500">Explanation: {question.explanation}</p>}</div>)}
+          {questions.map((question, index) => <div key={question.id ?? index} className="rounded-xl border border-ink-100 p-4"><p className="font-medium text-ink-800">{index + 1}. {question.prompt || 'Question prompt not entered yet'}</p>{question.type === 'mcq' && <ul className="mt-3 space-y-2">{(question.options ?? []).map((option, optionIndex) => <li key={option.id} className={`rounded-lg px-3 py-2 text-sm ${option.id === question.correctAnswer ? 'bg-pulse-50 font-semibold text-pulse-700 ring-1 ring-pulse-200' : 'bg-ink-50 text-ink-600'}`}>{String.fromCharCode(65 + optionIndex)}. {option.text || 'Empty option'} {option.id === question.correctAnswer ? '✓ Correct answer' : ''}</li>)}</ul>}{question.type === 'sata' && (
+              <div className="mt-3 space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">SATA Options (Correct marked):</p>
+                {(question.options ?? []).map((option, optIdx) => {
+                  let isCorrect = false;
+                  try {
+                    const list = JSON.parse(question.correctAnswer || '[]');
+                    isCorrect = Array.isArray(list) && list.includes(option.id);
+                  } catch {}
+                  return (
+                    <div key={option.id} className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-xs ${isCorrect ? 'bg-pulse-50 font-semibold text-pulse-800 ring-1 ring-pulse-200' : 'bg-ink-50 text-ink-600'}`}>
+                      <span>{String.fromCharCode(65 + optIdx)}. {option.text || 'Empty option'}</span>
+                      {isCorrect && <span className="text-[11px] font-bold text-pulse-700">Correct selection</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {question.type === 'ordering' && (
+              <div className="mt-3 space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Correct Sequence Order:</p>
+                {(question.options ?? []).map((step, sIdx) => (
+                  <div key={step.id} className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-1.5 text-xs text-amber-900">
+                    <span className="rounded bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-bold">{sIdx + 1}</span>
+                    <span>{step.text || 'Empty step'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {question.type === 'matrix' && (
+              <div className="mt-3 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Clinical Matrix Classification:</p>
+                <div className="divide-y divide-ink-100 rounded-lg border border-ink-100 bg-white text-xs">
+                  {(question.options ?? []).map((row) => {
+                    let col = 'indicated';
+                    try {
+                      const map = JSON.parse(question.correctAnswer || '{}');
+                      col = map[row.id] ?? 'indicated';
+                    } catch {}
+                    const colLabel = col === 'indicated' ? 'Indicated' : col === 'contraindicated' ? 'Contraindicated' : 'Not Related';
+                    return (
+                      <div key={row.id} className="flex items-center justify-between px-3 py-2">
+                        <span className="font-medium text-ink-800">{row.text || 'Empty row'}</span>
+                        <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${col === 'indicated' ? 'bg-teal-100 text-teal-800' : col === 'contraindicated' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'}`}>
+                          {colLabel}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {question.type === 'highlight' && (
+              <div className="mt-3 space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">EHR Clinical Findings (Red flags marked):</p>
+                <div className="flex flex-wrap gap-2">
+                  {(question.options ?? []).map((cue) => {
+                    let isFlag = false;
+                    try {
+                      const list = JSON.parse(question.correctAnswer || '[]');
+                      isFlag = Array.isArray(list) && list.includes(cue.id);
+                    } catch {}
+                    return (
+                      <span key={cue.id} className={`rounded-full px-3 py-1 text-xs ${isFlag ? 'bg-rose-100 font-semibold text-rose-800 ring-1 ring-rose-300' : 'bg-ink-100 text-ink-600'}`}>
+                        {isFlag ? 'Red flag: ' : ''}{cue.text || 'Empty cue'}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {!['mcq', 'sata', 'ordering', 'matrix', 'highlight'].includes(question.type) && (
+              <p className="mt-2 text-sm text-ink-500">Expected answer: {question.correctAnswer || 'Not entered'}</p>
+            )}{question.explanation && <p className="mt-3 text-sm text-ink-500">Explanation: {question.explanation}</p>}</div>)}
           <Button variant="secondary" onClick={() => setLearnerPreview(false)}>Return to editing</Button>
         </Card>
       )}
@@ -822,13 +1031,53 @@ export function QuizForm({
                 </label>
                 <select
                   value={q.type}
-                  onChange={(e) => updateQuestion(qIndex, {
-                    type: e.target.value as QuestionType,
-                    options: e.target.value === 'mcq' ? [{ id: crypto.randomUUID(), text: '' }, { id: crypto.randomUUID(), text: '' }] : undefined,
-                  })}
+                  onChange={(e) => {
+                    const newType = e.target.value as QuestionType;
+                    let initialOptions = q.options;
+                    let initialCorrect = q.correctAnswer;
+                    if (newType === 'mcq') {
+                      initialOptions = [{ id: crypto.randomUUID(), text: '' }, { id: crypto.randomUUID(), text: '' }];
+                      initialCorrect = '';
+                    } else if (newType === 'sata') {
+                      initialOptions = [{ id: crypto.randomUUID(), text: '' }, { id: crypto.randomUUID(), text: '' }, { id: crypto.randomUUID(), text: '' }, { id: crypto.randomUUID(), text: '' }];
+                      initialCorrect = JSON.stringify([]);
+                    } else if (newType === 'ordering') {
+                      const id1 = crypto.randomUUID();
+                      const id2 = crypto.randomUUID();
+                      const id3 = crypto.randomUUID();
+                      initialOptions = [{ id: id1, text: '' }, { id: id2, text: '' }, { id: id3, text: '' }];
+                      initialCorrect = JSON.stringify([id1, id2, id3]);
+                    } else if (newType === 'matrix') {
+                      const r1 = crypto.randomUUID();
+                      const r2 = crypto.randomUUID();
+                      initialOptions = [{ id: r1, text: '' }, { id: r2, text: '' }];
+                      initialCorrect = JSON.stringify({ [r1]: 'indicated', [r2]: 'contraindicated' });
+                    } else if (newType === 'highlight') {
+                      const c1 = crypto.randomUUID();
+                      const c2 = crypto.randomUUID();
+                      const c3 = crypto.randomUUID();
+                      initialOptions = [{ id: c1, text: '' }, { id: c2, text: '' }, { id: c3, text: '' }];
+                      initialCorrect = JSON.stringify([c1]);
+                    } else if (newType === 'true_false') {
+                      initialOptions = undefined;
+                      initialCorrect = 'True';
+                    } else if (newType === 'fill_blank') {
+                      initialOptions = undefined;
+                      initialCorrect = '';
+                    }
+                    updateQuestion(qIndex, {
+                      type: newType,
+                      options: initialOptions,
+                      correctAnswer: initialCorrect,
+                    });
+                  }}
                   className="max-w-full rounded-md border border-ink-100 px-2 py-1 text-xs"
                 >
-                  <option value="mcq">Multiple choice</option>
+                  <option value="mcq">Multiple Choice (MCQ)</option>
+                  <option value="sata">Select All That Apply (SATA)</option>
+                  <option value="ordering">Clinical Drag & Drop / Ordering</option>
+                  <option value="matrix">Clinical Matrix (Indicated / Contraindicated)</option>
+                  <option value="highlight">Highlighting Clinical Red Flags</option>
                   <option value="true_false">True / False</option>
                   <option value="fill_blank">Fill in the blank</option>
                 </select>
@@ -855,6 +1104,7 @@ export function QuizForm({
 
             {q.type === 'mcq' && (
               <div className="mt-3 space-y-2">
+                <p className="text-xs font-medium text-ink-500">Mark the single correct option:</p>
                 {q.options?.map((opt, optIndex) => (
                   <div key={opt.id} className="flex items-center gap-2">
                     <input
@@ -862,13 +1112,25 @@ export function QuizForm({
                       name={`correct-${qIndex}`}
                       checked={q.correctAnswer === opt.id}
                       onChange={() => updateQuestion(qIndex, { correctAnswer: opt.id })}
+                      className="h-4 w-4 accent-teal-600"
                     />
+                    <span className="w-5 text-xs font-bold text-ink-400">{String.fromCharCode(65 + optIndex)}.</span>
                     <input
                       value={opt.text}
                       onChange={(e) => updateOption(qIndex, optIndex, e.target.value)}
                       placeholder={`Option ${optIndex + 1}`}
                       className="flex-1 rounded-md border border-ink-100 px-3 py-1.5 text-sm focus:border-pulse-400 focus:outline-none"
                     />
+                    {(q.options ?? []).length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => removeOption(qIndex, optIndex)}
+                        className="px-1 text-xs text-ink-400 hover:text-critical-600"
+                        title="Remove option"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 ))}
                 <button
@@ -877,6 +1139,231 @@ export function QuizForm({
                   className="text-xs font-medium text-pulse-600 hover:text-pulse-700"
                 >
                   + Add option
+                </button>
+              </div>
+            )}
+
+            {q.type === 'sata' && (
+              <div className="mt-3 space-y-2 rounded-xl border border-pulse-100 bg-pulse-50/30 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-pulse-800">Select All That Apply (SATA): Check all correct answers</p>
+                  <span className="text-[11px] text-ink-400">Multi-select</span>
+                </div>
+                {q.options?.map((opt, optIndex) => {
+                  let isSelected = false;
+                  try {
+                    const list = JSON.parse(q.correctAnswer || '[]');
+                    isSelected = Array.isArray(list) && list.includes(opt.id);
+                  } catch {}
+                  return (
+                    <div key={opt.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSataOption(qIndex, opt.id)}
+                        className="h-4 w-4 rounded accent-teal-600"
+                      />
+                      <span className="w-5 text-xs font-bold text-ink-400">{String.fromCharCode(65 + optIndex)}.</span>
+                      <input
+                        value={opt.text}
+                        onChange={(e) => updateOption(qIndex, optIndex, e.target.value)}
+                        placeholder={`SATA Option ${optIndex + 1}`}
+                        className="flex-1 rounded-md border border-ink-100 bg-white px-3 py-1.5 text-sm focus:border-pulse-400 focus:outline-none"
+                      />
+                      {(q.options ?? []).length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => removeOption(qIndex, optIndex)}
+                          className="px-1 text-xs text-ink-400 hover:text-critical-600"
+                          title="Remove option"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => addOption(qIndex)}
+                  className="text-xs font-medium text-pulse-600 hover:text-pulse-700"
+                >
+                  + Add SATA option
+                </button>
+              </div>
+            )}
+
+            {q.type === 'ordering' && (
+              <div className="mt-3 space-y-2 rounded-xl border border-amber-100 bg-amber-50/30 p-3">
+                <p className="text-xs font-semibold text-amber-900">Clinical Drag & Drop / Ordering: Put steps in correct clinical sequence</p>
+                <p className="text-[11px] text-ink-500">Arrange steps from first to last using the move buttons:</p>
+                {q.options?.map((opt, optIndex) => (
+                  <div key={opt.id} className="flex items-center gap-2 rounded-lg border border-ink-100 bg-white p-2 shadow-xs">
+                    <span className="shrink-0 rounded-md bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">
+                      Step {optIndex + 1}
+                    </span>
+                    <input
+                      value={opt.text}
+                      onChange={(e) => updateOption(qIndex, optIndex, e.target.value)}
+                      placeholder={`Clinical step ${optIndex + 1} (e.g. Verify patient ID)`}
+                      className="flex-1 rounded-md border border-ink-100 px-3 py-1.5 text-sm focus:border-pulse-400 focus:outline-none"
+                    />
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={optIndex === 0}
+                        onClick={() => moveOrderingStep(qIndex, optIndex, optIndex - 1)}
+                        className="rounded border border-ink-100 px-2 py-1 text-xs font-bold hover:bg-ink-50 disabled:opacity-30"
+                        title="Move step up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        disabled={optIndex === (q.options?.length ?? 1) - 1}
+                        onClick={() => moveOrderingStep(qIndex, optIndex, optIndex + 1)}
+                        className="rounded border border-ink-100 px-2 py-1 text-xs font-bold hover:bg-ink-50 disabled:opacity-30"
+                        title="Move step down"
+                      >
+                        ↓
+                      </button>
+                      {(q.options ?? []).length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => removeOption(qIndex, optIndex)}
+                          className="ml-1 px-1 text-xs text-ink-400 hover:text-critical-600"
+                          title="Remove step"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addOption(qIndex)}
+                  className="text-xs font-medium text-amber-700 hover:text-amber-800"
+                >
+                  + Add sequential step
+                </button>
+              </div>
+            )}
+
+            {q.type === 'matrix' && (
+              <div className="mt-3 space-y-3 rounded-xl border border-sky-100 bg-sky-50/30 p-3">
+                <p className="text-xs font-semibold text-sky-900">Clinical Matrix / Grid: Set correct classification for each row</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-ink-100 text-ink-600">
+                        <th className="pb-2 font-medium">Clinical Action / Intervention</th>
+                        <th className="pb-2 text-center font-medium text-teal-700">Indicated</th>
+                        <th className="pb-2 text-center font-medium text-critical-700">Contraindicated</th>
+                        <th className="pb-2 text-center font-medium text-slate-600">Not Related</th>
+                        <th className="pb-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ink-50">
+                      {q.options?.map((row, rIndex) => {
+                        let selectedCol = 'indicated';
+                        try {
+                          const map = JSON.parse(q.correctAnswer || '{}');
+                          selectedCol = map[row.id] ?? 'indicated';
+                        } catch {}
+                        return (
+                          <tr key={row.id}>
+                            <td className="py-2 pr-2">
+                              <input
+                                value={row.text}
+                                onChange={(e) => updateOption(qIndex, rIndex, e.target.value)}
+                                placeholder={`Intervention ${rIndex + 1} (e.g. Administer Furosemide IV)`}
+                                className="w-full rounded-md border border-ink-100 bg-white px-2.5 py-1 text-xs focus:border-pulse-400 focus:outline-none"
+                              />
+                            </td>
+                            {(['indicated', 'contraindicated', 'not_related'] as const).map((colKey) => (
+                              <td key={colKey} className="py-2 text-center">
+                                <input
+                                  type="radio"
+                                  name={`matrix-q${qIndex}-r${row.id}`}
+                                  checked={selectedCol === colKey}
+                                  onChange={() => updateMatrixRowChoice(qIndex, row.id, colKey)}
+                                  className="h-3.5 w-3.5 accent-teal-600"
+                                />
+                              </td>
+                            ))}
+                            <td className="py-2 text-right">
+                              {(q.options ?? []).length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeOption(qIndex, rIndex)}
+                                  className="text-xs text-ink-400 hover:text-critical-600"
+                                  title="Remove row"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => addOption(qIndex)}
+                  className="text-xs font-medium text-sky-700 hover:text-sky-800"
+                >
+                  + Add matrix row
+                </button>
+              </div>
+            )}
+
+            {q.type === 'highlight' && (
+              <div className="mt-3 space-y-2 rounded-xl border border-rose-100 bg-rose-50/30 p-3">
+                <p className="text-xs font-semibold text-rose-900">Highlighting Clinical Red Flags: Add findings and mark abnormal red flags</p>
+                <p className="text-[11px] text-ink-500">Click the flag button on each clinical finding to designate it as an abnormal red flag:</p>
+                {q.options?.map((cue, cIndex) => {
+                  let isRedFlag = false;
+                  try {
+                    const list = JSON.parse(q.correctAnswer || '[]');
+                    isRedFlag = Array.isArray(list) && list.includes(cue.id);
+                  } catch {}
+                  return (
+                    <div key={cue.id} className="flex items-center gap-2 rounded-lg border border-ink-100 bg-white p-2 shadow-xs">
+                      <button
+                        type="button"
+                        onClick={() => toggleHighlightCue(qIndex, cue.id)}
+                        className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${isRedFlag ? 'border border-rose-300 bg-rose-100 text-rose-700' : 'border border-ink-200 bg-ink-50 text-ink-500'}`}
+                      >
+                        {isRedFlag ? 'Flag: Abnormal Red Flag' : 'Expected Finding'}
+                      </button>
+                      <input
+                        value={cue.text}
+                        onChange={(e) => updateOption(qIndex, cIndex, e.target.value)}
+                        placeholder={`Clinical finding ${cIndex + 1} (e.g. BP 82/48 mmHg)`}
+                        className="flex-1 rounded-md border border-ink-100 px-3 py-1.5 text-sm focus:border-pulse-400 focus:outline-none"
+                      />
+                      {(q.options ?? []).length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => removeOption(qIndex, cIndex)}
+                          className="px-1 text-xs text-ink-400 hover:text-critical-600"
+                          title="Remove finding"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => addOption(qIndex)}
+                  className="text-xs font-medium text-rose-700 hover:text-rose-800"
+                >
+                  + Add clinical finding
                 </button>
               </div>
             )}

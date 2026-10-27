@@ -236,7 +236,7 @@ function buildQuestionInput(cols: Record<string, string>): {
   const incorrectRationale = cols.incorrect_rationale?.trim() || undefined;
 
   if (!prompt) return { input: null, error: 'missing prompt' };
-  if (!['mcq', 'true_false', 'fill_blank'].includes(type)) {
+  if (!['mcq', 'true_false', 'fill_blank', 'sata', 'ordering', 'matrix', 'highlight'].includes(type)) {
     return { input: null, error: `invalid question_type "${type}"` };
   }
   if (!correctAnswer) return { input: null, error: 'missing correct_answer' };
@@ -612,7 +612,7 @@ export default function BulkUploadPage() {
         const prompt = String(rawQuestion?.prompt ?? '').trim();
         const correctAnswer = String(rawQuestion?.correctAnswer ?? '').trim();
 
-        if (!prompt || !correctAnswer || !['mcq', 'true_false', 'fill_blank'].includes(type)) {
+        if (!prompt || !correctAnswer || !['mcq', 'true_false', 'fill_blank', 'sata', 'ordering', 'matrix', 'highlight'].includes(type)) {
           warnings.push(`Quiz "${title}", question ${questionIndex + 1}: invalid type, prompt, or correctAnswer; skipped.`);
           invalid = true;
           break;

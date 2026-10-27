@@ -15,11 +15,11 @@ interface RouteParams {
  * questions to an existing quiz" counterpart to /api/quizzes/bulk (which
  * only ever creates whole new quizzes) and to PATCH /api/quizzes/[quizId]
  * (which treats its `questions` array as the full, authoritative set and
- * will delete anything the caller leaves out — fine for the quiz edit
+ * will delete anything the caller leaves out  -  fine for the quiz edit
  * form, dangerous for "just add these few questions").
  *
  * Accepts { questions: QuizQuestionInput[] }. Any `id` on an input item
- * is ignored — every item here is always inserted as a new question.
+ * is ignored  -  every item here is always inserted as a new question.
  */
 export async function POST(request: Request, { params }: RouteParams) {
   const { quizId } = await params;
@@ -52,7 +52,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    if (!['mcq', 'true_false', 'fill_blank'].includes(question.type)) {
+    if (!['mcq', 'true_false', 'fill_blank', 'sata', 'ordering', 'matrix', 'highlight'].includes(question.type)) {
       return NextResponse.json(
         { error: `Question ${index + 1} has an invalid question type` },
         { status: 400 }
@@ -86,6 +86,14 @@ export async function POST(request: Request, { params }: RouteParams) {
         { error: `Question ${index + 1}: true_false correctAnswer must be True or False` },
         { status: 400 }
       );
+    }
+    if (['sata', 'ordering', 'matrix', 'highlight'].includes(question.type)) {
+      if (!Array.isArray(question.options) || question.options.length < 1) {
+        return NextResponse.json(
+          { error: `Question ${index + 1}: ${question.type} question needs options defined` },
+          { status: 400 }
+        );
+      }
     }
   }
 

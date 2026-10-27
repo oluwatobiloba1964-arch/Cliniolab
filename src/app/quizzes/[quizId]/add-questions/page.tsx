@@ -108,7 +108,7 @@ function buildQuestionInput(cols: Record<string, string>): { input: QuizQuestion
   const incorrectRationale = cols.incorrect_rationale?.trim() || undefined;
 
   if (!prompt) return { input: null, error: 'missing prompt' };
-  if (!['mcq', 'true_false', 'fill_blank'].includes(type)) {
+  if (!['mcq', 'true_false', 'fill_blank', 'sata', 'ordering', 'matrix', 'highlight'].includes(type)) {
     return { input: null, error: `invalid question_type "${type}"` };
   }
   if (!correctAnswer) return { input: null, error: 'missing correct_answer' };
@@ -206,7 +206,7 @@ function jsonDraftsToQuestions(drafts: JsonQuestionDraft[]): { questions: QuizQu
     const incorrectRationale = draft.incorrectRationale?.trim() || undefined;
 
     if (!prompt) { warnings.push(`Question ${i + 1}: missing prompt, skipped.`); return; }
-    if (!['mcq', 'true_false', 'fill_blank'].includes(type)) {
+    if (!['mcq', 'true_false', 'fill_blank', 'sata', 'ordering', 'matrix', 'highlight'].includes(type)) {
       warnings.push(`Question ${i + 1}: invalid type "${type}", skipped.`);
       return;
     }
@@ -376,7 +376,7 @@ export default function AddQuestionsPage() {
       <h1 className="font-display text-3xl font-semibold text-ink-800">Add questions to &quot;{quiz.title}&quot;</h1>
       <p className="mt-2 text-ink-500">
         Upload a file of new questions to append to this quiz. The quiz&apos;s title, category, mode, and other
-        settings stay unchanged — only new questions are added, nothing existing is touched or removed.
+        settings stay unchanged  -  only new questions are added, nothing existing is touched or removed.
       </p>
 
       <Card className="mt-8 p-6">

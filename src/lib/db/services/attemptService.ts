@@ -2,7 +2,7 @@
 import { getDb, generateId, nowIso } from '@/lib/db/client';
 import { getQuizById, getQuizQuestions } from '@/lib/db/services/quizService';
 import type { AttemptResult, AttemptSubmission, Quiz, QuizAttempt } from '@/types';
-import { resolveEffectiveCorrectAnswer } from '@/lib/quizAnswers';
+import { resolveEffectiveCorrectAnswer, gradeQuestionAnswer } from '@/lib/quizAnswers';
 
 interface AttemptRow {
   id: string;
@@ -163,25 +163,21 @@ export async function submitAttempt(
   let totalMarks = 0;
   const perQuestion = questions.map((q) => {
     const submittedAnswer = answerMap.get(q.id) ?? null;
-    const effectiveCorrectAnswer = resolveEffectiveCorrectAnswer(q.correctAnswer, q.options);
-    const isCorrect =
-      submittedAnswer !== null &&
-      submittedAnswer.trim().toLowerCase() === effectiveCorrectAnswer.trim().toLowerCase();
-    const mark = q.mark ?? quiz.defaultMark;
-    totalMarks += mark;
-    if (isCorrect) {
-      marksEarned += mark;
-    }
+    const grading = gradeQuestionAnswer(q, submittedAnswer, quiz.defaultMark);
+    totalMarks += grading.totalMarks;
+    marksEarned += grading.marksEarned;
     return {
       questionId: q.id,
       prompt: q.prompt,
+      type: q.type,
       submittedAnswer,
-      correctAnswer: effectiveCorrectAnswer,
-      isCorrect,
+      correctAnswer: grading.effectiveCorrectAnswer,
+      isCorrect: grading.isCorrect,
       explanation: q.explanation,
       incorrectRationale: q.incorrectRationale ?? null,
       options: q.options ?? [],
-      mark,
+      mark: grading.totalMarks,
+      marksEarned: grading.marksEarned,
     };
   });
 
@@ -289,26 +285,24 @@ export async function gradeWithoutSaving(submission: AttemptSubmission): Promise
   let correctCount = 0;
   const perQuestion = questions.map((q) => {
     const submittedAnswer = answerMap.get(q.id) ?? null;
-    const effectiveCorrectAnswer = resolveEffectiveCorrectAnswer(q.correctAnswer, q.options);
-    const isCorrect =
-      submittedAnswer !== null &&
-      submittedAnswer.trim().toLowerCase() === effectiveCorrectAnswer.trim().toLowerCase();
-    const mark = q.mark ?? quiz.defaultMark;
-    totalMarks += mark;
-    if (isCorrect) {
-      marksEarned += mark;
+    const grading = gradeQuestionAnswer(q, submittedAnswer, quiz.defaultMark);
+    totalMarks += grading.totalMarks;
+    marksEarned += grading.marksEarned;
+    if (grading.isCorrect) {
       correctCount++;
     }
     return {
       questionId: q.id,
       prompt: q.prompt,
+      type: q.type,
       submittedAnswer,
-      correctAnswer: effectiveCorrectAnswer,
-      isCorrect,
+      correctAnswer: grading.effectiveCorrectAnswer,
+      isCorrect: grading.isCorrect,
       explanation: q.explanation,
       incorrectRationale: q.incorrectRationale ?? null,
       options: q.options ?? [],
-      mark,
+      mark: grading.totalMarks,
+      marksEarned: grading.marksEarned,
     };
   });
 

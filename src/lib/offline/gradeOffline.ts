@@ -1,4 +1,4 @@
-import { resolveEffectiveCorrectAnswer } from '@/lib/quizAnswers';
+import { gradeQuestionAnswer } from '@/lib/quizAnswers';
 import type { AttemptResult, Quiz, QuizQuestion } from '@/types';
 
 /**
@@ -22,22 +22,21 @@ export function gradeOfflineAttempt(
   let totalMarks = 0;
   const perQuestion = questions.map((q) => {
     const submittedAnswer = answerMap.get(q.id) ?? null;
-    const effectiveCorrectAnswer = resolveEffectiveCorrectAnswer(q.correctAnswer, q.options);
-    const isCorrect =
-      submittedAnswer !== null && submittedAnswer.trim().toLowerCase() === effectiveCorrectAnswer.trim().toLowerCase();
-    const mark = q.mark ?? quiz.defaultMark;
-    totalMarks += mark;
-    if (isCorrect) marksEarned += mark;
+    const grading = gradeQuestionAnswer(q, submittedAnswer, quiz.defaultMark);
+    totalMarks += grading.totalMarks;
+    marksEarned += grading.marksEarned;
     return {
       questionId: q.id,
       prompt: q.prompt,
+      type: q.type,
       submittedAnswer,
-      correctAnswer: effectiveCorrectAnswer,
-      isCorrect,
+      correctAnswer: grading.effectiveCorrectAnswer,
+      isCorrect: grading.isCorrect,
       explanation: q.explanation,
       incorrectRationale: q.incorrectRationale ?? null,
       options: q.options ?? [],
-      mark,
+      mark: grading.totalMarks,
+      marksEarned: grading.marksEarned,
     };
   });
 

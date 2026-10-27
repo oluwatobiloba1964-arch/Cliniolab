@@ -59,7 +59,7 @@ export type QuizDifficulty = 'easy' | 'medium' | 'hard';
 export type QuizVisibility = 'public' | 'private' | 'guest';
 export type QuizStatus = 'draft' | 'published' | 'archived';
 export type RetakePolicy = 'unlimited' | 'single' | 'daily_limit' | 'cooldown';
-export type QuestionType = 'mcq' | 'true_false' | 'fill_blank';
+export type QuestionType = 'mcq' | 'true_false' | 'fill_blank' | 'sata' | 'ordering' | 'matrix' | 'highlight';
 export type LinkExpiryOption = '1d' | '3d' | '7d' | 'custom';
 /**
  * How a private quiz's share link is gated:
@@ -217,7 +217,7 @@ export interface AttemptSubmission {
    * narrowed set from a "retake missed only" run). Optional for backward
    * compatibility with any other caller; when present, grading and
    * totalQuestions/totalMarks are scoped to exactly this set instead of
-   * every question in the quiz — otherwise a narrowed retake would
+   * every question in the quiz  -  otherwise a narrowed retake would
    * silently grade every question it didn't re-ask as wrong. See
    * submitAttempt in attemptService.ts.
    */
@@ -243,6 +243,7 @@ export interface AttemptResult {
   perQuestion: {
     questionId: string;
     prompt: string;
+    type?: QuestionType;
     submittedAnswer: string | null;
     correctAnswer: string;
     isCorrect: boolean;
@@ -250,6 +251,7 @@ export interface AttemptResult {
     incorrectRationale?: string | null;
     options: QuestionOption[];
     mark: number;
+    marksEarned?: number;
   }[];
 }
 
@@ -473,8 +475,8 @@ export interface HomepageVideoSetting {
 /** How many related quizzes to show, and whether the section is shown at
  *  all, on the quiz detail page and blog post page respectively.
  *  `disabledCategoryIds` (blog page only) lets an admin turn off the
- *  related-quizzes widget for specific blog categories — e.g. Job,
- *  Scholarship, or Clinical Pearls — where a "related quiz" doesn't
+ *  related-quizzes widget for specific blog categories  -  e.g. Job,
+ *  Scholarship, or Clinical Pearls  -  where a "related quiz" doesn't
  *  make sense, without turning it off site-wide. */
 export interface RelatedQuizzesSetting {
   enabled: boolean;
@@ -632,7 +634,7 @@ export interface ResourceAccessState {
 }
 
 // ============================================
-// QUIZ PURCHASES (paid quizzes, Flutterwave — platform collects, creators withdraw via payout request)
+// QUIZ PURCHASES (paid quizzes, Flutterwave  -  platform collects, creators withdraw via payout request)
 // ============================================
 
 export type PurchaseTransactionStatus = 'pending' | 'completed' | 'failed';

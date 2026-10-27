@@ -16,7 +16,7 @@ import { checkGuestVisibilityAllowed } from '@/lib/guest/guestAccess';
  * exists in the same subcategory, or a question prompt that already
  * exists in that subcategory (either in the DB already, or repeated
  * earlier in this same upload). If any are found and the caller hasn't
- * passed `confirm: true`, nothing is inserted — the report is returned
+ * passed `confirm: true`, nothing is inserted  -  the report is returned
  * instead so the client can show it for review. Passing `confirm: true`
  * skips the check and uploads as-is (used once the admin has reviewed the
  * flagged items and chooses to proceed anyway).
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
         );
       }
 
-      if (!['mcq', 'true_false', 'fill_blank'].includes(question.type)) {
+      if (!['mcq', 'true_false', 'fill_blank', 'sata', 'ordering', 'matrix', 'highlight'].includes(question.type)) {
         return NextResponse.json(
           { error: `Quiz at index ${index}, question ${questionIndex + 1} has an invalid question type` },
           { status: 400 }
@@ -99,15 +99,23 @@ export async function POST(request: Request) {
       }
 
       if (question.type === 'true_false' && !['true', 'false'].includes(String(question.correctAnswer).trim().toLowerCase())) {
-        return NextResponse.json(
-          { error: `Quiz at index ${index}, question ${questionIndex + 1}: true_false correctAnswer must be True or False` },
-          { status: 400 }
-        );
+          return NextResponse.json(
+            { error: `Quiz at index ${index}, question ${questionIndex + 1}: true_false correctAnswer must be True or False` },
+            { status: 400 }
+          );
+        }
+        if (['sata', 'ordering', 'matrix', 'highlight'].includes(question.type)) {
+          if (!Array.isArray(question.options) || question.options.length < 1) {
+            return NextResponse.json(
+              { error: `Quiz at index ${index}, question ${questionIndex + 1}: ${question.type} question needs options defined` },
+              { status: 400 }
+            );
+          }
+        }
       }
-    }
   }
 
-  // FIX (Vercel Hobby duration budget) — src/app/api/quizzes/bulk/route.ts
+  // FIX (Vercel Hobby duration budget)  -  src/app/api/quizzes/bulk/route.ts
   // Was: checkGuestVisibilityAllowed awaited one quiz at a time inside a
   // for-loop; that helper does up to 2 DB reads internally (a feature
   // flag lookup + a platform setting lookup), so a bulk upload of N

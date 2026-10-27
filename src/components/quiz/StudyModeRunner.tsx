@@ -64,7 +64,7 @@ type SummaryFilter = 'all' | 'correct' | 'incorrect';
 
 /**
  * What gets cached in localStorage for a resumable Study Mode session.
- * This is a device-local convenience cache only — never the source of
+ * This is a device-local convenience cache only - never the source of
  * truth. `questionOrder` is stored (rather than re-deriving from a fresh
  * shuffle) so that resuming after a refresh points `current` at the same
  * question the user was actually looking at, even when shuffleQuestions
@@ -166,7 +166,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
   );
   const [resultFilter, setResultFilter] = useState<ResultFilter>(initialDraft?.resultFilter ?? 'all');
   // Whether the "Finish studying" summary screen is showing. Distinct from
-  // navigating past the last question — the summary is a deliberate final
+  // navigating past the last question - the summary is a deliberate final
   // step, shown in place instead of redirecting straight back to the quiz
   // page, so a study session ends with the same kind of results/missed-
   // answers breakdown Quiz/Exam mode already gives.
@@ -684,7 +684,8 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
           </div>
         )}
 
-        {(!recallFirst || recallChoicesVisible || revealed) && <div className="mt-6 space-y-2">
+        {(!recallFirst || recallChoicesVisible || revealed) && <div className="mt-6 space-y-3">
+          {/* 1. Multiple Choice */}
           {question.type === 'mcq' &&
             question.options?.map((opt) => {
               const isSelected = selectedAnswer === opt.id;
@@ -704,6 +705,265 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
               );
             })}
 
+          {/* 2. Select All That Apply (SATA) */}
+          {question.type === 'sata' && (() => {
+            const currentSelected = parseArrayAnswer(selectedAnswer);
+            const correctList = parseArrayAnswer(question.correctAnswer);
+            const toggleOpt = (id: string) => {
+              if (revealed) return;
+              const next = currentSelected.includes(id)
+                ? currentSelected.filter((x) => x !== id)
+                : [...currentSelected, id];
+              setSelectedAnswer(JSON.stringify(next));
+            };
+
+            return (
+              <div className="space-y-2">
+                <div className="rounded-lg bg-pulse-50/70 border border-pulse-100 p-2.5 mb-2">
+                  <p className="text-xs font-semibold text-pulse-800">Select All That Apply (SATA)</p>
+                  <p className="text-[11px] text-ink-500">Check all options that apply, then submit to check your rationale.</p>
+                </div>
+                {question.options?.map((opt, optIndex) => {
+                  const isChecked = currentSelected.includes(opt.id);
+                  const isActuallyCorrect = correctList.includes(opt.id);
+
+                  let rowStyle = 'border-ink-100 bg-white text-ink-700';
+                  if (revealed) {
+                    if (isActuallyCorrect && isChecked) {
+                      rowStyle = 'border-pulse-400 bg-pulse-50 font-medium text-pulse-800';
+                    } else if (!isActuallyCorrect && isChecked) {
+                      rowStyle = 'border-critical-400 bg-critical-50 font-medium text-critical-700';
+                    } else if (isActuallyCorrect && !isChecked) {
+                      rowStyle = 'border-amber-300 bg-amber-50 font-medium text-amber-800';
+                    }
+                  } else if (isChecked) {
+                    rowStyle = 'border-pulse-400 bg-pulse-50 text-pulse-800 font-medium';
+                  }
+
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={revealed}
+                      onClick={() => toggleOpt(opt.id)}
+                      className={`flex w-full min-h-12 items-center rounded-xl border px-4 py-3 text-left text-sm transition-all disabled:cursor-default ${rowStyle}`}
+                    >
+                      <div className={`mr-3 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isChecked ? 'border-pulse-600 bg-pulse-600 text-white' : 'border-ink-300 bg-white'}`}>
+                        {isChecked && <span className="text-xs font-bold leading-none">✓</span>}
+                      </div>
+                      <span className="mr-2 text-xs font-bold text-ink-400">{String.fromCharCode(65 + optIndex)}.</span>
+                      <span className="flex-1">{opt.text}</span>
+                      {revealed && isActuallyCorrect && (
+                        <span className="ml-2 text-xs font-semibold text-pulse-700">Correct choice</span>
+                      )}
+                      {revealed && !isActuallyCorrect && isChecked && (
+                        <span className="ml-2 text-xs font-semibold text-critical-600">Incorrect choice</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {!revealed && (
+                  <button
+                    type="button"
+                    onClick={() => selectAnswer(selectedAnswer ?? '[]')}
+                    className="mt-3 w-full rounded-xl bg-pulse-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-pulse-700"
+                  >
+                    Check answer and view rationale
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 3. Clinical Ordering / Sequence */}
+          {question.type === 'ordering' && (() => {
+            const allOpts = question.options ?? [];
+            const currentOrder = parseArrayAnswer(selectedAnswer);
+            const effectiveOrder = currentOrder.length === allOpts.length
+              ? currentOrder
+              : allOpts.map((o) => o.id);
+
+            const moveItem = (fromIdx: number, toIdx: number) => {
+              if (revealed || fromIdx < 0 || fromIdx >= effectiveOrder.length || toIdx < 0 || toIdx >= effectiveOrder.length) return;
+              const next = [...effectiveOrder];
+              const [moved] = next.splice(fromIdx, 1);
+              next.splice(toIdx, 0, moved);
+              setSelectedAnswer(JSON.stringify(next));
+            };
+
+            return (
+              <div className="space-y-2">
+                <div className="rounded-lg bg-amber-50/70 border border-amber-100 p-2.5 mb-2">
+                  <p className="text-xs font-semibold text-amber-900">Clinical Ordering / Sequencing</p>
+                  <p className="text-[11px] text-ink-600">Arrange the nursing interventions in priority order before checking the rationale.</p>
+                </div>
+                {effectiveOrder.map((stepId, index) => {
+                  const opt = allOpts.find((o) => o.id === stepId);
+                  if (!opt) return null;
+                  return (
+                    <div key={opt.id} className="flex items-center gap-2 rounded-lg border border-ink-100 bg-white p-3 shadow-xs">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-100 text-xs font-bold text-amber-800">
+                        {index + 1}
+                      </span>
+                      <span className="flex-1 text-sm font-medium text-ink-800">{opt.text}</span>
+                      {!revealed && (
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => moveItem(index, index - 1)}
+                            className="rounded border border-ink-200 px-2 py-1 text-xs font-bold hover:bg-ink-50 disabled:opacity-25"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === effectiveOrder.length - 1}
+                            onClick={() => moveItem(index, index + 1)}
+                            className="rounded border border-ink-200 px-2 py-1 text-xs font-bold hover:bg-ink-50 disabled:opacity-25"
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {!revealed && (
+                  <button
+                    type="button"
+                    onClick={() => selectAnswer(JSON.stringify(effectiveOrder))}
+                    className="mt-3 w-full rounded-xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+                  >
+                    Check sequence and view rationale
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 4. Clinical Matrix */}
+          {question.type === 'matrix' && (() => {
+            const currentMatrix = parseObjectAnswer(selectedAnswer);
+            const selectCol = (rowId: string, colKey: string) => {
+              if (revealed) return;
+              const next = { ...currentMatrix, [rowId]: colKey };
+              setSelectedAnswer(JSON.stringify(next));
+            };
+
+            return (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-sky-50/70 border border-sky-100 p-2.5">
+                  <p className="text-xs font-semibold text-sky-900">Clinical Decision Matrix</p>
+                  <p className="text-[11px] text-ink-600">Select whether each item is Indicated, Contraindicated, or Not Related.</p>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-ink-100 bg-white shadow-xs">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-ink-100 bg-ink-50/60 text-ink-700">
+                        <th className="p-3 font-semibold">Clinical Action / Intervention</th>
+                        <th className="p-3 text-center font-semibold text-teal-700">Indicated</th>
+                        <th className="p-3 text-center font-semibold text-critical-700">Contraindicated</th>
+                        <th className="p-3 text-center font-semibold text-slate-600">Not Related</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ink-50">
+                      {question.options?.map((row) => {
+                        const selectedCol = currentMatrix[row.id];
+                        return (
+                          <tr key={row.id}>
+                            <td className="p-3 font-medium text-ink-800">{row.text}</td>
+                            {(['indicated', 'contraindicated', 'not_related'] as const).map((colKey) => (
+                              <td key={colKey} className="p-3 text-center">
+                                <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                                  <input
+                                    type="radio"
+                                    name={`study-matrix-${question.id}-${row.id}`}
+                                    checked={selectedCol === colKey}
+                                    onChange={() => selectCol(row.id, colKey)}
+                                    disabled={revealed}
+                                    className="h-4 w-4 accent-teal-600"
+                                  />
+                                </label>
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {!revealed && (
+                  <button
+                    type="button"
+                    onClick={() => selectAnswer(JSON.stringify(currentMatrix))}
+                    className="mt-3 w-full rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-sky-700"
+                  >
+                    Check matrix and view rationale
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 5. Clinical Red Flags / Highlight */}
+          {question.type === 'highlight' && (() => {
+            const currentHighlights = parseArrayAnswer(selectedAnswer);
+            const toggleCue = (cueId: string) => {
+              if (revealed) return;
+              const next = currentHighlights.includes(cueId)
+                ? currentHighlights.filter((id) => id !== cueId)
+                : [...currentHighlights, cueId];
+              setSelectedAnswer(JSON.stringify(next));
+            };
+
+            return (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-rose-50/70 border border-rose-100 p-2.5">
+                  <p className="text-xs font-semibold text-rose-900">Clinical Red Flag Cues</p>
+                  <p className="text-[11px] text-ink-600">Click findings in the note to highlight abnormal clinical red flags.</p>
+                </div>
+                <div className="rounded-xl border border-ink-200 bg-white p-4 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-ink-100 pb-2 mb-3 text-xs text-ink-500">
+                    <span className="font-semibold text-ink-700">Patient Observation Record</span>
+                    <span>{currentHighlights.length} finding{currentHighlights.length === 1 ? '' : 's'} highlighted</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2.5">
+                    {question.options?.map((cue) => {
+                      const isHighlighted = currentHighlights.includes(cue.id);
+                      return (
+                        <button
+                          key={cue.id}
+                          type="button"
+                          disabled={revealed}
+                          onClick={() => toggleCue(cue.id)}
+                          className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                            isHighlighted
+                              ? 'border-amber-400 bg-amber-100 text-amber-950 ring-2 ring-amber-300 font-semibold'
+                              : 'border-ink-200 bg-ink-50/50 text-ink-700 hover:border-amber-300 hover:bg-amber-50/30'
+                          }`}
+                        >
+                          <span>{isHighlighted ? '🚩' : '○'}</span>
+                          <span>{cue.text}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {!revealed && (
+                  <button
+                    type="button"
+                    onClick={() => selectAnswer(JSON.stringify(currentHighlights))}
+                    className="mt-3 w-full rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-rose-700"
+                  >
+                    Check red flags and view rationale
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 6. True / False */}
           {question.type === 'true_false' &&
             ['True', 'False'].map((label) => {
               const isSelected = selectedAnswer === label;
@@ -723,9 +983,11 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
               );
             })}
 
+          {/* 7. Fill in the blank */}
           {question.type === 'fill_blank' && !revealed && (
             <FillBlankInput onSubmit={selectAnswer} />
           )}
+
           {question.type === 'fill_blank' && revealed && (
             <div className={`rounded-md border px-4 py-3 text-sm ${isCorrect ? 'border-pulse-400 bg-pulse-50 text-pulse-700' : 'border-critical-400 bg-critical-50 text-critical-600'}`}>
               Your answer: {selectedAnswer}
@@ -734,19 +996,23 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         </div>}
 
         {revealed && (
-          <div className={`relative mt-4 overflow-hidden rounded-md border p-4 ${isCorrect ? 'border-pulse-200 bg-pulse-50' : 'border-critical-200 bg-critical-50'}`}>
+          <div className={`relative mt-4 overflow-hidden rounded-md border p-4 ${isCorrect ? 'border-pulse-200 bg-pulse-50' : grading.marksEarned > 0 ? 'border-amber-200 bg-amber-50' : 'border-critical-200 bg-critical-50'}`}>
             <CorrectPulse active={showCorrectPulse && isCorrect} />
             <div className="relative z-[1] flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                  isCorrect ? 'bg-pulse-100 text-pulse-800' : 'bg-critical-100 text-critical-800'
+                  isCorrect
+                    ? 'bg-pulse-100 text-pulse-800'
+                    : grading.marksEarned > 0
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-critical-100 text-critical-800'
                 }`}
               >
-                {isCorrect ? 'Correct' : 'Not quite'}
+                {isCorrect ? 'Correct' : grading.marksEarned > 0 ? 'Partial credit' : 'Not quite'}
               </span>
             </div>
             <p className="relative z-[1] mt-2 text-sm font-semibold text-ink-800">
-              {isCorrect ? 'Well done. That matches the key point.' : `Correct answer: ${correctAnswerDisplay}`}
+              {isCorrect ? 'Well done. That matches the key clinical point.' : `Correct answer: ${correctAnswerDisplay}`}
             </p>
             {question.explanation && (
               <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600">
@@ -776,7 +1042,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
 
       {resultFilter !== 'all' && (
         <p className="mt-6 text-xs text-ink-400">
-          Showing all questions below — highlighted numbers match the &ldquo;
+          Showing all questions below: highlighted numbers match the &ldquo;
           {resultFilter}&rdquo; filter ({filteredIndices.length}).
         </p>
       )}

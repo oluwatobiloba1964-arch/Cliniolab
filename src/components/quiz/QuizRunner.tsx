@@ -31,6 +31,7 @@ import { QuizStudyToolkit } from '@/components/quiz/QuizStudyToolkit';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
 import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { ShortcutsHelpPanel, QUIZ_SHORTCUTS } from '@/components/ui/ShortcutsHelpPanel';
+import { parseArrayAnswer, parseObjectAnswer, formatAnswerDisplay } from '@/lib/quizAnswers';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { ATTEMPTED_QUIZZES_KEY, COPIED_EXPLANATIONS_KEY, makeId, readJson, writeJson } from '@/lib/services/localExtrasService';
 import { MissReasonJournal } from '@/components/study/MissReasonJournal';
@@ -751,7 +752,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
             ? 'Practice completed'
             : 'Session completed';
     const questionDensity = result.perQuestion.length >= 50
-      ? { label: 'Intensive set', detail: 'Large question volume — use focused review breaks.' }
+      ? { label: 'Intensive set', detail: 'Large question volume - use focused review breaks.' }
       : result.perQuestion.length >= 20
         ? { label: 'Standard set', detail: 'A balanced practice session for focused review.' }
         : { label: 'Focused set', detail: 'Short enough for targeted revision.' };
@@ -928,20 +929,18 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                 matchesReviewFilter(pq, resultFilter)
               )
               .map(({ pq, i }) => {
-              const resolve = (value: string | null) => {
-                if (value === null) return null;
-                const match = pq.options.find((o) => o.id === value);
-                return match ? match.text : value;
-              };
-              const submittedText = resolve(pq.submittedAnswer);
-              const correctText = resolve(pq.correctAnswer);
+              const submittedText = formatAnswerDisplay(pq.type, pq.submittedAnswer, pq.options);
+              const correctText = formatAnswerDisplay(pq.type, pq.correctAnswer, pq.options);
+              const earnedMarks = pq.marksEarned !== undefined ? pq.marksEarned : (pq.isCorrect ? pq.mark : 0);
               return (
               <div
                 key={pq.questionId}
                 className={`rounded-xl border bg-white p-4 shadow-sm sm:p-5 ${
                   pq.isCorrect
                     ? 'border-pulse-100 border-l-4 border-l-pulse-500'
-                    : 'border-critical-100 border-l-4 border-l-critical-400'
+                    : earnedMarks > 0
+                      ? 'border-amber-200 border-l-4 border-l-amber-500'
+                      : 'border-critical-100 border-l-4 border-l-critical-400'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -950,31 +949,155 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                       <span className="rounded-full bg-ink-50 px-2 py-0.5 font-mono text-[10px] font-bold text-ink-500">
                         Q{i + 1}
                       </span>
+                      {pq.type && (
+                        <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-semibold text-ink-600 uppercase tracking-wide">
+                          {pq.type === 'sata' ? 'Select All That Apply' : pq.type === 'ordering' ? 'Clinical Ordering' : pq.type === 'matrix' ? 'Clinical Matrix' : pq.type === 'highlight' ? 'Red Flag Cues' : pq.type.toUpperCase()}
+                        </span>
+                      )}
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                           pq.isCorrect
                             ? 'bg-pulse-50 text-pulse-700'
-                            : 'bg-critical-50 text-critical-700'
+                            : earnedMarks > 0
+                              ? 'bg-amber-50 text-amber-800'
+                              : 'bg-critical-50 text-critical-700'
                         }`}
                       >
-                        {pq.isCorrect ? 'Correct' : 'Review'}
+                        {pq.isCorrect ? 'Correct' : earnedMarks > 0 ? 'Partial Credit' : 'Review'}
                       </span>
                     </div>
                     <p className="text-sm font-medium leading-6 text-ink-800">{pq.prompt}</p>
                   </div>
                   {result.showMarks && (
                     <span className="shrink-0 rounded-lg bg-ink-50 px-2 py-1 text-xs font-semibold text-ink-500">
-                      {pq.isCorrect ? pq.mark : 0} / {pq.mark} mark{pq.mark === 1 ? '' : 's'}
+                      {earnedMarks} / {pq.mark} mark{pq.mark === 1 ? '' : 's'}
                     </span>
                   )}
                 </div>
-                <p className={`mt-1 text-sm ${pq.isCorrect ? 'text-pulse-600' : 'text-critical-600'}`}>
-                  Your answer: {submittedText ?? 'Not answered'}
+                <p className={`mt-2 text-sm ${pq.isCorrect ? 'text-pulse-600' : earnedMarks > 0 ? 'text-amber-800' : 'text-critical-600'}`}>
+                  Your answer: {submittedText}
                 </p>
                 {!pq.isCorrect && (
-                  <p className="mt-1 text-sm text-ink-600">Correct answer: {correctText ?? 'Not available'}</p>
+                  <p className="mt-1 text-sm text-ink-700 font-medium">Correct answer: {correctText}</p>
                 )}
-                {pq.options && pq.options.length > 0 && (
+
+                {/* Specific review breakdowns for clinical question types */}
+                {pq.type === 'sata' && pq.options && (
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-ink-500 uppercase tracking-wide">SATA Evaluation:</p>
+                    {pq.options.map((opt, optIdx) => {
+                      const correctList = parseArrayAnswer(pq.correctAnswer);
+                      const submittedList = parseArrayAnswer(pq.submittedAnswer);
+                      const isCorrectChoice = correctList.includes(opt.id);
+                      const isUserChoice = submittedList.includes(opt.id);
+
+                      let badgeText = 'Correctly left unselected';
+                      let rowStyle = 'border-ink-100 bg-white text-ink-600';
+                      if (isCorrectChoice && isUserChoice) {
+                        badgeText = 'Correctly selected (+1)';
+                        rowStyle = 'border-pulse-300 bg-pulse-50 text-pulse-800 font-medium';
+                      } else if (!isCorrectChoice && isUserChoice) {
+                        badgeText = 'Incorrectly selected (-1)';
+                        rowStyle = 'border-critical-300 bg-critical-50 text-critical-700 font-medium';
+                      } else if (isCorrectChoice && !isUserChoice) {
+                        badgeText = 'Missed correct answer';
+                        rowStyle = 'border-amber-300 bg-amber-50 text-amber-800 font-medium';
+                      }
+
+                      return (
+                        <div key={opt.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${rowStyle}`}>
+                          <span><strong className="mr-2 text-xs">{String.fromCharCode(65 + optIdx)}.</strong>{opt.text}</span>
+                          <span className="text-xs font-semibold shrink-0 ml-2">{badgeText}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {pq.type === 'matrix' && pq.options && (
+                  <div className="mt-3 overflow-x-auto rounded-lg border border-ink-100">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-ink-50 text-ink-600 border-b border-ink-100">
+                        <tr>
+                          <th className="p-2.5 font-medium">Intervention / Finding</th>
+                          <th className="p-2.5 font-medium">Your Selection</th>
+                          <th className="p-2.5 font-medium">Correct Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-ink-50">
+                        {pq.options.map((row) => {
+                          const correctMap = parseObjectAnswer(pq.correctAnswer);
+                          const userMap = parseObjectAnswer(pq.submittedAnswer);
+                          const correctCol = correctMap[row.id] ?? 'indicated';
+                          const userCol = userMap[row.id];
+                          const isRowMatch = userCol === correctCol;
+                          const label = (c?: string) => c === 'indicated' ? 'Indicated' : c === 'contraindicated' ? 'Contraindicated' : c === 'not_related' ? 'Not Related' : 'Unanswered';
+                          return (
+                            <tr key={row.id} className={isRowMatch ? 'bg-pulse-50/30' : 'bg-critical-50/30'}>
+                              <td className="p-2.5 font-medium text-ink-800">{row.text}</td>
+                              <td className={`p-2.5 font-semibold ${isRowMatch ? 'text-pulse-700' : 'text-critical-600'}`}>{label(userCol)}</td>
+                              <td className="p-2.5 font-semibold text-ink-700">{label(correctCol)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {pq.type === 'ordering' && pq.options && (
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-lg border border-ink-100 p-2.5 bg-ink-50/50">
+                      <p className="font-semibold text-ink-600 mb-1.5 uppercase tracking-wide text-[10px]">Your Sequence:</p>
+                      <ol className="space-y-1 list-decimal list-inside text-ink-700">
+                        {parseArrayAnswer(pq.submittedAnswer).map((id) => (
+                          <li key={id}>{pq.options.find(o => o.id === id)?.text ?? id}</li>
+                        ))}
+                      </ol>
+                    </div>
+                    <div className="rounded-lg border border-pulse-200 p-2.5 bg-pulse-50/40">
+                      <p className="font-semibold text-pulse-800 mb-1.5 uppercase tracking-wide text-[10px]">Correct Clinical Sequence:</p>
+                      <ol className="space-y-1 list-decimal list-inside text-pulse-900 font-medium">
+                        {parseArrayAnswer(pq.correctAnswer).map((id) => (
+                          <li key={id}>{pq.options.find(o => o.id === id)?.text ?? id}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+                )}
+
+                {pq.type === 'highlight' && pq.options && (
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-ink-500 uppercase tracking-wide">Clinical Red Flag Cues:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {pq.options.map((cue) => {
+                        const correctList = parseArrayAnswer(pq.correctAnswer);
+                        const userList = parseArrayAnswer(pq.submittedAnswer);
+                        const isRedFlag = correctList.includes(cue.id);
+                        const wasUserFlagged = userList.includes(cue.id);
+                        let badgeStyle = 'bg-ink-100 text-ink-600';
+                        let note = '';
+                        if (isRedFlag && wasUserFlagged) {
+                          badgeStyle = 'bg-pulse-100 text-pulse-800 font-semibold ring-1 ring-pulse-300';
+                          note = ' (Correct flag)';
+                        } else if (!isRedFlag && wasUserFlagged) {
+                          badgeStyle = 'bg-critical-100 text-critical-700 font-semibold ring-1 ring-critical-300';
+                          note = ' (False alarm)';
+                        } else if (isRedFlag && !wasUserFlagged) {
+                          badgeStyle = 'bg-amber-100 text-amber-800 font-semibold ring-1 ring-amber-300';
+                          note = ' (Missed red flag)';
+                        }
+                        return (
+                          <span key={cue.id} className={`rounded-full px-3 py-1 text-xs ${badgeStyle}`}>
+                            {cue.text}{note}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {(!pq.type || pq.type === 'mcq') && pq.options && pq.options.length > 0 && (
                   <ul className="mt-3 space-y-1.5">
                     {pq.options.map((opt) => {
                       const isCorrectOpt = opt.id === pq.correctAnswer;
@@ -1311,7 +1434,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           ))}
         </div>
 
-        <div className={`mt-6 space-y-2 ${isFirstAttempt ? 'select-none' : ''}`}>
+        <div className={`mt-6 space-y-3 ${isFirstAttempt ? 'select-none' : ''}`}>
+          {/* 1. Multiple Choice (MCQ) */}
           {question.type === 'mcq' &&
             question.options?.map((opt, optionIndex) => {
               const eliminated = (eliminatedOptions[question.id] ?? []).includes(opt.id);
@@ -1326,7 +1450,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                     onContextMenu={isFirstAttempt ? blockCopy : undefined}
                     className={`flex min-h-12 min-w-0 flex-1 items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors focus:outline-none focus:ring-2 focus:ring-pulse-300 ${
                       answers[question.id] === opt.id
-                        ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
+                        ? 'border-pulse-400 bg-pulse-50 text-pulse-700 font-medium'
                         : eliminated
                           ? 'border-ink-100 bg-ink-50 text-ink-400 line-through'
                           : 'border-ink-100 text-ink-700 hover:bg-ink-50'
@@ -1341,6 +1465,211 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               );
             })}
 
+          {/* 2. Select All That Apply (SATA) */}
+          {question.type === 'sata' && (
+            <div className="space-y-2">
+              <div className="rounded-lg bg-pulse-50/70 border border-pulse-100 p-2.5 mb-2">
+                <p className="text-xs font-semibold text-pulse-800">Select All That Apply (SATA)</p>
+                <p className="text-[11px] text-ink-500">Choose every option that applies. Partial credit is awarded.</p>
+              </div>
+              {question.options?.map((opt, optionIndex) => {
+                const eliminated = (eliminatedOptions[question.id] ?? []).includes(opt.id);
+                const currentSelected = parseArrayAnswer(answers[question.id]);
+                const isSelected = currentSelected.includes(opt.id);
+                const toggleSata = () => {
+                  const next = isSelected
+                    ? currentSelected.filter((id) => id !== opt.id)
+                    : [...currentSelected, opt.id];
+                  setAnswerAndUnskip(question.id, JSON.stringify(next));
+                };
+
+                return (
+                  <div key={opt.id} className={`flex items-stretch gap-2 ${eliminated ? 'opacity-70' : ''}`}>
+                    <button
+                      type="button"
+                      onClick={toggleSata}
+                      aria-label={`SATA Option ${optionIndex + 1}: ${opt.text}`}
+                      aria-pressed={isSelected}
+                      className={`flex min-h-12 min-w-0 flex-1 items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors focus:outline-none focus:ring-2 focus:ring-pulse-300 ${
+                        isSelected
+                          ? 'border-pulse-400 bg-pulse-50 text-pulse-800 font-medium'
+                          : eliminated
+                            ? 'border-ink-100 bg-ink-50 text-ink-400 line-through'
+                            : 'border-ink-100 text-ink-700 hover:bg-ink-50'
+                      }`}
+                    >
+                      <div className={`mr-3 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isSelected ? 'border-pulse-600 bg-pulse-600 text-white' : 'border-ink-300 bg-white'}`}>
+                        {isSelected && <span className="text-xs font-bold leading-none">✓</span>}
+                      </div>
+                      <span className="mr-2 text-xs font-bold text-ink-400">{String.fromCharCode(65 + optionIndex)}.</span>
+                      <span>{opt.text}</span>
+                      {isSelected && <span className="ml-auto pl-2 text-xs font-semibold text-pulse-700">Checked</span>}
+                    </button>
+                    <button type="button" onClick={() => toggleEliminatedOption(question.id, opt.id)} aria-pressed={eliminated} title={eliminated ? 'Restore option' : 'Cross out option'} className={`min-h-12 w-11 shrink-0 rounded-lg border text-lg font-semibold transition-colors ${eliminated ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-ink-100 bg-white text-ink-400 hover:border-amber-300 hover:text-amber-700'}`}>{eliminated ? '↺' : '×'}</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 3. Clinical Drag & Drop / Ordering */}
+          {question.type === 'ordering' && (() => {
+            const currentIds = parseArrayAnswer(answers[question.id]);
+            const allOptions = question.options ?? [];
+            const effectiveOrder = currentIds.length === allOptions.length
+              ? currentIds
+              : allOptions.map((o) => o.id);
+
+            const moveItem = (fromIdx: number, toIdx: number) => {
+              if (fromIdx < 0 || fromIdx >= effectiveOrder.length || toIdx < 0 || toIdx >= effectiveOrder.length) return;
+              const next = [...effectiveOrder];
+              const [moved] = next.splice(fromIdx, 1);
+              next.splice(toIdx, 0, moved);
+              setAnswerAndUnskip(question.id, JSON.stringify(next));
+            };
+
+            return (
+              <div className="space-y-2">
+                <div className="rounded-lg bg-amber-50/70 border border-amber-100 p-2.5 mb-2">
+                  <p className="text-xs font-semibold text-amber-900">Clinical Ordering / Prioritization</p>
+                  <p className="text-[11px] text-ink-600">Arrange the nursing interventions in the correct order using the move buttons.</p>
+                </div>
+                {effectiveOrder.map((stepId, index) => {
+                  const opt = allOptions.find((o) => o.id === stepId);
+                  if (!opt) return null;
+                  return (
+                    <div key={opt.id} className="flex items-center gap-2 rounded-lg border border-ink-100 bg-white p-3 shadow-xs">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-100 text-xs font-bold text-amber-800">
+                        {index + 1}
+                      </span>
+                      <span className="flex-1 text-sm font-medium text-ink-800">{opt.text}</span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => moveItem(index, index - 1)}
+                          className="rounded border border-ink-200 px-2.5 py-1 text-xs font-bold hover:bg-ink-50 disabled:opacity-25"
+                          title="Move step up"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === effectiveOrder.length - 1}
+                          onClick={() => moveItem(index, index + 1)}
+                          className="rounded border border-ink-200 px-2.5 py-1 text-xs font-bold hover:bg-ink-50 disabled:opacity-25"
+                          title="Move step down"
+                        >
+                          ↓
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* 4. Clinical Matrix / Grid */}
+          {question.type === 'matrix' && (() => {
+            const currentMatrix = parseObjectAnswer(answers[question.id]);
+            const selectCol = (rowId: string, colKey: string) => {
+              const next = { ...currentMatrix, [rowId]: colKey };
+              setAnswerAndUnskip(question.id, JSON.stringify(next));
+            };
+
+            return (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-sky-50/70 border border-sky-100 p-2.5">
+                  <p className="text-xs font-semibold text-sky-900">Clinical Decision Matrix</p>
+                  <p className="text-[11px] text-ink-600">For each clinical action or finding, indicate whether it is Indicated, Contraindicated, or Not Related.</p>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-ink-100 bg-white shadow-xs">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-ink-100 bg-ink-50/60 text-ink-700">
+                        <th className="p-3 font-semibold">Clinical Action / Intervention</th>
+                        <th className="p-3 text-center font-semibold text-teal-700">Indicated</th>
+                        <th className="p-3 text-center font-semibold text-critical-700">Contraindicated</th>
+                        <th className="p-3 text-center font-semibold text-slate-600">Not Related</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ink-50">
+                      {question.options?.map((row) => {
+                        const selectedCol = currentMatrix[row.id];
+                        return (
+                          <tr key={row.id} className="hover:bg-ink-50/40">
+                            <td className="p-3 font-medium text-ink-800">{row.text}</td>
+                            {(['indicated', 'contraindicated', 'not_related'] as const).map((colKey) => (
+                              <td key={colKey} className="p-3 text-center">
+                                <label className="inline-flex cursor-pointer items-center justify-center p-1">
+                                  <input
+                                    type="radio"
+                                    name={`matrix-${question.id}-${row.id}`}
+                                    checked={selectedCol === colKey}
+                                    onChange={() => selectCol(row.id, colKey)}
+                                    className="h-4 w-4 accent-teal-600"
+                                  />
+                                </label>
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 5. Highlighting Clinical Red Flags */}
+          {question.type === 'highlight' && (() => {
+            const currentHighlights = parseArrayAnswer(answers[question.id]);
+            const toggleCue = (cueId: string) => {
+              const next = currentHighlights.includes(cueId)
+                ? currentHighlights.filter((id) => id !== cueId)
+                : [...currentHighlights, cueId];
+              setAnswerAndUnskip(question.id, JSON.stringify(next));
+            };
+
+            return (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-rose-50/70 border border-rose-100 p-2.5">
+                  <p className="text-xs font-semibold text-rose-900">Clinical Red Flag Cues</p>
+                  <p className="text-[11px] text-ink-600">Click directly on abnormal clinical findings to highlight them as concerning red flags.</p>
+                </div>
+                <div className="rounded-xl border border-ink-200 bg-white p-4 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-ink-100 pb-2 mb-3 text-xs text-ink-500">
+                    <span className="font-semibold text-ink-700">Patient Observation Record</span>
+                    <span>{currentHighlights.length} finding{currentHighlights.length === 1 ? '' : 's'} highlighted</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2.5">
+                    {question.options?.map((cue) => {
+                      const isHighlighted = currentHighlights.includes(cue.id);
+                      return (
+                        <button
+                          key={cue.id}
+                          type="button"
+                          onClick={() => toggleCue(cue.id)}
+                          className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                            isHighlighted
+                              ? 'border-amber-400 bg-amber-100 text-amber-950 ring-2 ring-amber-300 font-semibold'
+                              : 'border-ink-200 bg-ink-50/50 text-ink-700 hover:border-amber-300 hover:bg-amber-50/30'
+                          }`}
+                        >
+                          <span>{isHighlighted ? '🚩' : '○'}</span>
+                          <span>{cue.text}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 6. True / False */}
           {question.type === 'true_false' &&
             ['True', 'False'].map((label) => (
               <button
@@ -1350,7 +1679,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                 aria-pressed={answers[question.id] === label}
                 className={`flex min-h-12 w-full items-center rounded-lg border px-4 py-3 text-left text-sm leading-6 transition-colors focus:outline-none focus:ring-2 focus:ring-pulse-300 ${
                   answers[question.id] === label
-                    ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
+                    ? 'border-pulse-400 bg-pulse-50 text-pulse-700 font-medium'
                     : 'border-ink-100 text-ink-700 hover:bg-ink-50'
                 }`}
               >
@@ -1358,6 +1687,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               </button>
             ))}
 
+          {/* 7. Fill in the blank */}
           {question.type === 'fill_blank' && (
             <input
               type="text"
