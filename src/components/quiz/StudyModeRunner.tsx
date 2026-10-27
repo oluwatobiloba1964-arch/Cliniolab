@@ -34,7 +34,7 @@ import { IncorrectRationale } from '@/components/quiz/IncorrectRationale';
 import { ShortcutsHelpPanel, STUDY_SHORTCUTS } from '@/components/ui/ShortcutsHelpPanel';
 import { CorrectPulse } from '@/components/ui/CorrectPulse';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
-import { resolveEffectiveCorrectAnswer, parseArrayAnswer, parseObjectAnswer } from '@/lib/quizAnswers';
+import { resolveEffectiveCorrectAnswer, parseArrayAnswer, parseObjectAnswer, gradeQuestionAnswer, formatAnswerDisplay } from '@/lib/quizAnswers';
 import type { Quiz, QuizQuestion } from '@/types';
 
 interface StudyModeRunnerProps {
@@ -213,8 +213,8 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
   const question = questions[current];
   const answeredIds = useMemo(() => new Set(Object.keys(answers)), [answers]);
   const isLast = current === questions.length - 1;
-  const isCorrect = selectedAnswer !== null &&
-    selectedAnswer.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
+  const grading = gradeQuestionAnswer(question, selectedAnswer);
+  const isCorrect = selectedAnswer !== null && grading.isCorrect;
   useEffect(() => {
     if (!revealed || !isCorrect) {
       setShowCorrectPulse(false);
@@ -225,10 +225,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
     return () => window.clearTimeout(timer);
   }, [revealed, isCorrect, current]);
 
-  const correctAnswerDisplay =
-    question.type === 'mcq'
-      ? question.options?.find((o) => o.id === question.correctAnswer)?.text ?? question.correctAnswer
-      : question.correctAnswer;
+  const correctAnswerDisplay = formatAnswerDisplay(question.type, question.correctAnswer, question.options);
 
   const navigatorStates = useMemo(
     () => questions.map((q) => ({ answered: answeredIds.has(q.id), skipped: skipped.has(q.id), flagged: markedForRevision.has(q.id) })),
@@ -240,10 +237,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
       case 'unanswered':
         return !answeredIds.has(q.id) && !skipped.has(q.id);
       case 'incorrect':
-        return (
-          answeredIds.has(q.id) &&
-          answers[q.id].trim().toLowerCase() !== q.correctAnswer.trim().toLowerCase()
-        );
+        return answeredIds.has(q.id) && !isAnswerCorrect(q, answers[q.id]);
       case 'skipped':
         return skipped.has(q.id);
       default:
@@ -363,18 +357,25 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
     goToQuestion(current - 1);
   }
 
+  function isAnswerCorrect(q: QuizQuestion, submitted: string | undefined): boolean {
+    if (submitted === undefined) return false;
+    return gradeQuestionAnswer(q, submitted).isCorrect;
+  }
+
   const answeredCount = questions.filter((q) => answeredIds.has(q.id)).length;
   const correctCount = questions.filter(
-    (q) =>
-      answeredIds.has(q.id) &&
-      answers[q.id].trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+    (q) => answeredIds.has(q.id) && isAnswerCorrect(q, answers[q.id])
   ).length;
   const percentage = answeredCount > 0 ? (correctCount / answeredCount) * 100 : 0;
   const confidenceSummary = useMemo(() => {
     const entries = Object.entries(confidence).filter(([id]) => answers[id] !== undefined);
     const sure = entries.filter(([, level]) => level === 'sure');
     const guessing = entries.filter(([, level]) => level === 'guessing');
-    const correctFor = (items: typeof entries) => items.filter(([id]) => answers[id]?.trim().toLowerCase() === questions.find((q) => q.id === id)?.correctAnswer.trim().toLowerCase()).length;
+    const correctFor = (items: typeof entries) =>
+      items.filter(([id]) => {
+        const q = questions.find((q) => q.id === id);
+        return q ? isAnswerCorrect(q, answers[id]) : false;
+      }).length;
     return {
       sureCount: sure.length,
       sureCorrect: correctFor(sure),
@@ -385,10 +386,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
 
   function resolveOptionText(q: QuizQuestion, value: string | undefined): string | null {
     if (value === undefined) return null;
-    if (q.type === 'mcq') {
-      return q.options?.find((o) => o.id === value)?.text ?? value;
-    }
-    return value;
+    return formatAnswerDisplay(q.type, value, q.options);
   }
 
   if (flashcardMode) {
@@ -399,7 +397,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
               !(
                 answeredIds.has(q.id) &&
                 answers[q.id] !== undefined &&
-                answers[q.id].trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+                isAnswerCorrect(q, answers[q.id])
               )
           )
         : questions;
@@ -409,7 +407,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
         cards={cards.map((q) => ({
           id: q.id,
           front: q.prompt,
-          back: q.type === 'mcq' ? q.options?.find((o) => o.id === q.correctAnswer)?.text ?? q.correctAnswer : q.correctAnswer,
+          back: formatAnswerDisplay(q.type, q.correctAnswer, q.options),
           explanation: q.explanation,
         }))}
         draftId={`study-${quiz.id}-${flashcardMode}`}
@@ -424,8 +422,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
       .filter(({ q }) => {
         if (summaryFilter === 'all') return true;
         const isRight =
-          answeredIds.has(q.id) && answers[q.id] !== undefined &&
-          answers[q.id].trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+          answeredIds.has(q.id) && answers[q.id] !== undefined && isAnswerCorrect(q, answers[q.id]);
         if (summaryFilter === 'correct') return isRight;
         return answeredIds.has(q.id) && !isRight;
       });
@@ -510,8 +507,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
                   ? questions.length
                   : questions.filter((q) => {
                       const isRight =
-                        answeredIds.has(q.id) && answers[q.id] !== undefined &&
-                        answers[q.id].trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+                        answeredIds.has(q.id) && answers[q.id] !== undefined && isAnswerCorrect(q, answers[q.id]);
                       return f === 'correct' ? isRight : answeredIds.has(q.id) && !isRight;
                     }).length;
               return (
@@ -535,8 +531,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
             {summaryRows.map(({ q, i }) => {
               const wasAnswered = answeredIds.has(q.id);
               const submittedText = resolveOptionText(q, answers[q.id]);
-              const isRight =
-                wasAnswered && answers[q.id].trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+              const isRight = wasAnswered && isAnswerCorrect(q, answers[q.id]);
               return (
                 <div key={q.id} className="rounded-md border border-ink-100 bg-white p-4">
                   <p className="text-sm font-medium text-ink-700">{i + 1}. {q.prompt}</p>
@@ -545,10 +540,7 @@ export function StudyModeRunner({ quiz, questions: rawQuestions, onDone, onCompl
                   </p>
                   {!isRight && (
                     <p className="mt-1 text-sm text-ink-600">
-                      Correct answer:{' '}
-                      {q.type === 'mcq'
-                        ? q.options?.find((o) => o.id === q.correctAnswer)?.text ?? q.correctAnswer
-                        : q.correctAnswer}
+                      Correct answer: {formatAnswerDisplay(q.type, q.correctAnswer, q.options)}
                     </p>
                   )}
                   {q.explanation && (
