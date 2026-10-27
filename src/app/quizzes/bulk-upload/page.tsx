@@ -34,13 +34,23 @@ import type { QuizInput, QuizMode, QuizDifficulty, QuestionType, QuestionOption 
 //   correct_answer, explanation
 //
 // - mode: study | quiz | exam | combined
-// - question_type: mcq | true_false | fill_blank
+// - question_type: mcq | true_false | fill_blank | sata | ordering | matrix | highlight
 // - For mcq: correct_answer must exactly match the text of one of the
 //   option_N columns for that row.
 // - For true_false: correct_answer is "True" or "False"; option columns
 //   are ignored.
 // - For fill_blank: correct_answer is the accepted text answer; option
 //   columns are ignored.
+// - For sata (Select All That Apply) and highlight: fill option_1..option_4
+//   with the selectable items, and set correct_answer to the text of every
+//   correct one, separated by "|" (e.g. "Right ventricle|Left ventricle").
+// - For ordering: fill option_1..option_4 with the steps/items (in any
+//   order), and set correct_answer to all of their texts, separated by
+//   "|", written in the CORRECT sequence.
+// - For matrix: fill option_1..option_4 with the row items, and set
+//   correct_answer to "Option text:status" pairs separated by "|", where
+//   status is indicated, contraindicated, or not_related for every row
+//   (e.g. "Oxygen:indicated|Aspirin:contraindicated").
 // - time_limit_minutes: leave blank for no timer. Required for exam mode.
 // - category: only needed if "subcategory" doesn't already exist on
 //   Cliniolab. When both are new, both get created together (see
@@ -87,6 +97,35 @@ const CSV_TEMPLATE = [
     'fill_blank', 'The normal adult resting heart rate range is ___ to ___ bpm.',
     '', '', '', '',
     '60-100', 'Normal sinus rhythm for adults is generally 60-100 beats per minute.',
+    '',
+  ].map(csvEscape).join(','),
+  [
+    'NCLEX Mock Exam A', 'Nursing', 'Exam Prep', 'exam', 'hard', '30',
+    'sata', 'Select all signs consistent with left-sided heart failure.',
+    'Pulmonary crackles', 'Orthopnea', 'Peripheral edema', 'Jugular vein distension',
+    'Pulmonary crackles|Orthopnea', 'Pulmonary crackles and orthopnea point to fluid backing up into the lungs (left-sided failure). Peripheral edema and JVD are right-sided signs.',
+    'Peripheral edema and JVD reflect systemic venous congestion from right-sided failure, not left-sided.',
+  ].map(csvEscape).join(','),
+  [
+    'NCLEX Mock Exam A', 'Nursing', 'Exam Prep', 'exam', 'hard', '30',
+    'ordering', 'Place these steps of the nursing process in the correct order.',
+    'Assessment', 'Diagnosis', 'Planning', 'Implementation',
+    'Assessment|Diagnosis|Planning|Implementation', 'The nursing process always begins with assessment and ends with implementation (evaluation follows).',
+    '',
+  ].map(csvEscape).join(','),
+  [
+    'NCLEX Mock Exam A', 'Nursing', 'Exam Prep', 'exam', 'hard', '30',
+    'matrix', 'For a patient in acute renal failure, classify each intervention.',
+    'Fluid restriction', 'IV potassium bolus', 'Daily weight monitoring', 'NSAIDs for pain',
+    'Fluid restriction:indicated|IV potassium bolus:contraindicated|Daily weight monitoring:indicated|NSAIDs for pain:contraindicated',
+    'Fluid restriction and daily weights help manage volume status. IV potassium and NSAIDs can worsen renal function and hyperkalemia.',
+    '',
+  ].map(csvEscape).join(','),
+  [
+    'NCLEX Mock Exam A', 'Nursing', 'Exam Prep', 'exam', 'hard', '30',
+    'highlight', 'Click the findings in this note that are clinical red flags.',
+    'Temp 38.9C', 'BP 118/76', 'HR 112', 'Clear lung sounds',
+    'Temp 38.9C|HR 112', 'Fever and tachycardia together are red flags for early sepsis; the BP and lung findings here are within normal limits.',
     '',
   ].map(csvEscape).join(','),
 ].join('\n');
@@ -138,6 +177,39 @@ const JSON_TEMPLATE = {
           prompt: 'The normal adult resting heart rate range is ___ to ___ bpm.',
           correctAnswer: '60-100',
           explanation: 'Normal sinus rhythm for adults is generally 60-100 beats per minute.',
+        },
+        {
+          type: 'sata',
+          prompt: 'Select all signs consistent with left-sided heart failure.',
+          options: ['Pulmonary crackles', 'Orthopnea', 'Peripheral edema', 'Jugular vein distension'],
+          correctAnswer: ['Pulmonary crackles', 'Orthopnea'],
+          explanation: 'Pulmonary crackles and orthopnea point to fluid backing up into the lungs (left-sided failure). Peripheral edema and JVD are right-sided signs.',
+        },
+        {
+          type: 'ordering',
+          prompt: 'Place these steps of the nursing process in the correct order.',
+          options: ['Assessment', 'Diagnosis', 'Planning', 'Implementation'],
+          correctAnswer: ['Assessment', 'Diagnosis', 'Planning', 'Implementation'],
+          explanation: 'The nursing process always begins with assessment and ends with implementation (evaluation follows).',
+        },
+        {
+          type: 'matrix',
+          prompt: 'For a patient in acute renal failure, classify each intervention.',
+          options: ['Fluid restriction', 'IV potassium bolus', 'Daily weight monitoring', 'NSAIDs for pain'],
+          correctAnswer: {
+            'Fluid restriction': 'indicated',
+            'IV potassium bolus': 'contraindicated',
+            'Daily weight monitoring': 'indicated',
+            'NSAIDs for pain': 'contraindicated',
+          },
+          explanation: 'Fluid restriction and daily weights help manage volume status. IV potassium and NSAIDs can worsen renal function and hyperkalemia.',
+        },
+        {
+          type: 'highlight',
+          prompt: 'Click the findings in this note that are clinical red flags.',
+          options: ['Temp 38.9C', 'BP 118/76', 'HR 112', 'Clear lung sounds'],
+          correctAnswer: ['Temp 38.9C', 'HR 112'],
+          explanation: 'Fever and tachycardia together are red flags for early sepsis; the BP and lung findings here are within normal limits.',
         },
       ],
     },
@@ -287,6 +359,82 @@ function buildQuestionInput(cols: Record<string, string>): {
 
   if (type === 'true_false' && !['true', 'false'].includes(normalizeText(correctAnswer))) {
     return { input: null, error: 'true_false correct_answer must be True or False' };
+  }
+
+  // SATA, Ordering, Matrix, and Highlight all use option_1..option_4 as
+  // their option list (rows, for Matrix), the same as MCQ, but store
+  // correctAnswer as JSON (array of option ids, or an id->status map for
+  // Matrix) rather than a single option id/text.
+  if (type === 'sata' || type === 'ordering' || type === 'matrix' || type === 'highlight') {
+    const options: QuestionOption[] = ['option_1', 'option_2', 'option_3', 'option_4']
+      .map((key) => cols[key]?.trim())
+      .filter((text): text is string => !!text)
+      .map((text) => ({ id: crypto.randomUUID(), text }));
+
+    if (options.length < 2) {
+      return { input: null, error: `${type} needs at least 2 options (option_1, option_2, ...)` };
+    }
+
+    const duplicateOptions = new Set(options.map((o) => normalizeText(o.text)));
+    if (duplicateOptions.size !== options.length) {
+      return { input: null, error: `${type} options must be unique` };
+    }
+
+    const findOption = (text: string) => options.find((o) => normalizeText(o.text) === normalizeText(text));
+
+    if (type === 'matrix') {
+      // correct_answer format: "Option text:status | Option text:status | ..."
+      // status is one of indicated | contraindicated | not_related.
+      const matrixAnswer: Record<string, string> = {};
+      const pairs = correctAnswer.split('|').map((p) => p.trim()).filter(Boolean);
+      for (const pair of pairs) {
+        const sepIndex = pair.lastIndexOf(':');
+        if (sepIndex === -1) {
+          return { input: null, error: `matrix correct_answer entry "${pair}" must be "Option text:status"` };
+        }
+        const optionText = pair.slice(0, sepIndex).trim();
+        const status = normalizeText(pair.slice(sepIndex + 1));
+        if (!['indicated', 'contraindicated', 'not_related'].includes(status)) {
+          return { input: null, error: `matrix status "${status}" must be indicated, contraindicated, or not_related` };
+        }
+        const matched = findOption(optionText);
+        if (!matched) {
+          return { input: null, error: `matrix correct_answer references unknown option "${optionText}"` };
+        }
+        matrixAnswer[matched.id] = status;
+      }
+      if (Object.keys(matrixAnswer).length !== options.length) {
+        return { input: null, error: 'matrix correct_answer must give a status for every option row' };
+      }
+      return {
+        input: { type, prompt, options, correctAnswer: JSON.stringify(matrixAnswer), explanation, incorrectRationale },
+      };
+    }
+
+    // sata / highlight: unordered set of option texts, separated by "|".
+    // ordering: the same option texts, but in the correct sequence order.
+    const tokens = correctAnswer.split('|').map((t) => t.trim()).filter(Boolean);
+    if (tokens.length === 0) {
+      return { input: null, error: `${type} correct_answer must list option text, separated by "|"` };
+    }
+    const resolvedIds: string[] = [];
+    for (const token of tokens) {
+      const matched = findOption(token);
+      if (!matched) {
+        return { input: null, error: `${type} correct_answer references unknown option "${token}"` };
+      }
+      resolvedIds.push(matched.id);
+    }
+    if (type !== 'ordering' && resolvedIds.length !== new Set(resolvedIds).size) {
+      return { input: null, error: `${type} correct_answer lists the same option more than once` };
+    }
+    if (type === 'ordering' && resolvedIds.length !== options.length) {
+      return { input: null, error: 'ordering correct_answer must list every option exactly once, in the correct order' };
+    }
+
+    return {
+      input: { type, prompt, options, correctAnswer: JSON.stringify(resolvedIds), explanation, incorrectRationale },
+    };
   }
 
   return { input: { type, prompt, correctAnswer, explanation, incorrectRationale } };
@@ -610,7 +758,15 @@ export default function BulkUploadPage() {
       for (const [questionIndex, rawQuestion] of draft.questions.entries()) {
         const type = String(rawQuestion?.type ?? 'mcq').trim().toLowerCase() as QuestionType;
         const prompt = String(rawQuestion?.prompt ?? '').trim();
-        const correctAnswer = String(rawQuestion?.correctAnswer ?? '').trim();
+        // correctAnswer may legitimately be a JSON array (sata/ordering/
+        // highlight) or object (matrix) rather than a string - stringify
+        // those properly instead of letting String() flatten them to
+        // "a,b" / "[object Object]".
+        const rawCorrectAnswer = rawQuestion?.correctAnswer;
+        const correctAnswer =
+          rawCorrectAnswer && typeof rawCorrectAnswer === 'object'
+            ? JSON.stringify(rawCorrectAnswer)
+            : String(rawCorrectAnswer ?? '').trim();
 
         if (!prompt || !correctAnswer || !['mcq', 'true_false', 'fill_blank', 'sata', 'ordering', 'matrix', 'highlight'].includes(type)) {
           warnings.push(`Quiz "${title}", question ${questionIndex + 1}: invalid type, prompt, or correctAnswer; skipped.`);
@@ -671,6 +827,93 @@ export default function BulkUploadPage() {
             break;
           }
           questions.push({ ...rawQuestion, type, prompt, correctAnswer });
+        } else if (type === 'sata' || type === 'ordering' || type === 'matrix' || type === 'highlight') {
+          // Same option shapes JSON mcq accepts (string, or {id, text}).
+          const rawOptions: unknown[] = Array.isArray(rawQuestion.options) ? (rawQuestion.options as unknown[]) : [];
+          const options: QuestionOption[] = rawOptions
+            .map((option) => {
+              if (typeof option === 'string') {
+                const text = option.trim();
+                return text ? { id: crypto.randomUUID(), text } : null;
+              }
+              if (option && typeof option === 'object') {
+                const opt = option as { id?: unknown; text?: unknown };
+                const text = String(opt.text ?? '').trim();
+                return text ? { id: String(opt.id ?? crypto.randomUUID()), text } : null;
+              }
+              return null;
+            })
+            .filter((option): option is QuestionOption => option !== null);
+
+          if (options.length < 2) {
+            warnings.push(`Quiz "${title}", question ${questionIndex + 1}: ${type} needs at least 2 options.`);
+            invalid = true;
+            break;
+          }
+
+          const resolveToken = (token: string): QuestionOption | undefined =>
+            options.find((o) => o.id === token || normalizeText(o.text) === normalizeText(token));
+
+          if (type === 'matrix') {
+            // correctAnswer is a JSON object keyed by option id OR option
+            // text, mapping to indicated | contraindicated | not_related.
+            let rawMap: Record<string, unknown> = {};
+            try {
+              const parsed = JSON.parse(correctAnswer);
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) rawMap = parsed;
+            } catch {
+              // leave rawMap empty, handled by the length check below
+            }
+            const matrixAnswer: Record<string, string> = {};
+            let resolveFailed = false;
+            for (const [key, value] of Object.entries(rawMap)) {
+              const matched = resolveToken(key);
+              const status = normalizeText(String(value ?? ''));
+              if (!matched || !['indicated', 'contraindicated', 'not_related'].includes(status)) {
+                resolveFailed = true;
+                break;
+              }
+              matrixAnswer[matched.id] = status;
+            }
+            if (resolveFailed || Object.keys(matrixAnswer).length !== options.length) {
+              warnings.push(`Quiz "${title}", question ${questionIndex + 1}: matrix correctAnswer must map every option (by id or text) to indicated, contraindicated, or not_related.`);
+              invalid = true;
+              break;
+            }
+            questions.push({ ...rawQuestion, type, prompt, options, correctAnswer: JSON.stringify(matrixAnswer) });
+          } else {
+            // sata / ordering / highlight: correctAnswer is a JSON array
+            // of option ids or option texts.
+            let rawTokens: unknown[] = [];
+            try {
+              const parsed = JSON.parse(correctAnswer);
+              if (Array.isArray(parsed)) rawTokens = parsed;
+            } catch {
+              // leave rawTokens empty, handled by the length check below
+            }
+            const resolvedIds: string[] = [];
+            let resolveFailed = false;
+            for (const token of rawTokens) {
+              const matched = resolveToken(String(token ?? ''));
+              if (!matched) {
+                resolveFailed = true;
+                break;
+              }
+              resolvedIds.push(matched.id);
+            }
+            const validCount =
+              type === 'ordering' ? resolvedIds.length === options.length : resolvedIds.length > 0;
+            if (resolveFailed || !validCount) {
+              warnings.push(
+                type === 'ordering'
+                  ? `Quiz "${title}", question ${questionIndex + 1}: ordering correctAnswer must list every option (by id or text), in the correct order.`
+                  : `Quiz "${title}", question ${questionIndex + 1}: ${type} correctAnswer must list at least one option (by id or text).`
+              );
+              invalid = true;
+              break;
+            }
+            questions.push({ ...rawQuestion, type, prompt, options, correctAnswer: JSON.stringify(resolvedIds) });
+          }
         } else {
           questions.push({ ...rawQuestion, type, prompt, correctAnswer });
         }
@@ -906,7 +1149,9 @@ export default function BulkUploadPage() {
           </li>
           <li>
             <code className="rounded bg-ink-50 px-1">question_type</code> must be one of{' '}
-            <strong>mcq</strong>, <strong>true_false</strong>, or <strong>fill_blank</strong>.
+            <strong>mcq</strong>, <strong>true_false</strong>, <strong>fill_blank</strong>,{' '}
+            <strong>sata</strong>, <strong>ordering</strong>, <strong>matrix</strong>, or{' '}
+            <strong>highlight</strong>.
             For <strong>mcq</strong>, fill in <code className="rounded bg-ink-50 px-1">option_1</code>
             {' '}through <code className="rounded bg-ink-50 px-1">option_4</code> and make{' '}
             <code className="rounded bg-ink-50 px-1">correct_answer</code> match one of them{' '}
@@ -915,6 +1160,22 @@ export default function BulkUploadPage() {
             <code className="rounded bg-ink-50 px-1">correct_answer</code> to "True" or "False".
             For <strong>fill_blank</strong>, leave the option columns blank and put the accepted
             text answer in <code className="rounded bg-ink-50 px-1">correct_answer</code>.
+          </li>
+          <li>
+            For the clinical question types, fill{' '}
+            <code className="rounded bg-ink-50 px-1">option_1</code> through{' '}
+            <code className="rounded bg-ink-50 px-1">option_4</code> the same way as mcq, then set{' '}
+            <code className="rounded bg-ink-50 px-1">correct_answer</code> based on the type:
+            for <strong>sata</strong> (select all that apply) and <strong>highlight</strong>, list
+            every correct option&apos;s text separated by <code className="rounded bg-ink-50 px-1">|</code>{' '}
+            (e.g. "Pulmonary crackles|Orthopnea"); for <strong>ordering</strong>, list every
+            option&apos;s text separated by <code className="rounded bg-ink-50 px-1">|</code>, in the
+            correct sequence; for <strong>matrix</strong>, list{' '}
+            <code className="rounded bg-ink-50 px-1">Option text:status</code> pairs separated by{' '}
+            <code className="rounded bg-ink-50 px-1">|</code>, one for every option, where status is{' '}
+            <strong>indicated</strong>, <strong>contraindicated</strong>, or{' '}
+            <strong>not_related</strong> (e.g. "Oxygen:indicated|Aspirin:contraindicated"). See the
+            template for a worked example of each.
           </li>
           <li>
             Set <code className="rounded bg-ink-50 px-1">mode</code> per quiz to{' '}
