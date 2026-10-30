@@ -79,7 +79,7 @@ export default function EditQuizPage() {
         <div>
           <h1 className="font-display text-3xl font-semibold text-ink-800">Edit quiz</h1>
           <p className="mt-2 text-ink-500">
-            Works the same for study, quiz, exam, and combined mode — switch modes below if needed.
+            Works the same for study, quiz, exam, and combined mode. Switch modes below if needed.
           </p>
         </div>
         <Button variant="secondary" onClick={() => router.push(`/quizzes/${params.quizId}/add-questions`)}>

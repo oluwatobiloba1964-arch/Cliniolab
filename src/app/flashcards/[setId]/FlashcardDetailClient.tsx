@@ -267,7 +267,7 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
         {set.description && <p className="mt-3 text-ink-500">{set.description}</p>}
 
         <div className="mt-6 flex flex-wrap items-center gap-4 font-mono text-xs text-ink-400">
-          <span>{requiresPurchase ? '—' : cards.length} cards</span>
+          <span>{requiresPurchase ? 'Locked' : `${cards.length} cards`}</span>
           <span>{set.pricing === 'paid' && set.priceKobo ? formatNaira(set.priceKobo) : 'Free'}</span>
         </div>
 

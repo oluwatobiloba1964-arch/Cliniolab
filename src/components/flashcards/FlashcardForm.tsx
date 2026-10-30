@@ -170,8 +170,8 @@ export function FlashcardForm({
               onChange={(e) => setVisibility(e.target.value as QuizVisibility)}
               className="mt-1 w-full rounded-md border border-ink-100 px-4 py-2 text-sm focus:border-pulse-400 focus:outline-none"
             >
-              <option value="public">Public — listed and shareable</option>
-              <option value="private">Private — link-only</option>
+              <option value="public">Public: listed and shareable</option>
+              <option value="private">Private: link-only</option>
             </select>
           </div>
           <div>

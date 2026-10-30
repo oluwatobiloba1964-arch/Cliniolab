@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { setId } = await params;
   const set = await guestService.getGuestFlashcardSet(setId).catch(() => null);
   if (!set) return { title: 'Guest Practice | Cliniolab' };
-  const title = `${set.title} — Flashcards (Guest Practice) | Cliniolab`;
+  const title = `${set.title} · Flashcards (Guest Practice) | Cliniolab`;
   const description = set.description?.slice(0, 150) || `Study ${set.title} for free, no account needed, on Cliniolab.`;
   return {
     title,

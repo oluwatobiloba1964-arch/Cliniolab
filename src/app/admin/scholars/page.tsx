@@ -91,7 +91,7 @@ export default function AdminScholarsPage() {
     <div>
       <h1 className="font-display text-2xl font-semibold text-ink-800">Scholar of the Day</h1>
       <p className="mt-1 text-sm text-ink-500">
-        Feature anyone on the homepage — they don&apos;t need to be a Cliniolab user. Creating a
+        Feature anyone on the homepage. They don&apos;t need to be a Cliniolab user. Creating a
         new entry (or reactivating an old one) automatically becomes the active homepage
         spotlight.
       </p>

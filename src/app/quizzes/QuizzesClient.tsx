@@ -23,6 +23,19 @@ interface QuizzesClientProps {
   pageSize: number;
 }
 
+/**
+ * Estimated completion time in whole minutes. Uses the quiz time limit
+ * when set, otherwise assumes about 45 seconds per question, a working
+ * average for nursing exam items. Powers the studyTime quick-session
+ * filter that preset links pass in.
+ */
+function quizEstimatedMinutes(quiz: QuizWithStats): number {
+  if (quiz.timeLimitSeconds && quiz.timeLimitSeconds > 0) {
+    return Math.ceil(quiz.timeLimitSeconds / 60);
+  }
+  return Math.max(1, Math.ceil((quiz.questionCount * 45) / 60));
+}
+
 export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: QuizzesClientProps) {
   const [quizzes, setQuizzes] = useState<QuizWithStats[]>(initialQuizzes);
   const [page, setPage] = useState(1);
@@ -35,8 +48,22 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState<'newest' | 'questions' | 'attempts' | 'title'>('newest');
   const [density, setDensity] = useState<ListDensity>('comfortable');
+  // Quick-session filter from ?studyTime=N. The study presets and the home
+  // strip link here with a time budget, for example /quizzes?studyTime=15.
+  // Read from window.location in an effect so this page can stay static.
+  const [studyTime, setStudyTime] = useState<number | null>(null);
   const [prefsReady, setPrefsReady] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('studyTime');
+      const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+      if (Number.isFinite(parsed) && parsed >= 5 && parsed <= 180) setStudyTime(parsed);
+    } catch {
+      // A malformed query string must never break the listing.
+    }
+  }, []);
 
   useEffect(() => {
     const saved = readQuizFilters();
@@ -93,6 +120,7 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
       .filter((quiz) => mode === 'all' || quiz.mode === mode)
       .filter((quiz) => difficulty === 'all' || quiz.difficulty === difficulty)
       .filter((quiz) => category === 'all' || quiz.categoryName === category)
+      .filter((quiz) => studyTime === null || quizEstimatedMinutes(quiz) <= studyTime)
       .slice()
       .sort((a, b) =>
         sort === 'questions'
@@ -103,7 +131,7 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
           ? a.title.localeCompare(b.title)
           : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
-  }, [baseQuizzes, mode, difficulty, category, sort]);
+  }, [baseQuizzes, mode, difficulty, category, sort, studyTime]);
 
   // Page fetching (only when not in search mode)
   useEffect(() => {
@@ -179,13 +207,14 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
   }
 
   const isSearchMode = searchResults !== null;
-  const filtersActive = query.trim() !== '' || mode !== 'all' || difficulty !== 'all' || category !== 'all';
+  const filtersActive = query.trim() !== '' || mode !== 'all' || difficulty !== 'all' || category !== 'all' || studyTime !== null;
 
   const activeChips: { key: string; label: string; onClear: () => void }[] = [];
   if (query.trim()) activeChips.push({ key: 'q', label: `Search: ${query.trim()}`, onClear: () => { setQuery(''); setSearchResults(null); } });
   if (mode !== 'all') activeChips.push({ key: 'mode', label: `Mode: ${mode}`, onClear: () => setMode('all') });
   if (difficulty !== 'all') activeChips.push({ key: 'diff', label: `Difficulty: ${difficulty}`, onClear: () => setDifficulty('all') });
   if (category !== 'all') activeChips.push({ key: 'cat', label: category, onClear: () => setCategory('all') });
+  if (studyTime !== null) activeChips.push({ key: 'study-time', label: `Quick session: about ${studyTime} minutes or less`, onClear: () => setStudyTime(null) });
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-16">
@@ -238,7 +267,7 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
               : `${visibleQuizzes.length} shown on this page${!filtersActive ? ` · ${total} total` : ''}`}
           </span>
           {filtersActive && (
-            <button type="button" onClick={() => { setQuery(''); setSearchResults(null); setMode('all'); setDifficulty('all'); setCategory('all'); clearQuizFilters(); }} className="font-semibold text-pulse-600 hover:text-pulse-700">
+            <button type="button" onClick={() => { setQuery(''); setSearchResults(null); setMode('all'); setDifficulty('all'); setCategory('all'); setStudyTime(null); clearQuizFilters(); }} className="font-semibold text-pulse-600 hover:text-pulse-700">
               Clear filters
             </button>
           )}
@@ -258,7 +287,7 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
           <div className="ui-empty-state col-span-full rounded-2xl border border-dashed border-ink-200 bg-white px-6 py-12 text-center">
             <p className="font-semibold text-ink-700">No quizzes match these filters.</p>
             <p className="mt-1 text-sm text-ink-400">Try another search or clear the active filters.</p>
-            <button type="button" onClick={() => { setQuery(''); setSearchResults(null); setMode('all'); setDifficulty('all'); setCategory('all'); clearQuizFilters(); }} className="mt-3 text-sm font-semibold text-pulse-600">Clear filters</button>
+            <button type="button" onClick={() => { setQuery(''); setSearchResults(null); setMode('all'); setDifficulty('all'); setCategory('all'); setStudyTime(null); clearQuizFilters(); }} className="mt-3 text-sm font-semibold text-pulse-600">Clear filters</button>
           </div>
         )}
       </div>

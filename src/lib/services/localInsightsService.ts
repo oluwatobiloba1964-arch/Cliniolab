@@ -133,6 +133,31 @@ export function saveScore(entry: ScoreEntry): boolean {
 }
 
 /**
+ * Scans all local spaced repetition schedules and counts how many cards
+ * are currently due for review. Shared by the readiness score and the
+ * gamification panel. Read-only; never writes to storage.
+ */
+export function countDueFlashcards(): { due: number; total: number } {
+  let dueCards = 0;
+  let totalCards = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith('cliniolab:spaced-repetition:')) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const schedule = JSON.parse(raw) as Record<string, { dueAt?: string }>;
+      const values = Object.values(schedule);
+      totalCards += values.length;
+      dueCards += values.filter((v) => !v.dueAt || new Date(v.dueAt).getTime() <= Date.now()).length;
+    }
+  } catch {
+    // ignore - flashcard scheduling data is optional for this count
+  }
+  return { due: dueCards, total: totalCards };
+}
+
+/**
  * Transparent weighted readiness score, 0-100.
  * - Recent quiz performance (last 10 attempts): 50%
  * - Flashcard due backlog (spaced repetition keys): 20%
@@ -159,22 +184,7 @@ export function computeReadinessScore(): {
   const quizComponent = Math.round(avgScore * 0.5);
 
   // Component 2: flashcard backlog
-  let dueCards = 0;
-  let totalCards = 0;
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key || !key.startsWith('cliniolab:spaced-repetition:')) continue;
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const schedule = JSON.parse(raw) as Record<string, { dueAt?: string }>;
-      const values = Object.values(schedule);
-      totalCards += values.length;
-      dueCards += values.filter((v) => !v.dueAt || new Date(v.dueAt).getTime() <= Date.now()).length;
-    }
-  } catch {
-    // ignore - flashcard scheduling data is optional for this score
-  }
+  const { due: dueCards, total: totalCards } = countDueFlashcards();
   const backlogRatio = totalCards ? dueCards / totalCards : 0;
   const flashcardComponent = Math.round((1 - backlogRatio) * 20);
 

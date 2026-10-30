@@ -14,6 +14,12 @@ import { LocalClinicalPractice } from '@/components/study/LocalClinicalPractice'
 import { LocalStudyExtras } from '@/components/study/LocalStudyExtras';
 import { TonightQueue } from '@/components/study/TonightQueue';
 import { LocalInsightsPanel } from '@/components/study/LocalInsightsPanel';
+// Local XP, levels, streaks and badges (pure client-side).
+import { GamificationPanel } from '@/components/study/GamificationPanel';
+// Score trend line from locally saved quiz results (pure client-side SVG).
+import { ScoreTrendChart } from '@/components/study/ScoreTrendChart';
+// One prioritised daily action from local signals (pure client-side).
+import { TodayPlanCard } from '@/components/study/TodayPlanCard';
 // Feature #1: Confidence calibration chart (pure client-side).
 import { ConfidenceCalibrationChart } from '@/components/study/ConfidenceCalibrationChart';
 // Feature #10: Weekly focus time bar chart (pure client-side).
@@ -633,8 +639,10 @@ export default function DashboardPage() {
           <h2 className="mt-1 font-display text-xl font-semibold text-ink-900 sm:text-2xl">Study tools and revision</h2>
           <p className="mt-1 text-sm leading-6 text-ink-500">Your existing personal tools, revision queue and learning utilities, grouped together for easier access.</p>
         </div>
+        <TodayPlanCard />
         <LocalStudyToolkit />
         <TonightQueue />
+        <GamificationPanel />
         <LocalInsightsPanel />
         <LocalStudyExtras />
 
@@ -645,6 +653,7 @@ export default function DashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <WeeklyFocusChart />
           <ConfidenceCalibrationChart />
+          <ScoreTrendChart />
         </div>
         <RecentActivityTimeline />
       </section>
@@ -950,7 +959,7 @@ export default function DashboardPage() {
           {myQuizzes.length > QUIZZES_PER_PAGE && (
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-100 bg-white p-3">
               <p className="text-xs text-ink-500">
-                Showing {(safeQuizPage - 1) * QUIZZES_PER_PAGE + 1}–{Math.min(safeQuizPage * QUIZZES_PER_PAGE, myQuizzes.length)} of {myQuizzes.length} quizzes
+                Showing {(safeQuizPage - 1) * QUIZZES_PER_PAGE + 1} to {Math.min(safeQuizPage * QUIZZES_PER_PAGE, myQuizzes.length)} of {myQuizzes.length} quizzes
               </p>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="secondary" disabled={safeQuizPage === 1} onClick={() => setQuizPage((page) => Math.max(1, page - 1))}>

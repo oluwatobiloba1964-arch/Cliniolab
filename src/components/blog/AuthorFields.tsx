@@ -84,7 +84,7 @@ export function AuthorFields({ value, onChange }: Props) {
             onChange={(e) => pickContributor('author', e.target.value)}
             className="rounded-md border border-ink-100 px-3 py-2 text-sm text-ink-700"
           >
-            <option value="">— Pick a contributor (optional) —</option>
+            <option value="">Pick a contributor (optional)</option>
             {contributors.map((c) => (
               <option key={c.id} value={c.id}>{c.name}{c.credentials ? `, ${c.credentials}` : ''}</option>
             ))}
@@ -122,7 +122,7 @@ export function AuthorFields({ value, onChange }: Props) {
             onChange={(e) => pickContributor('reviewer', e.target.value)}
             className="rounded-md border border-ink-100 px-3 py-2 text-sm text-ink-700"
           >
-            <option value="">— Pick a contributor (optional) —</option>
+            <option value="">Pick a contributor (optional)</option>
             {contributors.map((c) => (
               <option key={c.id} value={c.id}>{c.name}{c.credentials ? `, ${c.credentials}` : ''}</option>
             ))}

@@ -67,7 +67,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const modeLabel = MODE_LABELS[quiz.mode] ?? 'Quiz';
-  const title = `${quiz.title} — ${modeLabel} | Cliniolab`;
+  const title = `${quiz.title} · ${modeLabel} | Cliniolab`;
 
   // Pull stats (question count, creator, price, retake policy) the same
   // way the bookmarks page does, so the OG card matches what's shown
@@ -90,7 +90,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     .join(' · ');
 
   const description = quiz.description?.slice(0, 140)
-    ? `${quiz.description.slice(0, 140)} — ${statsLine}`
+    ? `${quiz.description.slice(0, 140)} · ${statsLine}`
     : `${statsLine}. Practice ${quiz.title} on Cliniolab, a nursing and clinical exam practice platform.`;
 
   return {

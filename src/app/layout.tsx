@@ -32,7 +32,7 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'Cliniolab – Nursing & Clinical Exam Practice',
+    default: 'Cliniolab · Nursing & Clinical Exam Practice',
     template: '%s | Cliniolab',
   },
   description:
@@ -65,14 +65,14 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: BASE_URL,
     siteName: 'Cliniolab',
-    title: 'Cliniolab – Nursing & Clinical Exam Practice',
+    title: 'Cliniolab · Nursing & Clinical Exam Practice',
     description:
       'Quizzes, timed exams, and study content for nursing and clinical students. Public and private quizzes, leaderboards, and progress tracking.',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Cliniolab' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Cliniolab – Nursing & Clinical Exam Practice',
+    title: 'Cliniolab · Nursing & Clinical Exam Practice',
     description: 'Quizzes, timed exams, and study content for nursing and clinical students.',
     images: ['/og-image.png'],
   },

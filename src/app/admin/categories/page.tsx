@@ -166,7 +166,7 @@ export default function AdminCategoriesPage() {
             <ul className="mt-2 space-y-1">
               {subcategories.filter((s) => s.categoryId === cat.id).map((sub) => (
                 <li key={sub.id} className="flex items-center gap-2 text-sm text-ink-500">
-                  <span>— {sub.name}</span>
+                  <span>· {sub.name}</span>
                   <button
                     type="button"
                     onClick={() => deleteItem('subcategory', sub.id)}

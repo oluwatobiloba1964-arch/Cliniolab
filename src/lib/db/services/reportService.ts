@@ -54,7 +54,7 @@ export async function reportQuestion(
     .bind(questionId, userId)
     .first<{ id: string }>();
   if (existingOpen) {
-    throw new Error('You already flagged this question — the creator has been notified.');
+    throw new Error('You already flagged this question. The creator has been notified.');
   }
 
   const id = generateId('report');

@@ -36,7 +36,7 @@ export function ImagePicker({ value, onChange, purpose, label, circularPreview }
       try {
         data = await res.json();
       } catch {
-        setError('Upload failed — the server returned an unexpected response.');
+        setError('Upload failed. The server returned an unexpected response.');
         return;
       }
       if (!res.ok || !data.path) {
@@ -45,7 +45,7 @@ export function ImagePicker({ value, onChange, purpose, label, circularPreview }
       }
       onChange(data.path);
     } catch {
-      setError('Upload failed — check your connection and try again.');
+      setError('Upload failed. Check your connection and try again.');
     } finally {
       setUploading(false);
       // Reset so selecting the same file again (e.g. retry after an

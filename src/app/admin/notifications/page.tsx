@@ -122,7 +122,7 @@ export default function AdminNotificationsPage() {
       if (data.reason) parts.push(data.reason);
       setRunResults((prev) => ({ ...prev, [key]: parts.length ? parts.join(', ') : 'Done.' }));
     } catch {
-      setRunResults((prev) => ({ ...prev, [key]: 'Network error — please try again.' }));
+      setRunResults((prev) => ({ ...prev, [key]: 'Network error. Please try again.' }));
     } finally {
       setRunningJob(null);
     }
@@ -210,7 +210,7 @@ export default function AdminNotificationsPage() {
           Used by <code className="rounded bg-ink-50 px-1">/api/cron/inactivity-nudge</code> and{' '}
           <code className="rounded bg-ink-50 px-1">/api/cron/daily-quiz-push</code>. Set this to whatever secret you
           configure as the <code className="rounded bg-ink-50 px-1">x-cron-secret</code> header on your cron-job.org
-          job — rotate it here any time without redeploying.{' '}
+          job. Rotate it here any time without redeploying.{' '}
           {settings?.cron.secretConfigured && (
             <span className="text-ink-400">Currently set: {settings.cron.secretMasked}</span>
           )}
@@ -238,7 +238,7 @@ export default function AdminNotificationsPage() {
           <code className="rounded bg-ink-50 px-1">/api/cron/daily-quiz-push</code> and{' '}
           <code className="rounded bg-ink-50 px-1">/api/cron/inactivity-nudge</code>, run immediately using your
           admin session instead of the cron secret. Useful for testing, or re-sending after fixing a
-          misconfigured quiz — this does not replace the scheduled cron, which keeps running on its own.
+          misconfigured quiz. This does not replace the scheduled cron, which keeps running on its own.
         </p>
 
         <div className="flex items-center justify-between gap-3 rounded-md border border-ink-100 p-4">
@@ -305,7 +305,7 @@ export default function AdminNotificationsPage() {
         ))}
         {pushFlags.length === 0 && (
           <p className="text-sm text-ink-400">
-            No push notification flags found yet — run the migration that adds them, then reload this page.
+            No push notification flags found yet. Run the migration that adds them, then reload this page.
           </p>
         )}
       </div>

@@ -193,7 +193,7 @@ export default function CreatorSettingsPage() {
       <h2 className="mt-10 font-display text-xl font-semibold text-ink-800">Contact number</h2>
       <p className="mt-2 text-ink-500">
         Add a contact number for people who take your quizzes. It appears as &quot;For inquiries
-        or assistance, contact: …&quot; on the share text of every public quiz you create — update
+        or assistance, contact: …&quot; on the share text of every public quiz you create. Update
         it here any time and it applies to all of them immediately.
       </p>
 

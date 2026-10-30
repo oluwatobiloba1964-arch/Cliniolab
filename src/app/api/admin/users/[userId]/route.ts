@@ -59,7 +59,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       return NextResponse.json(
         {
           success: true,
-          warning: `User data was deleted from the database, but removing their login account failed: ${error.message}. They will no longer have any data or access, but may still be able to authenticate — check the Supabase dashboard.`,
+          warning: `User data was deleted from the database, but removing their login account failed: ${error.message}. They will no longer have any data or access, but may still be able to authenticate. Check the Supabase dashboard.`,
         },
         { status: 200 }
       );

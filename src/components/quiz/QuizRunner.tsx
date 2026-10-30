@@ -36,6 +36,8 @@ import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { ATTEMPTED_QUIZZES_KEY, COPIED_EXPLANATIONS_KEY, makeId, readJson, writeJson } from '@/lib/services/localExtrasService';
 import { MissReasonJournal } from '@/components/study/MissReasonJournal';
 import { saveConfidenceEntries, saveScore } from '@/lib/services/localInsightsService';
+// Local XP, levels and badges. Device only, no database, no API calls.
+import { awardQuizXp, type QuizXpAward } from '@/lib/services/gamificationService';
 // Feature #5: Animated score reveal + shareable PNG
 import { AnimatedScoreReveal } from '@/components/quiz/AnimatedScoreReveal';
 // Feature #13: Haptic feedback
@@ -243,6 +245,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   const [comfortableQuestionSpacing, setComfortableQuestionSpacing] = useState(false);
   const [reduceStudyMotion, setReduceStudyMotion] = useState(false);
   const [attemptDurationSeconds, setAttemptDurationSeconds] = useState<number | null>(null);
+  // XP earned by this attempt, shown once in the results screen. Device only.
+  const [xpAward, setXpAward] = useState<QuizXpAward | null>(null);
   useEffect(() => {
     try {
       const stored = JSON.parse(window.localStorage.getItem('cliniolab_local_study_toolkit_v1') || '{}');
@@ -583,6 +587,15 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           savedAt: new Date().toISOString(),
         }));
       if (confidenceEntries.length) saveConfidenceEntries(confidenceEntries);
+      // Award local XP for this attempt. Deduped by attempt id inside the
+      // service, so retakes of the same result never double pay.
+      const award = awardQuizXp({
+        attemptKey: `quiz:${quiz.id}:${result.attemptId}`,
+        correctCount,
+        totalQuestions: result.totalQuestions,
+        percentage: Math.round(result.percentage),
+      });
+      if (award && (award.xpEarned > 0 || award.newBadges.length > 0)) setXpAward(award);
     } catch {
       // Insights are a nicety; never block results.
     }
@@ -900,6 +913,47 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           </div>
 
           <div className="p-6 sm:p-8">
+          {xpAward && (
+            <div
+              className={`mb-5 rounded-xl border p-4 ${
+                xpAward.leveledUp ? 'border-pulse-300 bg-pulse-50' : 'border-pulse-100 bg-pulse-50/60'
+              }`}
+              aria-live="polite"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-pulse-600">
+                    {xpAward.leveledUp ? 'Level up!' : 'XP earned'}
+                  </p>
+                  <p className="mt-1 font-mono text-2xl font-semibold text-ink-900">
+                    +{xpAward.xpEarned} XP
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-500">
+                    Level {xpAward.level.level}, {xpAward.level.name}
+                    {!xpAward.level.isMaxLevel && ` · ${xpAward.level.xpForNextLevel - xpAward.level.xpIntoLevel} XP to level ${xpAward.level.level + 1}`}
+                  </p>
+                </div>
+                {xpAward.leveledUp && (
+                  <span className="rounded-full bg-pulse-500 px-3 py-1 text-xs font-semibold text-white">
+                    Level {xpAward.level.level} unlocked
+                  </span>
+                )}
+              </div>
+              {xpAward.newBadges.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">New badge{xpAward.newBadges.length === 1 ? '' : 's'}</span>
+                  {xpAward.newBadges.map((badge) => (
+                    <span key={badge.id} className="inline-flex items-center gap-1.5 rounded-full border border-pulse-200 bg-white px-3 py-1 text-xs font-semibold text-pulse-700">
+                      {badge.title}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="mt-2.5 text-[11px] text-ink-400">
+                XP, levels and badges live on this device and never sync or affect your account.
+              </p>
+            </div>
+          )}
           <div className={`mb-5 rounded-xl border p-4 ${incorrectCount > 0 ? 'border-amber-200 bg-amber-50/70' : 'border-pulse-100 bg-pulse-50/60'}`} aria-live="polite">
             <p className={`text-xs font-semibold uppercase tracking-wide ${incorrectCount > 0 ? 'text-amber-800' : 'text-pulse-700'}`}>Recommended next step</p>
             <p className="mt-1 text-sm font-semibold text-ink-800">{incorrectCount > 0 ? `Review ${incorrectCount} question${incorrectCount === 1 ? '' : 's'} you missed, then retest your recall.` : 'You answered every question correctly. Reinforce recall with a short flashcard session.'}</p>

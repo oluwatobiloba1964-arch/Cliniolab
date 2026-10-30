@@ -153,7 +153,7 @@ export function ResourceCard({ resource }: { resource: Resource }) {
           {state?.access === 'download' && 'Click to download'}
           {state?.access === 'pay_to_unlock' && 'Pay to unlock'}
           {state?.access === 'payment_pending' && 'Payment pending review'}
-          {state?.access === 'payment_rejected' && 'Payment rejected — resubmit'}
+          {state?.access === 'payment_rejected' && 'Payment rejected, please resubmit'}
         </Button>
       )}
       {error && <p className="mt-2 text-xs text-critical-500">{error}</p>}

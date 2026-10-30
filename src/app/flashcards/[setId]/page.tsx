@@ -21,10 +21,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Flashcards' };
   }
 
-  const title = `${set.title} — Flashcards | Cliniolab`;
+  const title = `${set.title} · Flashcards | Cliniolab`;
   const price = formatPrice(set.pricing, set.priceKobo);
   const description = set.description?.slice(0, 140)
-    ? `${set.description.slice(0, 140)} — Price: ${price}`
+    ? `${set.description.slice(0, 140)} · Price: ${price}`
     : `Study ${set.title} with flip-card flashcards on Cliniolab. Price: ${price}`;
 
   return {

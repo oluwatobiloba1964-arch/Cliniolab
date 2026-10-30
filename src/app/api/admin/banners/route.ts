@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'title is required' }, { status: 400 });
   }
   if (!body.imagePath || typeof body.imagePath !== 'string') {
-    return NextResponse.json({ error: 'imagePath is required — upload the image first' }, { status: 400 });
+    return NextResponse.json({ error: 'imagePath is required. Upload the image first' }, { status: 400 });
   }
 
   const banner = await bannerService.createBanner({

@@ -38,7 +38,7 @@ export default function AdminAdSensePage() {
       <h1 className="font-display text-2xl font-semibold text-ink-800">Google AdSense</h1>
       <p className="mt-2 text-ink-500">
         Ads show on the homepage, blog, and other browsing pages. They are hidden on the admin
-        panel, quiz creation pages, and while a user is practicing or taking a quiz — and never
+        panel, quiz creation pages, and while a user is practicing or taking a quiz, and never
         appear in the header.
       </p>
 

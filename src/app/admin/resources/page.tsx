@@ -310,7 +310,7 @@ export default function AdminResourcesPage() {
           rows={2}
           className="w-full rounded-md border border-ink-100 px-4 py-2 text-sm focus:border-pulse-400 focus:outline-none"
         />
-        <ImagePicker value={coverImageUrl} onChange={setCoverImageUrl} purpose="resources" label="Cover image (optional — falls back to a default cover if left blank)" />
+        <ImagePicker value={coverImageUrl} onChange={setCoverImageUrl} purpose="resources" label="Cover image (optional, falls back to a default cover if left blank)" />
         {kind === 'past_question_pack' && (
           <input
             value={institutionName}
@@ -445,7 +445,7 @@ export default function AdminResourcesPage() {
                       value={editCoverImageUrl}
                       onChange={setEditCoverImageUrl}
                       purpose="resources"
-                      label="Cover image (optional — falls back to a default cover if left blank)"
+                      label="Cover image (optional, falls back to a default cover if left blank)"
                     />
                     {editKind === 'past_question_pack' && (
                       <input

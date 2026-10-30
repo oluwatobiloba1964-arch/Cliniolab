@@ -75,7 +75,7 @@ export default function PayoutSetupPage() {
       <h1 className="font-display text-2xl font-semibold text-ink-800">Payout setup</h1>
       <p className="mt-2 text-ink-500">
         Add your bank details so you can request a payout once you&apos;ve earned from paid
-        quizzes. Cliniolab collects each sale directly — your share is credited to your balance,
+        quizzes. Cliniolab collects each sale directly, so your share is credited to your balance,
         and you withdraw it by requesting a payout from your Earnings page.
       </p>
 
@@ -109,7 +109,7 @@ export default function PayoutSetupPage() {
           className="w-full rounded-md border border-ink-100 px-4 py-2 text-sm focus:border-pulse-400 focus:outline-none"
         />
         <p className="text-xs text-ink-400">
-          Double-check these details — they aren&apos;t automatically verified, and payouts are sent
+          Double-check these details. They aren&apos;t automatically verified, and payouts are sent
           to exactly what you enter here.
         </p>
         {error && <p className="text-sm text-critical-500">{error}</p>}

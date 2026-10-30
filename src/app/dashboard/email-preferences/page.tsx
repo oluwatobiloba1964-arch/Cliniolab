@@ -60,7 +60,7 @@ export default function EmailPreferencesPage() {
       </Card>
       <p className="mt-4 text-xs text-ink-400">
         Welcome, leaderboard recognition, comment reply, and inactivity emails aren&apos;t
-        covered by these toggles — they're tied to account activity, not marketing preferences,
+        covered by these toggles. They're tied to account activity, not marketing preferences,
         and can only be turned off sitewide by an admin.
       </p>
     </div>

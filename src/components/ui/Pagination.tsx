@@ -24,7 +24,7 @@ export function Pagination({ page, pageSize, total, onPageChange, className = ''
   return (
     <div className={`flex flex-wrap items-center justify-between gap-3 ${className}`}>
       <p className="text-xs text-ink-400">
-        Showing {rangeStart}–{rangeEnd} of {total}
+        Showing {rangeStart} to {rangeEnd} of {total}
       </p>
       <div className="flex items-center gap-1">
         <Button

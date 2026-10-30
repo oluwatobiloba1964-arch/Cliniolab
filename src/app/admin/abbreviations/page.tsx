@@ -98,7 +98,7 @@ export default function AdminAbbreviationsPage() {
           <h1 className="font-display text-2xl font-semibold text-ink-800">Abbreviations &amp; Glossary</h1>
           <p className="mt-1 text-sm text-ink-500">
             Short abbreviations (e.g. NPO) and full glossary terms (e.g. Homeostasis) live in one
-            list. Entered manually or via bulk upload — a wrong entry in a clinical glossary is a
+            list. Entered manually or via bulk upload, because a wrong entry in a clinical glossary is a
             real risk, so double-check before saving. Turn the page and homepage widget on/off
             from Feature Flags.
           </p>

@@ -37,7 +37,7 @@ export default function JobsPage() {
     <div className="mx-auto max-w-7xl px-6 py-16">
       <h1 className="font-display text-3xl font-semibold text-ink-800">Jobs</h1>
       <p className="mt-2 text-ink-500">
-        Health-sciences jobs, internships, and clinical placements — posted directly by the
+        Health-sciences jobs, internships, and clinical placements, posted directly by the
         Cliniolab team.
       </p>
       <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -45,7 +45,7 @@ export default function JobsPage() {
           <BlogPostCard key={post.id} post={post} />
         ))}
         {posts.length === 0 && (
-          <p className="col-span-full text-sm text-ink-400">No job listings yet — check back soon.</p>
+          <p className="col-span-full text-sm text-ink-400">No job listings yet. Check back soon.</p>
         )}
       </div>
     </div>

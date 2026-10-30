@@ -47,7 +47,7 @@ export default function AdminHomepageVideoPage() {
     <div>
       <h1 className="font-display text-2xl font-semibold text-ink-800">Homepage video</h1>
       <p className="mt-2 text-ink-500">
-        Shown near the footer on the homepage. Paste any YouTube link — watch, share, or embed
+        Shown near the footer on the homepage. Paste any YouTube link. Watch, share, or embed
         format all work.
       </p>
 

@@ -38,7 +38,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   }
 
   const title = category
-    ? `${subcategory.name} — ${category.name} Quizzes | Cliniolab`
+    ? `${subcategory.name} in ${category.name} Quizzes | Cliniolab`
     : `${subcategory.name} Quizzes | Cliniolab`;
   const description = `Practice ${subcategory.name} quizzes${category ? ` in ${category.name}` : ''} on Cliniolab, a nursing and clinical exam practice platform.`;
   const canonical = `${BASE_URL}/categories/${subcategory.slug}${category ? `?category=${category.slug}` : ''}`;

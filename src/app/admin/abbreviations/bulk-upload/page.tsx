@@ -153,7 +153,7 @@ function validateHeaders(header: string[]): string[] {
   const unknown = header.filter((h) => h.trim() && !known.has(h.trim().toLowerCase()));
   if (unknown.length > 0) {
     warnings.push(
-      `Unrecognized column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. Check for typos — these will be ignored.`
+      `Unrecognized column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. Check for typos. These will be ignored.`
     );
   }
   return warnings;
@@ -378,10 +378,10 @@ export default function AbbreviationsBulkUploadPage() {
             Each row is one entry. Fill in <code className="rounded bg-ink-50 px-1">term</code>{' '}
             (a short abbreviation like &ldquo;NPO&rdquo; or a full word/phrase like
             &ldquo;Homeostasis&rdquo;) and <code className="rounded bg-ink-50 px-1">meaning</code>{' '}
-            — both required. <code className="rounded bg-ink-50 px-1">category</code> is optional.
+            are both required. <code className="rounded bg-ink-50 px-1">category</code> is optional.
           </li>
           <li>
-            <code className="rounded bg-ink-50 px-1">type</code> is optional too — set it to{' '}
+            <code className="rounded bg-ink-50 px-1">type</code> is optional too, so set it to{' '}
             <code className="rounded bg-ink-50 px-1">abbreviation</code> or{' '}
             <code className="rounded bg-ink-50 px-1">glossary</code> per row for a mixed file. If
             you leave the column blank (or your file has no type column at all), the picker below
@@ -478,7 +478,7 @@ export default function AbbreviationsBulkUploadPage() {
       {entries.length > 0 && (
         <Card className="mt-6 p-6">
           <h2 className="font-display text-lg font-semibold text-ink-800">
-            Preview — {entries.length} entr{entries.length === 1 ? 'y' : 'ies'} ready to upload
+            Preview: {entries.length} entr{entries.length === 1 ? 'y' : 'ies'} ready to upload
           </h2>
           <div className="mt-4 max-h-96 space-y-2 overflow-y-auto">
             {entries.map((e, i) => (

@@ -267,7 +267,7 @@ export default function AdminPaymentsPage() {
         <label className="text-sm font-medium text-ink-700">Resource purchase payment mode</label>
         <p className="text-xs text-ink-400">
           Applies platform-wide to every paid resource (books, past-question packs, etc). Since
-          admin uploads resources directly, there&apos;s no creator split here — this only
+          admin uploads resources directly, there&apos;s no creator split here. This only
           controls how the buyer pays.
         </p>
         <div className="flex gap-3">
@@ -314,9 +314,9 @@ export default function AdminPaymentsPage() {
           className="w-32 rounded-md border border-ink-100 px-4 py-2 text-sm focus:border-pulse-400 focus:outline-none"
         />
         <p className="text-xs text-ink-400">
-          Creators keep {100 - percent}% of every sale, credited to their withdrawable balance —
+          Creators keep {100 - percent}% of every sale, credited to their withdrawable balance.
           Cliniolab collects the full payment via Flutterwave, and creators withdraw by requesting
-          a payout above. Applies to new sales immediately after saving — already completed sales
+          a payout above. Applies to new sales immediately after saving. Already completed sales
           aren&apos;t recalculated.
         </p>
         <Button size="sm" onClick={savePercent}>Save</Button>

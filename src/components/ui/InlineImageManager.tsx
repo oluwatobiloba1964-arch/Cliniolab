@@ -70,7 +70,7 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
 
     const MAX_BYTES = 5 * 1024 * 1024;
     if (file.size > MAX_BYTES) {
-      setError(`That image is ${(file.size / (1024 * 1024)).toFixed(1)}MB — the limit is 5MB. Resize or compress it first.`);
+      setError(`That image is ${(file.size / (1024 * 1024)).toFixed(1)}MB, but the limit is 5MB. Resize or compress it first.`);
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -85,7 +85,7 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
       try {
         data = await res.json();
       } catch {
-        setError(`Upload failed — server returned status ${res.status} with a non-JSON response.`);
+        setError(`Upload failed. Server returned status ${res.status} with a non-JSON response.`);
         return;
       }
       if (!res.ok || !data.path) {
@@ -95,7 +95,7 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
       setLastPath(data.path);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      setError(`Upload failed — network/connection error: ${detail}`);
+      setError(`Upload failed. Network or connection error: ${detail}`);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -126,7 +126,7 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
         <>
           <p className="mb-2 text-[11px] text-ink-400">
             Tap your cursor into the spot in the content above where the image should go, then tap
-            below to drop a placeholder there — that happens instantly and never touches the file
+            below to drop a placeholder there. That happens instantly and never touches the file
             picker, so it&apos;s safe even if the picker causes a reload afterward.
           </p>
           <button
@@ -144,7 +144,7 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
           <p className="mb-2 text-[11px] text-ink-400">
             {markerStillPresent
               ? <>Placeholder <code className="rounded bg-ink-100 px-1">{activeMarker}</code> is in the content below. Now choose the file to fill it with.</>
-              : <>Couldn&apos;t find the placeholder in the content anymore — it may have been edited or deleted. Mark a spot again below.</>}
+              : <>Couldn&apos;t find the placeholder in the content anymore. It may have been edited or deleted. Mark a spot again below.</>}
           </p>
           {markerStillPresent ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -179,7 +179,7 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
             onClick={() => setActiveMarker(null)}
             className="mt-2 text-[11px] text-ink-400 underline"
           >
-            Cancel — leave placeholder text as-is
+            Cancel and leave placeholder text as-is
           </button>
         </>
       )}

@@ -47,7 +47,7 @@ export default function AdminLeaderboardPage() {
     <div>
       <h1 className="font-display text-2xl font-semibold text-ink-800">Leaderboard</h1>
       <p className="mt-2 text-ink-500">
-        Controls how many names show on every leaderboard across the site — the general
+        Controls how many names show on every leaderboard across the site: the general
         site-wide leaderboard, category leaderboards, and per-quiz leaderboards all use this
         same number.
       </p>

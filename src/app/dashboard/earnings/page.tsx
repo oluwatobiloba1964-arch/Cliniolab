@@ -29,7 +29,7 @@ const STATUS_LABEL: Record<PayoutRequestItem['status'], string> = {
   pending: 'Pending review',
   processing: 'Processing',
   paid: 'Paid',
-  failed: 'Failed — refunded to balance',
+  failed: 'Failed, refunded to balance',
 };
 
 export default function EarningsPage() {
@@ -95,7 +95,7 @@ export default function EarningsPage() {
     <div className="mx-auto max-w-2xl px-6 py-16">
       <h1 className="font-display text-2xl font-semibold text-ink-800">Earnings</h1>
       <p className="mt-2 text-sm text-ink-400">
-        Cliniolab collects every sale directly. Your share is credited to your balance below —
+        Cliniolab collects every sale directly. Your share is credited to your balance below.
         request a payout any time and admin will send it to your bank.
       </p>
 

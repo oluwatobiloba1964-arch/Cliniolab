@@ -79,10 +79,10 @@ export async function sendInactivityNudgePush(userId: string, daysInactive: numb
     title: "We've missed you 🩺",
     body:
       daysInactive >= 14
-        ? "It's been 2 weeks — jump back in and keep your knowledge sharp."
+        ? "It's been 2 weeks. Jump back in and keep your knowledge sharp."
         : daysInactive >= 7
           ? "A week away already? Come back for a quick quiz."
-          : 'A few days off — ready for a quick refresher?',
+          : 'A few days off. Ready for a quick refresher?',
     url: '/',
   });
 }

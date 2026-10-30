@@ -92,7 +92,7 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(fu
         }
         return data.path as string;
       } catch {
-        setUploadError('Image upload failed — check your connection.');
+        setUploadError('Image upload failed. Check your connection.');
         return null;
       } finally {
         setUploading(false);

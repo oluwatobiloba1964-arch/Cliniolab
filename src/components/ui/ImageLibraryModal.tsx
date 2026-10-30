@@ -49,7 +49,7 @@ export function ImageLibraryModal({ onSelect, onClose }: ImageLibraryModalProps)
         setImages((current) => (reset ? data.images : [...current, ...data.images]));
         setNextCursor(data.nextCursor);
       })
-      .catch(() => setError('Failed to load images — check your connection.'))
+      .catch(() => setError('Failed to load images. Check your connection.'))
       .finally(() => setLoading(false));
   }
 

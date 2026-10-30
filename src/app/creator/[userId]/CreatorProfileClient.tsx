@@ -119,7 +119,7 @@ export function CreatorProfileClient({
         </div>
       ) : (
         <p className="mt-2 text-sm text-ink-500">
-          {name} hasn&apos;t published any public quizzes yet — check back later.
+          {name} hasn&apos;t published any public quizzes yet. Check back later.
         </p>
       )}
     </div>

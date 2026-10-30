@@ -4,7 +4,7 @@ import { HomeClient } from './HomeClient';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
 
-const TITLE = 'Cliniolab — Nursing & Clinical Exam Practice';
+const TITLE = 'Cliniolab · Nursing & Clinical Exam Practice';
 const DESCRIPTION =
   "Cliniolab brings together student-built quizzes, CBT-style exams, and clinical study notes in one place so you can revise a topic, test yourself on it, and track how you're improving.";
 

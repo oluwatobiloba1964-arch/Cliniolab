@@ -361,7 +361,7 @@ function CommentNode({
           onClick={() => toggleExpanded(comment.id)}
           className="mt-2 ml-6 text-xs font-medium text-ink-400 hover:text-pulse-600"
         >
-          — View {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+          View {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
         </button>
       )}
 
@@ -376,7 +376,7 @@ function CommentNode({
               onClick={() => toggleExpanded(comment.id)}
               className="text-xs font-medium text-ink-400 hover:text-pulse-600"
             >
-              — Hide replies
+              Hide replies
             </button>
           )}
           {replies.map((reply) => (
