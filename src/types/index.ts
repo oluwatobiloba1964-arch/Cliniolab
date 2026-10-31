@@ -526,6 +526,13 @@ export interface AuthorBoxSetting {
   medicalReviewPolicyUrl: string;
 }
 
+export interface EmailSetting {
+  /** Resend API key stored in the DB. Overrides the env var when set. */
+  resendApiKey: string;
+  /** From address, e.g. "Cliniolab <hello@cliniolab.com>". */
+  fromAddress: string;
+}
+
 /** Admin "Data Clean" row: what it is, how much is stored, and how old data must be to be cleaned. */
 export interface DataCleanTarget {
   key: string;
