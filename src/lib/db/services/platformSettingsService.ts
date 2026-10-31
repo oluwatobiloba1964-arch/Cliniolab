@@ -1,6 +1,8 @@
+// src/lib/db/services/platformSettingsService.ts
 import { getDb, nowIso } from '@/lib/db/client';
 import type {
   AuthorBoxSetting,
+  EmailSetting,
   GuestCreatorAccess,
   GuestPracticeSetting,
   OfflineSetting,
@@ -187,4 +189,37 @@ export async function setAuthorBoxSetting(setting: AuthorBoxSetting): Promise<Au
   };
   await writeSetting('author_box', clean);
   return clean;
+}
+
+// ---- Email (Resend) ----
+
+export const DEFAULT_EMAIL: EmailSetting = { resendApiKey: '', fromAddress: '' };
+
+export async function getEmailSetting(): Promise<EmailSetting> {
+  const s = await readSetting('email', DEFAULT_EMAIL);
+  return {
+    resendApiKey: typeof s.resendApiKey === 'string' ? s.resendApiKey.trim() : '',
+    fromAddress: typeof s.fromAddress === 'string' ? s.fromAddress.trim() : '',
+  };
+}
+
+export async function setEmailSetting(setting: EmailSetting): Promise<EmailSetting> {
+  const clean: EmailSetting = {
+    resendApiKey: cleanText(setting.resendApiKey, '', 200),
+    fromAddress: cleanText(setting.fromAddress, '', 200),
+  };
+  await writeSetting('email', clean);
+  return clean;
+}
+
+/**
+ * Resolves the active Resend credentials: DB values take priority over env vars.
+ * Returns null strings when neither source has a value.
+ */
+export async function resolveEmailCredentials(): Promise<{ apiKey: string | null; fromAddress: string | null }> {
+  const db = await getEmailSetting();
+  return {
+    apiKey: db.resendApiKey || process.env.RESEND_API_KEY || null,
+    fromAddress: db.fromAddress || process.env.RESEND_FROM_ADDRESS || null,
+  };
 }
