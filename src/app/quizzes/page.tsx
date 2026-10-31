@@ -10,12 +10,12 @@ const PAGE_SIZE = 12;
 export const metadata: Metadata = {
   title: 'Latest Quizzes | Cliniolab',
   description:
-    'Browse the latest nursing and clinical exam practice quizzes on Cliniolab.',
+    'Browse the latest clinical exam practice quizzes on Cliniolab.',
   alternates: { canonical: `${BASE_URL}/quizzes` },
   openGraph: {
     title: 'Latest Quizzes | Cliniolab',
     description:
-      'Browse the latest nursing and clinical exam practice quizzes on Cliniolab.',
+      'Browse the latest clinical exam practice quizzes on Cliniolab.',
     type: 'website',
     url: `${BASE_URL}/quizzes`,
   },
