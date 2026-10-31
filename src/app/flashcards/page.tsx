@@ -10,12 +10,12 @@ const PAGE_SIZE = 12;
 export const metadata: Metadata = {
   title: 'Flashcards | Cliniolab',
   description:
-    'Browse public nursing and clinical exam flashcard sets on Cliniolab.',
+    'Browse public clinical exam flashcard sets on Cliniolab.',
   alternates: { canonical: `${BASE_URL}/flashcards` },
   openGraph: {
     title: 'Flashcards | Cliniolab',
     description:
-      'Browse public nursing and clinical exam flashcard sets on Cliniolab.',
+      'Browse public clinical exam flashcard sets on Cliniolab.',
     type: 'website',
     url: `${BASE_URL}/flashcards`,
   },
