@@ -6,7 +6,7 @@ export function welcomeEmail(displayName: string): { subject: string; html: stri
   const body = `
     <h1 style="font-family: Georgia, serif; font-size: 22px; color: #0B1F2E; margin: 0 0 12px;">Welcome, ${displayName}!</h1>
     <p style="font-size: 14px; color: #1E3A4C; line-height: 1.6;">
-      You're in. Cliniolab has quizzes and CBT-style exams across core sciences, nursing practice,
+      You're in. Cliniolab has quizzes and CBT-style exams across core sciences, clinical practice,
       clinical specialties, and board exam prep — built by students like you.
     </p>
     <p style="font-size: 14px; color: #1E3A4C; line-height: 1.6;">
