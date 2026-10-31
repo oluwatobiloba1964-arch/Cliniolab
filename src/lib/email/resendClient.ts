@@ -1,9 +1,16 @@
+// src/lib/email/resendClient.ts
 /**
  * Resend API wrapper. This is the ONLY file allowed to call Resend
  * directly - mirrors the D1/R2 abstraction pattern so the email provider
  * stays swappable and nothing else in the codebase hardcodes provider
  * details.
+ *
+ * Credential resolution order:
+ *  1. DB value set via Admin → Platform Settings → Email
+ *  2. RESEND_API_KEY / RESEND_FROM_ADDRESS environment variables
  */
+
+import { resolveEmailCredentials } from '@/lib/db/services/platformSettingsService';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
@@ -23,11 +30,11 @@ export interface SendEmailInput {
 export class EmailSendError extends Error {}
 
 export async function sendEmailViaResend(input: SendEmailInput): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const fromAddress = process.env.RESEND_FROM_ADDRESS;
+  const { apiKey, fromAddress } = await resolveEmailCredentials();
+
   if (!apiKey || !fromAddress) {
     throw new EmailSendError(
-      'Missing RESEND_API_KEY or RESEND_FROM_ADDRESS environment variables.'
+      'Resend credentials not configured. Set them in Admin → Platform Settings → Email, or via RESEND_API_KEY / RESEND_FROM_ADDRESS environment variables.'
     );
   }
 
