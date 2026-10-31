@@ -51,7 +51,7 @@ export function HomeHero() {
           <h1 className="mx-auto mt-5 max-w-3xl text-[2rem] font-bold leading-[1.12] tracking-tight sm:mt-6 sm:text-5xl sm:leading-[1.08] lg:text-[3.5rem]">
             Practice, Revise &amp; Master Your Clinical &amp;{' '}
             <span className="bg-gradient-to-r from-teal-200 via-emerald-200 to-cyan-200 bg-clip-text text-transparent">
-              Nursing Exams
+              Exam Prep
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:mt-5 sm:text-lg sm:leading-8">
@@ -64,7 +64,7 @@ export function HomeHero() {
               className="flex items-center gap-2 rounded-2xl border border-white/70 bg-white p-1.5 pl-3 shadow-[0_18px_55px_rgba(0,0,0,0.24)] ring-1 ring-black/5 sm:gap-3 sm:p-2 sm:pl-4"
             >
               <Search className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
-              <label className="sr-only" htmlFor="homepage-search">Search nursing resources, quizzes and articles</label>
+              <label className="sr-only" htmlFor="homepage-search">Search resources, quizzes and articles</label>
               <input
                 id="homepage-search"
                 type="search"
