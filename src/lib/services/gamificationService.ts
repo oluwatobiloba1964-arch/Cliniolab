@@ -80,16 +80,16 @@ export type QuizXpAward = {
 // level 4 at 600, level 5 at 1000 and so on.
 
 export const LEVEL_NAMES: Record<number, string> = {
-  1: 'Student Nurse',
-  2: 'Clinical Trainee',
-  3: 'Ward Rookie',
-  4: 'Confident Clinician',
-  5: 'Senior Nurse',
-  6: 'Ward Champion',
-  7: 'Clinical Star',
+  1: 'Beginner',
+  2: 'Learner',
+  3: 'Explorer',
+  4: 'Practitioner',
+  5: 'Achiever',
+  6: 'Specialist',
+  7: 'Expert',
   8: 'Exam Ready',
   9: 'Top Candidate',
-  10: 'Clinical Legend',
+  10: 'Legend',
 };
 
 export const MAX_LEVEL = 10;
