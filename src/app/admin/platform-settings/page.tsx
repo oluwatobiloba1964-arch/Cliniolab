@@ -1,10 +1,11 @@
+// src/app/admin/platform-settings/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
-import type { AuthorBoxSetting, GuestPracticeSetting, OfflineSetting, ThemeSetting } from '@/types';
+import type { AuthorBoxSetting, EmailSetting, GuestPracticeSetting, OfflineSetting, ThemeSetting } from '@/types';
 
 /** Admin controls for Guest Practice, default theme, offline downloads and the author/reviewer box. */
 export default function PlatformSettingsPage() {
@@ -12,6 +13,8 @@ export default function PlatformSettingsPage() {
   const [theme, setTheme] = useState<ThemeSetting | null>(null);
   const [offline, setOffline] = useState<OfflineSetting | null>(null);
   const [authorBox, setAuthorBox] = useState<AuthorBoxSetting | null>(null);
+  const [email, setEmail] = useState<EmailSetting | null>(null);
+  const [apiKeyDirty, setApiKeyDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -23,6 +26,7 @@ export default function PlatformSettingsPage() {
         setTheme(data.theme);
         setOffline(data.offline);
         setAuthorBox(data.authorBox);
+        setEmail(data.email ?? { resendApiKey: '', fromAddress: '' });
       });
   }, []);
 
@@ -33,7 +37,7 @@ export default function PlatformSettingsPage() {
       const res = await fetch('/api/admin/platform-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guest, theme, offline, authorBox }),
+        body: JSON.stringify({ guest, theme, offline, authorBox, email }),
       });
       if (res.ok) setMessage('Saved.');
       else setMessage((await res.json()).error ?? 'Failed to save');
@@ -42,7 +46,7 @@ export default function PlatformSettingsPage() {
     }
   }
 
-  if (!guest || !theme || !offline || !authorBox) return null;
+  if (!guest || !theme || !offline || !authorBox || !email) return null;
 
   return (
     <div className="max-w-2xl">
@@ -174,6 +178,38 @@ export default function PlatformSettingsPage() {
           <input
             value={authorBox.reviewerLabel}
             onChange={(e) => setAuthorBox({ ...authorBox, reviewerLabel: e.target.value })}
+            className="mt-1 w-full rounded-md border border-ink-100 px-3 py-2"
+          />
+        </label>
+      </Card>
+
+      <Card className="mt-6 space-y-4 p-5">
+        <h2 className="font-semibold text-ink-800">Email (Resend)</h2>
+        <p className="text-xs text-ink-500">
+          Values here override the <code>RESEND_API_KEY</code> and{' '}
+          <code>RESEND_FROM_ADDRESS</code> environment variables. Leave blank to fall back to the env vars.
+        </p>
+        <label className="block text-sm text-ink-700">
+          Resend API key
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder={apiKeyDirty ? '' : 'Stored in DB — type to replace'}
+            value={apiKeyDirty ? email.resendApiKey : ''}
+            onChange={(e) => {
+              setApiKeyDirty(true);
+              setEmail({ ...email, resendApiKey: e.target.value });
+            }}
+            className="mt-1 w-full rounded-md border border-ink-100 px-3 py-2 font-mono text-sm"
+          />
+        </label>
+        <label className="block text-sm text-ink-700">
+          From address
+          <input
+            type="text"
+            placeholder="Cliniolab <hello@cliniolab.com>"
+            value={email.fromAddress}
+            onChange={(e) => setEmail({ ...email, fromAddress: e.target.value })}
             className="mt-1 w-full rounded-md border border-ink-100 px-3 py-2"
           />
         </label>
