@@ -76,7 +76,7 @@ export function GamificationPanel() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-pulse-600">
               Progress and milestones
             </p>
-            <h3 className="mt-1 font-display text-lg font-semibold text-ink-900">Your nursing journey</h3>
+            <h3 className="mt-1 font-display text-lg font-semibold text-ink-900">Your learning journey</h3>
           </div>
           <span className="rounded-full bg-ink-50 px-3 py-1 text-[10px] font-semibold text-ink-400">
             Device only · no sync
