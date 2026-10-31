@@ -27,7 +27,7 @@ export default async function BlogPage() {
       <PageTools reading />
       <h1 className="font-display text-3xl font-semibold text-ink-800">Blog</h1>
       <p className="mt-2 text-ink-500">
-        Clinical tips, exam prep guidance, and news for nursing and clinical students.
+        Clinical tips, exam prep guidance, and news for clinical students.
       </p>
 
       {/* Category pills navigate to that category's dedicated page. */}
