@@ -10,12 +10,12 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
 export const metadata: Metadata = {
   title: 'Categories | Cliniolab',
   description:
-    'Browse nursing and clinical exam practice quizzes by subject area on Cliniolab.',
+    'Browse clinical exam practice quizzes by subject area on Cliniolab.',
   alternates: { canonical: `${BASE_URL}/categories` },
   openGraph: {
     title: 'Categories | Cliniolab',
     description:
-      'Browse nursing and clinical exam practice quizzes by subject area on Cliniolab.',
+      'Browse clinical exam practice quizzes by subject area on Cliniolab.',
     type: 'website',
     url: `${BASE_URL}/categories`,
   },
