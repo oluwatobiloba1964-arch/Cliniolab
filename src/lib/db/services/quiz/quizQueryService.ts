@@ -386,3 +386,75 @@ export async function searchPublicQuizzes(query: string): Promise<QuizWithStats[
     .all<QuizStatsRow>();
   return results.map(mapQuizWithStats);
 }
+
+export async function listPublicQuizzesFiltered(opts: {
+  mode?: string;
+  difficulty?: string;
+  categoryName?: string;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ quizzes: QuizWithStats[]; total: number; page: number; pageSize: number }> {
+  const db = getDb();
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 50));
+  const offset = (page - 1) * pageSize;
+
+  const conditions: string[] = ["q.visibility = 'public'", "q.status = 'published'"];
+  const bindings: (string | number)[] = [];
+
+  if (opts.mode && opts.mode !== 'all') {
+    conditions.push('q.mode = ?');
+    bindings.push(opts.mode);
+  }
+  if (opts.difficulty && opts.difficulty !== 'all') {
+    conditions.push('q.difficulty = ?');
+    bindings.push(opts.difficulty);
+  }
+  if (opts.categoryName && opts.categoryName !== 'all') {
+    conditions.push('c.name = ?');
+    bindings.push(opts.categoryName);
+  }
+
+  const where = conditions.join(' AND ');
+
+  const orderBy =
+    opts.sort === 'questions' ? '(SELECT COUNT(*) FROM questions WHERE quiz_id = q.id) DESC'
+    : opts.sort === 'attempts' ? '(SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id = q.id) DESC'
+    : opts.sort === 'title'   ? 'q.title ASC COLLATE NOCASE'
+    : 'q.updated_at DESC';
+
+  const selectSql = `
+    SELECT
+      q.*,
+      (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id) as question_count,
+      (SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id = q.id) as attempt_count,
+      (SELECT AVG(CAST(score AS REAL) / total_questions * 100)
+       FROM quiz_attempts WHERE quiz_id = q.id) as avg_score,
+      (SELECT COUNT(*) FROM comments WHERE quiz_id = q.id) as comment_count,
+      c.name as category_name,
+      s.name as subcategory_name,
+      u.display_name as creator_name,
+      u.contact_phone as creator_contact
+    FROM quizzes q
+    JOIN subcategories s ON s.id = q.subcategory_id
+    JOIN categories c ON c.id = s.category_id
+    JOIN users u ON u.id = q.creator_id
+    WHERE ${where}
+    ORDER BY ${orderBy}
+    LIMIT ? OFFSET ?`;
+
+  const countSql = `
+    SELECT COUNT(*) as total
+    FROM quizzes q
+    JOIN subcategories s ON s.id = q.subcategory_id
+    JOIN categories c ON c.id = s.category_id
+    WHERE ${where}`;
+
+  const [{ results }, countRow] = await Promise.all([
+    db.prepare(selectSql).bind(...bindings, pageSize, offset).all<QuizStatsRow>(),
+    db.prepare(countSql).bind(...bindings).first<{ total: number }>(),
+  ]);
+
+  return { quizzes: results.map(mapQuizWithStats), total: countRow?.total ?? 0, page, pageSize };
+}
