@@ -44,6 +44,7 @@ export {
   listPublicQuizzesByCreator,
   adminListAllQuizzes,
   searchPublicQuizzes,
+  listPublicQuizzesFiltered,
 } from './quiz/quizQueryService';
 
 export {
