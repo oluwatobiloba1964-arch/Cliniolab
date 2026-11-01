@@ -34,20 +34,20 @@ export function MissReasonJournal({ questionId, quizId, quizTitle, prompt, onSav
   };
 
   return (
-    <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50/60 p-3">
-      <div className="flex items-center justify-between gap-2">
+    <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50/60 p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
           Why did you miss this?
         </p>
         {saved && <span className="text-[10px] font-semibold text-pulse-600">Saved</span>}
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
         {MISS_REASONS.map((reason) => (
           <button
             key={reason}
             type="button"
             onClick={() => handleSelect(reason)}
-            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition ${
               selected === reason
                 ? 'border-amber-500 bg-amber-500 text-white'
                 : 'border-amber-200 bg-white text-amber-800 hover:border-amber-400'
