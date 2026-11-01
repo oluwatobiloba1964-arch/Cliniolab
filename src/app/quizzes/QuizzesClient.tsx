@@ -105,24 +105,79 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
     };
   }, [query]);
 
-  const baseQuizzes = searchResults ?? quizzes;
+  // Server-fetched filtered results (mode / difficulty / category / sort).
+  // Replaces the previous client-side slice which only operated on the
+  // current page (12 items), so "Title A to Z" or "Exam Prep" only showed
+  // matches within that page instead of across all quizzes.
+  const [filterResults, setFilterResults] = useState<QuizWithStats[] | null>(null);
+  const [filterTotal, setFilterTotal] = useState<number>(0);
+  const filterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const serverFiltersActive = (mode !== 'all' || difficulty !== 'all' || category !== 'all' || sort !== 'newest') && searchResults === null;
+
+  useEffect(() => {
+    if (!prefsReady) return;
+    if (!serverFiltersActive) {
+      setFilterResults(null);
+      return;
+    }
+    if (filterTimer.current) clearTimeout(filterTimer.current);
+    let cancelled = false;
+    filterTimer.current = setTimeout(() => {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (mode !== 'all') params.set('mode', mode);
+      if (difficulty !== 'all') params.set('difficulty', difficulty);
+      if (category !== 'all') params.set('categoryName', category);
+      if (sort !== 'newest') params.set('sort', sort);
+      params.set('pageSize', '200');
+      publicFetchJsonLocalCached<{ quizzes?: QuizWithStats[]; total?: number }>(
+        `/api/quizzes?${params.toString()}`,
+        60_000,
+      )
+        .then((data) => {
+          if (cancelled) return;
+          const results = Array.isArray(data.quizzes) ? data.quizzes : [];
+          setFilterResults(results);
+          setFilterTotal(typeof data.total === 'number' ? data.total : results.length);
+        })
+        .catch(() => { if (!cancelled) setFilterResults([]); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 200);
+    return () => {
+      cancelled = true;
+      if (filterTimer.current) clearTimeout(filterTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, difficulty, category, sort, prefsReady, serverFiltersActive]);
+
+  const baseQuizzes = searchResults ?? filterResults ?? quizzes;
 
   const categories = useMemo(
     () =>
-      Array.from(new Set(baseQuizzes.map((q) => q.categoryName).filter((v): v is string => Boolean(v)))).sort((a, b) =>
-        a.localeCompare(b),
-      ),
-    [baseQuizzes],
+      Array.from(new Set(
+        // Always build the category list from the unfiltered page data so
+        // switching category doesn't collapse the dropdown to just the
+        // selected one.
+        quizzes.map((q) => q.categoryName).filter((v): v is string => Boolean(v))
+      )).sort((a, b) => a.localeCompare(b)),
+    [quizzes],
   );
 
+  // When server-side filters are active, sorting and studyTime filtering are
+  // applied client-side only on the already-filtered server result (cheap,
+  // since the result set is scoped). Sort is already applied server-side for
+  // all cases except studyTime narrowing, which remains client-side only.
   const visibleQuizzes = useMemo(() => {
-    return baseQuizzes
-      .filter((quiz) => mode === 'all' || quiz.mode === mode)
-      .filter((quiz) => difficulty === 'all' || quiz.difficulty === difficulty)
-      .filter((quiz) => category === 'all' || quiz.categoryName === category)
-      .filter((quiz) => studyTime === null || quizEstimatedMinutes(quiz) <= studyTime)
-      .slice()
-      .sort((a, b) =>
+    let list = baseQuizzes;
+    if (studyTime !== null) {
+      list = list.filter((quiz) => quizEstimatedMinutes(quiz) <= studyTime);
+    }
+    // When filterResults came from the server the sort is already applied,
+    // but re-sorting client-side is cheap and keeps studyTime-narrowed
+    // results correctly ordered.
+    if (serverFiltersActive || sort !== 'newest') {
+      list = list.slice().sort((a, b) =>
         sort === 'questions'
           ? b.questionCount - a.questionCount
           : sort === 'attempts'
@@ -131,7 +186,9 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
           ? a.title.localeCompare(b.title)
           : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
-  }, [baseQuizzes, mode, difficulty, category, sort, studyTime]);
+    }
+    return list;
+  }, [baseQuizzes, sort, studyTime, serverFiltersActive]);
 
   // Page fetching (only when not in search mode)
   useEffect(() => {
@@ -264,6 +321,8 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
           <span>
             {isSearchMode
               ? `${visibleQuizzes.length} result${visibleQuizzes.length === 1 ? '' : 's'} across all quizzes`
+              : serverFiltersActive
+              ? `${visibleQuizzes.length}${filterTotal > visibleQuizzes.length ? ` of ${filterTotal}` : ''} result${visibleQuizzes.length === 1 ? '' : 's'}`
               : `${visibleQuizzes.length} shown on this page${!filtersActive ? ` · ${total} total` : ''}`}
           </span>
           {filtersActive && (
@@ -291,7 +350,7 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
           </div>
         )}
       </div>
-      {!isSearchMode && (
+      {!isSearchMode && !serverFiltersActive && (
         filtersActive ? (
           <p className="mt-10 text-center text-xs text-ink-400">Clear filters to page through all {total} quizzes.</p>
         ) : (
