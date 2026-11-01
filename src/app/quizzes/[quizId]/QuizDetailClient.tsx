@@ -116,38 +116,73 @@ export function QuizDetailClient({
     previewStats?.timeLimitSeconds ? Math.round(previewStats.timeLimitSeconds / 60) : 20
   );
 
-  // Auto-resume on page refresh: if a cached in-progress attempt or a
-  // finished result exists in localStorage for this quiz, restore the
-  // question set from the questions-cache and set started=true so
-  // QuizRunner mounts and picks up its own draft/result. Without this,
-  // `started` always resets to false on refresh, QuizRunner never mounts,
-  // and the cached result sits in localStorage unused (the root bug).
+  // Auto-resume on page refresh.
   //
-  // Conditions for auto-resume:
-  //   1. Auth has resolved and the user is logged in.
-  //   2. Not already started (avoids double-firing).
-  //   3. Not a deliberate retake URL (?retake=1 / ?retakeMissed=1) --
-  //      those clear the draft intentionally and are handled by the
-  //      existing retake effect below.
-  //   4. An 'attempt' draft (in-progress) OR 'attempt-result' (finished
-  //      result pending review) exists for this quiz.
-  //   5. A matching questions-cache payload (or study-questions-cache) is
-  //      available so we can restore quiz+questions without a network call.
+  // Two distinct cases handled here:
   //
-  // Safari / private-mode fallback: loadDraft catches storage errors
-  // internally and returns null, so this is a no-op when storage is
-  // unavailable -- the user simply sees the normal Start screen.
+  // CASE A -- Finished result: the user submitted, then navigated back or
+  //   refreshed. 'attempt-result' is cached. QuizRunner renders
+  //   QuizResultsScreen immediately when initialResult is set and never
+  //   reads `questions` in that path, so we can mount it with an empty
+  //   question array. We still try the questions-cache and pass real
+  //   questions when available (so flashcard / review modes work), but the
+  //   result restore itself does NOT depend on the cache being present.
+  //   This is the bug: previously both cases required the questions-cache,
+  //   so a submitted quiz with no cache would always show Start instead of
+  //   the result screen.
+  //
+  // CASE B -- In-progress draft: the user left mid-attempt. 'attempt' is
+  //   cached. QuizRunner does need the question list to resume, so we only
+  //   restore when a questions-cache payload is available.
+  //
+  // Skipped when:
+  //   - auth not resolved or user not logged in
+  //   - already started (effect ran once)
+  //   - deliberate retake URL (?retake=1 / ?retakeMissed=1) -- those
+  //     clear the draft intentionally and are handled by the retake effect
+  //   - storage unavailable (loadDraft returns null, silent no-op)
   useEffect(() => {
     if (!user || started || typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('retake') === '1' || params.get('retakeMissed') === '1') return;
 
-    const hasDraft = !!loadDraft<object>('attempt', quizId);
     const hasResult = !!loadDraft<object>('attempt-result', quizId);
-    if (!hasDraft && !hasResult) return;
+    const hasDraft = !!loadDraft<object>('attempt', quizId);
+    if (!hasResult && !hasDraft) return;
 
-    // Try quiz-mode questions cache first, then study-mode cache.
+    // Try to get a real question list for either case (needed for
+    // in-progress resume, and improves result review / flashcard modes).
     const cachedQuiz = loadDraft<CachedQuizPayload>('questions-cache', quizId);
+    const cachedStudy = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
+
+    if (hasResult) {
+      // CASE A: result restore. Mount QuizRunner regardless of whether
+      // a questions-cache exists -- QuizRunner goes straight to the result
+      // screen and doesn't need questions for that render path.
+      if (cachedQuiz && Array.isArray(cachedQuiz.questions) && cachedQuiz.questions.length > 0) {
+        const restoredQuiz = cachedQuiz.quiz.timeLimitMode === 'user_choice'
+          ? { ...cachedQuiz.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
+          : cachedQuiz.quiz;
+        setQuiz(restoredQuiz);
+        setQuestions(cachedQuiz.questions);
+      } else if (cachedStudy && Array.isArray(cachedStudy.questions) && cachedStudy.questions.length > 0) {
+        setQuiz({ ...cachedStudy.quiz, mode: 'study' });
+        setStudyQuestions(cachedStudy.questions);
+      } else {
+        // No questions cache -- still mount with whatever quiz metadata we
+        // have. QuizRunner will render the result screen without needing
+        // the question list. previewStats gives us enough for the quiz prop.
+        const fallbackQuiz = (cachedQuiz?.quiz ?? cachedStudy?.quiz ?? previewStats) as Quiz | null;
+        if (fallbackQuiz) setQuiz(fallbackQuiz);
+        // questions stays [] -- safe because QuizRunner renders result
+        // directly when initialResult is set, before touching questions.
+      }
+      setHasAttempted(true);
+      setStarted(true);
+      return;
+    }
+
+    // CASE B: in-progress draft. Requires a real question list.
     if (cachedQuiz && Array.isArray(cachedQuiz.questions) && cachedQuiz.questions.length > 0) {
       const restoredQuiz = cachedQuiz.quiz.timeLimitMode === 'user_choice'
         ? { ...cachedQuiz.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
@@ -158,8 +193,6 @@ export function QuizDetailClient({
       setStarted(true);
       return;
     }
-
-    const cachedStudy = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
     if (cachedStudy && Array.isArray(cachedStudy.questions) && cachedStudy.questions.length > 0) {
       setQuiz({ ...cachedStudy.quiz, mode: 'study' });
       setStudyQuestions(cachedStudy.questions);
