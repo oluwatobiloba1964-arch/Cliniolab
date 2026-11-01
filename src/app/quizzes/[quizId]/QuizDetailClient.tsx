@@ -116,6 +116,59 @@ export function QuizDetailClient({
     previewStats?.timeLimitSeconds ? Math.round(previewStats.timeLimitSeconds / 60) : 20
   );
 
+  // Auto-resume on page refresh: if a cached in-progress attempt or a
+  // finished result exists in localStorage for this quiz, restore the
+  // question set from the questions-cache and set started=true so
+  // QuizRunner mounts and picks up its own draft/result. Without this,
+  // `started` always resets to false on refresh, QuizRunner never mounts,
+  // and the cached result sits in localStorage unused (the root bug).
+  //
+  // Conditions for auto-resume:
+  //   1. Auth has resolved and the user is logged in.
+  //   2. Not already started (avoids double-firing).
+  //   3. Not a deliberate retake URL (?retake=1 / ?retakeMissed=1) --
+  //      those clear the draft intentionally and are handled by the
+  //      existing retake effect below.
+  //   4. An 'attempt' draft (in-progress) OR 'attempt-result' (finished
+  //      result pending review) exists for this quiz.
+  //   5. A matching questions-cache payload (or study-questions-cache) is
+  //      available so we can restore quiz+questions without a network call.
+  //
+  // Safari / private-mode fallback: loadDraft catches storage errors
+  // internally and returns null, so this is a no-op when storage is
+  // unavailable -- the user simply sees the normal Start screen.
+  useEffect(() => {
+    if (!user || started || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('retake') === '1' || params.get('retakeMissed') === '1') return;
+
+    const hasDraft = !!loadDraft<object>('attempt', quizId);
+    const hasResult = !!loadDraft<object>('attempt-result', quizId);
+    if (!hasDraft && !hasResult) return;
+
+    // Try quiz-mode questions cache first, then study-mode cache.
+    const cachedQuiz = loadDraft<CachedQuizPayload>('questions-cache', quizId);
+    if (cachedQuiz && Array.isArray(cachedQuiz.questions) && cachedQuiz.questions.length > 0) {
+      const restoredQuiz = cachedQuiz.quiz.timeLimitMode === 'user_choice'
+        ? { ...cachedQuiz.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
+        : cachedQuiz.quiz;
+      setQuiz(restoredQuiz);
+      setQuestions(cachedQuiz.questions);
+      setHasAttempted(true);
+      setStarted(true);
+      return;
+    }
+
+    const cachedStudy = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
+    if (cachedStudy && Array.isArray(cachedStudy.questions) && cachedStudy.questions.length > 0) {
+      setQuiz({ ...cachedStudy.quiz, mode: 'study' });
+      setStudyQuestions(cachedStudy.questions);
+      setHasAttempted(true);
+      setStarted(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, quizId]);
+
   // Lightweight preview load so the owner sees a Delete option before
   // committing to "Start" (which pulls full question sets). ?preview=1
   // tells the server to skip fetching questions and attempt history for
@@ -228,11 +281,24 @@ export function QuizDetailClient({
       // payload only exists because this browser already started this
       // quiz before.
       if (missedOnly) {
-        // Avoid the missed-question DB query when this account has a recent,
-        // matching local cache and the full question payload is already cached.
-        // Otherwise the existing API path remains the source of truth.
+        // Local-first: read the cached missed-question id list, then narrow
+        // the cached question payload. Falls through to the API on any miss.
+        //
+        // Freshness window for the missed list is 2 hours (not 15 min) --
+        // the list only changes when the user submits a new graded attempt,
+        // so a slightly stale list is still accurate and avoids a round trip.
+        //
+        // The `quiz?.updatedAt` guard that was here previously caused the
+        // local path to silently fall through to the API whenever `quiz`
+        // state was still null (preview fetch hadn't resolved yet, which is
+        // the common case for the auto-start retake flow). We now accept the
+        // cache as long as the questions-cache updatedAt matches the missed
+        // list's quizUpdatedAt -- that is sufficient to guarantee they
+        // describe the same quiz version even when `quiz` state is absent.
+        const MISSED_MAX_AGE_MS = 2 * 60 * 60 * 1000;
         const ownerKey = user?.id ?? 'anonymous';
         const cachedQuestions = loadDraft<CachedQuizPayload>('questions-cache', quizId);
+        const cachedStudy = loadDraft<CachedStudyPayload>('study-questions-cache', quizId);
         try {
           const rawMissed = window.localStorage.getItem(`cl-missed:${quizId}:${ownerKey}`);
           const localMissed = rawMissed ? JSON.parse(rawMissed) as {
@@ -241,30 +307,65 @@ export function QuizDetailClient({
             savedAt?: number;
             userId?: string | null;
           } : null;
-          const fresh = !!localMissed
+
+          const missedListFresh = !!localMissed
             && Array.isArray(localMissed.questionIds)
             && typeof localMissed.savedAt === 'number'
-            && Date.now() - localMissed.savedAt <= 15 * 60 * 1000
-            && !!cachedQuestions
-            && cachedQuestions.updatedAt === localMissed.quizUpdatedAt
-            && !!quiz?.updatedAt
-            && quiz.updatedAt === localMissed.quizUpdatedAt
+            && Date.now() - localMissed.savedAt >= 0
+            && Date.now() - localMissed.savedAt <= MISSED_MAX_AGE_MS
             && (localMissed.userId ?? null) === (user?.id ?? null);
-          if (fresh && cachedQuestions) {
-            const missedIds = new Set((localMissed!.questionIds as unknown[]).filter((id): id is string => typeof id === 'string'));
-            const narrowed = missedIds.size > 0
-              ? cachedQuestions.questions.filter((question) => missedIds.has(question.id))
-              : cachedQuestions.questions;
-            if (narrowed.length > 0 || cachedQuestions.questions.length === 0) {
-              setQuiz(cachedQuestions.quiz);
-              setQuestions(narrowed);
-              setHasAttempted(true);
-              setStarted(true);
-              return;
+
+          if (missedListFresh && localMissed) {
+            const missedIds = new Set(
+              (localMissed.questionIds as unknown[]).filter((id): id is string => typeof id === 'string')
+            );
+
+            // Quiz-mode questions cache: accept when updatedAt matches the
+            // missed list (or when the missed list has no version stamp, fall
+            // back to trusting the cache). Skip if quiz state says it's been
+            // edited since the cache was written.
+            const quizCacheMatch = !!cachedQuestions
+              && Array.isArray(cachedQuestions.questions)
+              && (!localMissed.quizUpdatedAt || cachedQuestions.updatedAt === localMissed.quizUpdatedAt)
+              && (!quiz?.updatedAt || quiz.updatedAt === cachedQuestions.updatedAt);
+
+            if (quizCacheMatch && cachedQuestions) {
+              const narrowed = missedIds.size > 0
+                ? cachedQuestions.questions.filter((q) => missedIds.has(q.id))
+                : cachedQuestions.questions;
+              if (narrowed.length > 0 || cachedQuestions.questions.length === 0) {
+                const restoredQuiz = cachedQuestions.quiz.timeLimitMode === 'user_choice'
+                  ? { ...cachedQuestions.quiz, timeLimitSeconds: Math.max(1, Math.min(600, customTimeLimitMinutes)) * 60 }
+                  : cachedQuestions.quiz;
+                setQuiz(restoredQuiz);
+                setQuestions(narrowed);
+                setHasAttempted(true);
+                setStarted(true);
+                return;
+              }
+            }
+
+            // Study-mode fallback: same logic for study-questions-cache.
+            const studyCacheMatch = !!cachedStudy
+              && Array.isArray(cachedStudy.questions)
+              && (!localMissed.quizUpdatedAt || cachedStudy.updatedAt === localMissed.quizUpdatedAt)
+              && (!quiz?.updatedAt || quiz.updatedAt === cachedStudy.updatedAt);
+
+            if (studyCacheMatch && cachedStudy) {
+              const narrowed = missedIds.size > 0
+                ? cachedStudy.questions.filter((q) => missedIds.has(q.id))
+                : cachedStudy.questions;
+              if (narrowed.length > 0 || cachedStudy.questions.length === 0) {
+                setQuiz({ ...cachedStudy.quiz, mode: 'study' });
+                setStudyQuestions(narrowed);
+                setHasAttempted(true);
+                setStarted(true);
+                return;
+              }
             }
           }
         } catch {
-          // Malformed or unavailable local storage falls back to the API below.
+          // Malformed or unavailable storage -- fall through to API below.
         }
       }
 
