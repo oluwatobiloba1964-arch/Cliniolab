@@ -491,35 +491,41 @@ export function QuizResultsScreen({
               )}
 
               {(!pq.type || pq.type === 'mcq') && pq.options && pq.options.length > 0 && (
-                <ul className="mt-3 space-y-1.5">
-                  {pq.options.map((opt) => {
-                    const isCorrectOpt = opt.id === pq.correctAnswer;
-                    const isSubmittedOpt = opt.id === pq.submittedAnswer;
-                    return (
-                      <li
-                        key={opt.id}
-                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                          isCorrectOpt
-                            ? 'border-pulse-300 bg-pulse-50 font-medium text-pulse-800'
-                            : isSubmittedOpt
-                              ? 'border-critical-300 bg-critical-50 font-medium text-critical-700'
-                              : 'border-ink-100 bg-white text-ink-600'
-                        }`}
-                      >
-                        <span>{opt.text}</span>
-                        {isCorrectOpt && (
-                          <span className="ml-auto text-xs font-medium uppercase tracking-wide">Correct</span>
-                        )}
-                        {isSubmittedOpt && !isCorrectOpt && (
-                          <span className="ml-auto text-xs font-medium uppercase tracking-wide">Your pick</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                <details className="mt-3 group rounded-lg border border-ink-100 bg-white/60 p-2.5">
+                  <summary className="cursor-pointer select-none list-none flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+                    Answer options
+                    <span className="text-ink-300 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
+                  </summary>
+                  <ul className="mt-2 space-y-1.5">
+                    {pq.options.map((opt) => {
+                      const isCorrectOpt = opt.id === pq.correctAnswer;
+                      const isSubmittedOpt = opt.id === pq.submittedAnswer;
+                      return (
+                        <li
+                          key={opt.id}
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                            isCorrectOpt
+                              ? 'border-pulse-300 bg-pulse-50 font-medium text-pulse-800'
+                              : isSubmittedOpt
+                                ? 'border-critical-300 bg-critical-50 font-medium text-critical-700'
+                                : 'border-ink-100 bg-white text-ink-600'
+                          }`}
+                        >
+                          <span>{opt.text}</span>
+                          {isCorrectOpt && (
+                            <span className="ml-auto text-xs font-medium uppercase tracking-wide">Correct</span>
+                          )}
+                          {isSubmittedOpt && !isCorrectOpt && (
+                            <span className="ml-auto text-xs font-medium uppercase tracking-wide">Your pick</span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
               )}
               {pq.explanation && (
-                <details className="mt-2 group rounded-lg border border-ink-100 bg-ink-50/60 p-2.5" open>
+                <details className="mt-2 group rounded-lg border border-ink-100 bg-ink-50/60 p-2.5">
                   <summary className="cursor-pointer select-none list-none flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">
                     Explanation
                     <span className="text-ink-300 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
