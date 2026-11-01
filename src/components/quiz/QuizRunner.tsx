@@ -34,7 +34,6 @@ import { ShortcutsHelpPanel, QUIZ_SHORTCUTS } from '@/components/ui/ShortcutsHel
 import { parseArrayAnswer, parseObjectAnswer, formatAnswerDisplay } from '@/lib/quizAnswers';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { ATTEMPTED_QUIZZES_KEY, COPIED_EXPLANATIONS_KEY, makeId, readJson, writeJson } from '@/lib/services/localExtrasService';
-import { MissReasonJournal } from '@/components/study/MissReasonJournal';
 import { saveConfidenceEntries, saveScore } from '@/lib/services/localInsightsService';
 // Local XP, levels and badges. Device only, no database, no API calls.
 import { awardQuizXp, type QuizXpAward } from '@/lib/services/gamificationService';
@@ -1220,7 +1219,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                   </ul>
                 )}
                 {pq.explanation && (
-                  <div className="mt-3 rounded-lg border border-ink-100 bg-ink-50/60 p-3">
+                  <div className="mt-2 rounded-lg border border-ink-100 bg-ink-50/60 p-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">Explanation</p>
                       <button
@@ -1265,14 +1264,14 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                         {copiedExplanationId === pq.questionId ? 'Copied' : 'Copy explanation'}
                       </button>
                     </div>
-                    <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-600">
+                    <p className="mt-1.5 whitespace-pre-line text-sm leading-snug text-ink-600">
                       {pq.explanation}
                     </p>
                   </div>
                 )}
                 <IncorrectRationale text={pq.incorrectRationale} />
                 {!pq.isCorrect && (
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
                     <Link
                       href={`/search?q=${encodeURIComponent(pq.prompt.slice(0, 80))}`}
                       className="inline-flex items-center rounded-lg border border-pulse-200 bg-pulse-50 px-3 py-1.5 text-xs font-semibold text-pulse-700 transition hover:bg-pulse-100"
@@ -1280,14 +1279,6 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                       Learn this topic →
                     </Link>
                   </div>
-                )}
-                {!pq.isCorrect && (
-                  <MissReasonJournal
-                    questionId={pq.questionId}
-                    quizId={quiz.id}
-                    quizTitle={quiz.title}
-                    prompt={pq.prompt}
-                  />
                 )}
                 {quiz.allowFlagging && !guest && (
                   <div className="mt-2">
