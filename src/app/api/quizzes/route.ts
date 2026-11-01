@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/currentUser';
 import { permissions } from '@/lib/auth/permissions';
 import { quizService } from '@/lib/db';
+import { listPublicQuizzesFiltered } from '@/lib/db/services/quiz/quizQueryService';
 import { checkGuestVisibilityAllowed } from '@/lib/guest/guestAccess';
 import type { QuizInput } from '@/types';
 
@@ -60,9 +61,30 @@ export async function GET(request: Request) {
     );
   }
 
-  if (pageParam) {
+  const modeParam = searchParams.get('mode') ?? 'all';
+  const difficultyParam = searchParams.get('difficulty') ?? 'all';
+  const categoryNameParam = searchParams.get('categoryName') ?? 'all';
+  const sortParam = searchParams.get('sort') ?? 'newest';
+  const hasFilters =
+    (modeParam && modeParam !== 'all') ||
+    (difficultyParam && difficultyParam !== 'all') ||
+    (categoryNameParam && categoryNameParam !== 'all') ||
+    (sortParam && sortParam !== 'newest');
+
+  if (hasFilters || pageParam) {
     const page = Math.max(1, Number(pageParam) || 1);
-    const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? 12) || 12));
+    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') ?? (hasFilters ? 200 : 12)) || 12));
+    if (hasFilters) {
+      const result = await listPublicQuizzesFiltered({
+        mode: modeParam,
+        difficulty: difficultyParam,
+        categoryName: categoryNameParam,
+        sort: sortParam,
+        page,
+        pageSize,
+      });
+      return NextResponse.json(result, { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=60' } });
+    }
     const result = await quizService.listLatestPublicQuizzesPaginated(page, pageSize);
     return NextResponse.json(result, { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' } });
   }
