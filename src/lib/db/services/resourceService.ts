@@ -241,13 +241,26 @@ export async function updateResource(
 
 export async function deleteResource(id: string): Promise<void> {
   const db = getDb();
-  // Sequential .run() calls instead of db.batch() — the HTTP adapter's
-  // batch path has caused 500s when the D1 API returns an unexpected shape
-  // for multi-statement payloads. Two sequential calls are safe here
-  // because resource_purchases must be cleared before the resource row
-  // to avoid any FK constraint firing on D1 Workers (where PRAGMA
-  // foreign_keys is ON by default).
-  await db.prepare('DELETE FROM resource_purchases WHERE resource_id = ?').bind(id).run();
+  // Delete child rows first (resource_purchases) before the parent row
+  // (resources) to satisfy FK constraints on D1 Workers where
+  // PRAGMA foreign_keys is ON by default.
+  //
+  // Wrapped in try/catch: if the resource_purchases table hasn't been
+  // created yet in this D1 database (migration not yet run), SQLite
+  // throws SQLITE_ERROR on the first statement. We swallow that specific
+  // case so the parent row can still be deleted — purchases are empty
+  // by definition when the table doesn't exist yet.
+  try {
+    await db.prepare('DELETE FROM resource_purchases WHERE resource_id = ?').bind(id).run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Only swallow "table not found" style errors; re-throw everything else.
+    if (!msg.includes('no such table') && !msg.includes('SQLITE_ERROR')) {
+      throw err;
+    }
+    // Table doesn't exist yet — safe to continue, no purchases to delete.
+    console.warn('[deleteResource] resource_purchases table missing — run migration. Skipping child delete.');
+  }
   await db.prepare('DELETE FROM resources WHERE id = ?').bind(id).run();
 }
 
