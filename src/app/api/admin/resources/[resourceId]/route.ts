@@ -66,10 +66,18 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   if (!permissions.canAccessAdminPanel(user.role)) {
     return NextResponse.json({ error: 'Admin/moderator access required' }, { status: 403 });
   }
-  const existing = await resourceService.getResourceById(resourceId);
-  await resourceService.deleteResource(resourceId);
-  if (existing) {
-    await cleanupImagesAfterDelete([existing.coverImageUrl], { table: 'resources', id: resourceId });
+  try {
+    const existing = await resourceService.getResourceById(resourceId);
+    await resourceService.deleteResource(resourceId);
+    if (existing) {
+      await cleanupImagesAfterDelete([existing.coverImageUrl], { table: 'resources', id: resourceId });
+    }
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[DELETE /api/admin/resources/:id] error:', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Failed to delete resource' },
+      { status: 500 }
+    );
   }
-  return NextResponse.json({ success: true });
 }
