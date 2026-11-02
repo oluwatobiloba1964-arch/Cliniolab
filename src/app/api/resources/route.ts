@@ -5,12 +5,14 @@ import { featureFlagService, resourceService } from '@/lib/db';
 import type { ResourceKind, ResourcePricing } from '@/types';
 
 export async function GET(request: Request) {
-  const enabled = await featureFlagService.isFeatureEnabled('resources');
-  if (!enabled) {
-    return NextResponse.json(
-      { enabled: false, resources: [] },
-      { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
-    );
+  // Admin route: always return resources regardless of the public feature
+  // flag. The flag controls the public-facing page, not the admin panel.
+  // Admins need to be able to manage resources even when they are hidden
+  // from regular users.
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!permissions.canAccessAdminPanel(user.role)) {
+    return NextResponse.json({ error: 'Admin/moderator access required' }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -18,10 +20,7 @@ export async function GET(request: Request) {
   const limit = limitParam ? Number(limitParam) : undefined;
 
   const resources = await resourceService.listResources(limit);
-  return NextResponse.json(
-    { enabled: true, resources },
-    { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' } }
-  );
+  return NextResponse.json({ enabled: true, resources });
 }
 
 export async function POST(request: Request) {
@@ -33,6 +32,8 @@ export async function POST(request: Request) {
 
   let body: {
     kind: ResourceKind;
+    categoryId?: string;
+    newCategoryName?: string;
     title: string;
     description?: string;
     coverImageUrl?: string;
