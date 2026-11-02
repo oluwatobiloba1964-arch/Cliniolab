@@ -59,7 +59,7 @@ export default function AdminResourcesPage() {
   function loadResources() {
     fetch('/api/admin/resources')
       .then((res) => res.json())
-      .then((data) => setResources(data.resources ?? []));
+      .then((data) => { if (Array.isArray(data.resources)) setResources(data.resources); });
   }
 
   function loadPending() {
@@ -204,7 +204,7 @@ export default function AdminResourcesPage() {
         title: editTitle,
         description: editDescription,
         coverImageUrl: editCoverImageUrl,
-        institutionName: editKind === 'past_question_pack' ? editInstitutionName : '',
+        institutionName: editKind === 'past_question_pack' ? editInstitutionName : null,
         subjectTag: editSubjectTag,
         pricing: editPricing,
         priceKobo: editPricing === 'paid' ? Math.round(editPriceNaira * 100) : undefined,
@@ -225,7 +225,12 @@ export default function AdminResourcesPage() {
   async function deleteResource(id: string) {
     if (!confirm('Delete this resource permanently?')) return;
     const res = await fetch(`/api/admin/resources/${id}`, { method: 'DELETE' });
-    if (res.ok) loadResources();
+    if (res.ok) {
+      loadResources();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? `Delete failed (${res.status}). Check that you are logged in as admin.`);
+    }
   }
 
   async function confirmPurchase(id: string, status: 'confirmed' | 'rejected') {
