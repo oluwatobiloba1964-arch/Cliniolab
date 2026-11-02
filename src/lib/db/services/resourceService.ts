@@ -241,10 +241,14 @@ export async function updateResource(
 
 export async function deleteResource(id: string): Promise<void> {
   const db = getDb();
-  await db.batch([
-    db.prepare('DELETE FROM resource_purchases WHERE resource_id = ?').bind(id),
-    db.prepare('DELETE FROM resources WHERE id = ?').bind(id),
-  ]);
+  // Sequential .run() calls instead of db.batch() — the HTTP adapter's
+  // batch path has caused 500s when the D1 API returns an unexpected shape
+  // for multi-statement payloads. Two sequential calls are safe here
+  // because resource_purchases must be cleared before the resource row
+  // to avoid any FK constraint firing on D1 Workers (where PRAGMA
+  // foreign_keys is ON by default).
+  await db.prepare('DELETE FROM resource_purchases WHERE resource_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM resources WHERE id = ?').bind(id).run();
 }
 
 /**
