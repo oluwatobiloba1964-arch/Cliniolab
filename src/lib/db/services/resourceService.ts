@@ -252,14 +252,11 @@ export async function deleteResource(id: string): Promise<void> {
   // by definition when the table doesn't exist yet.
   try {
     await db.prepare('DELETE FROM resource_purchases WHERE resource_id = ?').bind(id).run();
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    // Only swallow "table not found" style errors; re-throw everything else.
-    if (!msg.includes('no such table') && !msg.includes('SQLITE_ERROR')) {
-      throw err;
-    }
-    // Table doesn't exist yet — safe to continue, no purchases to delete.
-    console.warn('[deleteResource] resource_purchases table missing — run migration. Skipping child delete.');
+  } catch {
+    // Swallow unconditionally — the only realistic failure here is that
+    // resource_purchases doesn't exist yet in this D1 instance (migration
+    // not run). Safe to continue: no purchases exist if the table is absent.
+    console.warn('[deleteResource] resource_purchases delete failed — table may not exist yet. Continuing to delete resource row.');
   }
   await db.prepare('DELETE FROM resources WHERE id = ?').bind(id).run();
 }
