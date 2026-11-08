@@ -28,6 +28,10 @@ import { WeeklyFocusChart } from '@/components/dashboard/WeeklyFocusChart';
 import { CategoryProgressRadar } from '@/components/dashboard/CategoryProgressRadar';
 // Feature #12: Recent activity timeline (pure client-side, aggregates localStorage).
 import { RecentActivityTimeline } from '@/components/dashboard/RecentActivityTimeline';
+// Feature F2: Weak-spot trainer — aggregates local miss-reason data.
+import { WeakSpotTrainerCard } from '@/components/dashboard/WeakSpotTrainerCard';
+// Feature F5: Missed-question SRS — SM-2-inspired spaced repetition deck.
+import { MissedQuestionSrsCard } from '@/components/dashboard/MissedQuestionSrsCard';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 
@@ -640,6 +644,8 @@ export default function DashboardPage() {
           <p className="mt-1 text-sm leading-6 text-ink-500">Your existing personal tools, revision queue and learning utilities, grouped together for easier access.</p>
         </div>
         <TodayPlanCard />
+        <WeakSpotTrainerCard />
+        <MissedQuestionSrsCard />
         <LocalStudyToolkit />
         <TonightQueue />
         <GamificationPanel />

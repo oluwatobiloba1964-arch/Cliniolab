@@ -199,7 +199,7 @@ export function markdownToHtml(markdown: string): string {
 
   function inlineFormat(text: string): string {
     return text
-      .replace(/!\[\]\((.*?)\)/g, '<img src="$1" alt="" style="max-width:100%;border-radius:6px;margin:8px 0" />')
+      .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" loading="lazy" decoding="async" style="max-width:100%;border-radius:6px;margin:8px 0" />')
       .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/_(.*?)_/g, '<em>$1</em>');

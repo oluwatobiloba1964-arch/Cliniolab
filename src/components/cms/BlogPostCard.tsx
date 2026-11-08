@@ -40,7 +40,9 @@ export function FeaturedBlogPostCard({ post }: { post: BlogPost }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={resolveCoverImage(post, categorySlug)}
-          alt=""
+          alt={`Cover image for ${post.title}`}
+          loading="lazy"
+          decoding="async"
           className="h-56 w-full object-cover sm:h-72"
         />
         <div className="p-6">
@@ -78,7 +80,9 @@ export function CompactBlogPostCard({ post }: { post: BlogPost }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={resolveCoverImage(post, categorySlug)}
-          alt=""
+          alt={`Cover image for ${post.title}`}
+          loading="lazy"
+          decoding="async"
           className="h-20 w-28 shrink-0 rounded-md object-cover"
         />
         <div className="min-w-0">
@@ -105,7 +109,9 @@ export function BlogPostCard({ post }: { post: BlogPost }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={resolveCoverImage(post, categorySlug)}
-          alt=""
+          alt={`Cover image for ${post.title}`}
+          loading="lazy"
+          decoding="async"
           className="h-36 w-full object-cover"
         />
         <div className="p-5">

@@ -224,7 +224,9 @@ function BlogPostBody({ post }: { post: BlogPost }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={resolveCoverImage(post, categorySlug)}
-          alt=""
+          alt={`Cover image for ${post.title}`}
+          loading="lazy"
+          decoding="async"
           className="mb-6 h-64 w-full rounded-lg object-cover"
         />
         <div className="flex flex-wrap items-center gap-2">

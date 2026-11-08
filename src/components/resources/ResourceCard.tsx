@@ -96,7 +96,9 @@ export function ResourceCard({ resource }: { resource: Resource }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={resource.coverImageUrl ? resolveImageUrl(resource.coverImageUrl) : FALLBACK_COVERS[resource.kind]}
-        alt=""
+        alt={`Cover image for ${resource.title}`}
+        loading="lazy"
+        decoding="async"
         className="mb-3 h-28 w-full rounded-md object-cover sm:h-40"
       />
 

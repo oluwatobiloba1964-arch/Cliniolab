@@ -540,3 +540,50 @@ select {
     animation: none;
   }
 }
+
+/* === Audit fix K: mobile bottom navigation ===
+   PWA-style bottom bar replaces the horizontal scrolling pill row on
+   mobile. Sticks to the bottom of the viewport on devices without a
+   hardware home bar (env(safe-area-inset-bottom) is 0 there) and
+   leaves space for one on devices that do.
+
+   Visible below the lg breakpoint (1024px). At lg+, the top bar
+   already contains the full desktop nav with its own search button,
+   so the bottom bar is hidden and the body padding is removed. */
+.cliniolab-mobile-bottom-nav {
+  min-height: 56px;
+}
+
+/* Lift the page content above the fixed bottom nav on mobile so
+   the last card is never hidden behind it. The 56px matches the
+   bottom nav's min-height; the env() adds the iOS safe-area height
+   for newer devices. */
+@media (max-width: 1023px) {
+  body {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* === Audit fix M: reduce-motion utility ===
+   Components that animate (DailyChallenge transitions, score
+   reveals, pulse effects) check for this class on <html> or <body>
+   to disable transitions. Activated by the existing ThemeScript
+   or a future user preference toggle. */
+.cliniolab-reduce-motion * {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Visible focus ring for keyboard users only — keeps mouse users
+   from seeing the ring on every click. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid #25725F; /* pulse-600 */
+  outline-offset: 2px;
+  border-radius: 4px;
+}

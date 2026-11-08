@@ -123,7 +123,9 @@ export function ImagePicker({ value, onChange, purpose, label, circularPreview }
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={resolveImageUrl(value)}
-          alt=""
+          alt={circularPreview ? 'Avatar preview' : 'Image preview'}
+          loading="lazy"
+          decoding="async"
           className={
             circularPreview
               ? 'mx-auto mt-3 h-24 w-24 rounded-full bg-ink-50 object-contain'

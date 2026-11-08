@@ -106,8 +106,8 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
     if (!lastPath || !activeMarker) return;
     const safeCaption = caption.trim();
     const html = safeCaption
-      ? `<figure style="text-align: center"><img src="${lastPath}" alt="${safeCaption.replace(/"/g, '&quot;')}" style="width: 60%; max-width: 100%" /><figcaption>${safeCaption}</figcaption></figure>`
-      : `<figure style="text-align: center"><img src="${lastPath}" alt="" style="width: 60%; max-width: 100%" /><figcaption></figcaption></figure>`;
+      ? `<figure style="text-align: center"><img src="${lastPath}" alt="${safeCaption.replace(/"/g, '&quot;')}" loading="lazy" decoding="async" style="width: 60%; max-width: 100%" /><figcaption>${safeCaption}</figcaption></figure>`
+      : `<figure style="text-align: center"><img src="${lastPath}" alt="Inline image" loading="lazy" decoding="async" style="width: 60%; max-width: 100%" /><figcaption></figcaption></figure>`;
     onReplaceMarker(activeMarker, html);
     setActiveMarker(null);
     setLastPath(null);
@@ -197,7 +197,7 @@ export function InlineImageManager({ purpose, content, onInsertMarker, onReplace
       {activeMarker && lastPath && (
         <div className="mt-1 rounded-md border border-pulse-200 bg-white p-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={resolveImageUrl(lastPath)} alt="" className="h-28 w-full rounded object-cover" />
+          <img src={resolveImageUrl(lastPath)} alt={caption || 'Selected image preview'} loading="lazy" decoding="async" className="h-28 w-full rounded object-cover" />
           <input
             value={caption}
             onChange={(e) => setCaption(e.target.value)}

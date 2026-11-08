@@ -98,7 +98,7 @@ export function ImageLibraryModal({ onSelect, onClose }: ImageLibraryModalProps)
                 title={img.key}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={resolveImageUrl(img.path)} alt="" className="h-full w-full object-cover" />
+                <img src={resolveImageUrl(img.path)} alt={`Stored image: ${img.key}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 <span className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1 py-0.5 text-[9px] text-white opacity-0 group-hover:opacity-100">
                   {img.purpose}
                 </span>

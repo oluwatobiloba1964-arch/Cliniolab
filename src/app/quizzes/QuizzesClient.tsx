@@ -274,19 +274,59 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
   if (studyTime !== null) activeChips.push({ key: 'study-time', label: `Quick session: about ${studyTime} minutes or less`, onClear: () => setStudyTime(null) });
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-16">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-400">Practice</p>
-          <h1 className="font-display text-3xl font-semibold text-ink-800">Latest Quizzes</h1>
-          <p className="mt-1 max-w-xl text-sm text-ink-500">Filter by mode, difficulty, or topic. Your last filters are remembered on this device.</p>
+          <h1 className="font-display text-2xl font-semibold text-ink-800 sm:text-3xl">Latest Quizzes</h1>
+          <p className="mt-1 max-w-xl text-sm leading-6 text-ink-500">Filter by mode, difficulty, or topic. Your last filters are remembered on this device.</p>
         </div>
-        <Link href="/quizzes/new">
+        <Link href="/quizzes/new" className="shrink-0">
           <Button>Create a quiz</Button>
         </Link>
       </div>
-      <div className="sticky top-16 z-20 mt-7 rounded-2xl border border-ink-100 bg-white/95 p-4 shadow-sm backdrop-blur-sm sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
+
+      {/* Quick filter chips — one-tap preset filters for the most common
+          student intents. augments (not replaces) the full filter bar
+          below. Hidden when a search is active, since chips would
+          conflict with the search result count. */}
+      {!isSearchMode && (
+        <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Quick filters">
+          <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">Quick:</span>
+          {[
+            { key: 'exam', label: 'Exam / CBT', field: 'mode' as const, value: 'exam' as const },
+            { key: 'easy', label: 'Easy', field: 'difficulty' as const, value: 'easy' as const },
+            { key: 'medium', label: 'Medium', field: 'difficulty' as const, value: 'medium' as const },
+            { key: 'hard', label: 'Hard', field: 'difficulty' as const, value: 'hard' as const },
+          ].map((chip) => {
+            const isActive =
+              (chip.field === 'mode' && mode === chip.value) ||
+              (chip.field === 'difficulty' && difficulty === chip.value);
+            const toggle = () => {
+              if (chip.field === 'mode') setMode(isActive ? 'all' : chip.value);
+              if (chip.field === 'difficulty') setDifficulty(isActive ? 'all' : chip.value);
+            };
+            return (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={toggle}
+                aria-pressed={isActive}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  isActive
+                    ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
+                    : 'border-ink-200 bg-white text-ink-500 hover:border-pulse-300 hover:text-pulse-700'
+                }`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="sticky top-16 z-20 mt-5 rounded-2xl border border-ink-100 bg-white/95 p-3 shadow-sm backdrop-blur-sm sm:p-5">
+        <div className="grid gap-2 sm:gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
           <label className="sr-only" htmlFor="quiz-search">Search quizzes</label>
           <input
             id="quiz-search"
@@ -295,16 +335,16 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
             placeholder="Search all quizzes…"
             className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm outline-none focus:border-pulse-400 focus:ring-2 focus:ring-pulse-100"
           />
-          <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} aria-label="Filter by mode" className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
+          <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} aria-label="Filter by mode" className="min-h-11 rounded-xl border border-ink-200 bg-white px-2 text-sm sm:px-3">
             <option value="all">All modes</option><option value="quiz">Quiz</option><option value="exam">Exam / CBT</option><option value="study">Study</option><option value="combined">Combined</option>
           </select>
-          <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as typeof difficulty)} aria-label="Filter by difficulty" className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
+          <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as typeof difficulty)} aria-label="Filter by difficulty" className="min-h-11 rounded-xl border border-ink-200 bg-white px-2 text-sm sm:px-3">
             <option value="all">All difficulty</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
           </select>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by category" className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
+          <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by category" className="min-h-11 rounded-xl border border-ink-200 bg-white px-2 text-sm sm:px-3">
             <option value="all">All categories</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Sort quizzes" className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm">
+          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Sort quizzes" className="min-h-11 rounded-xl border border-ink-200 bg-white px-2 text-sm sm:px-3">
             <option value="newest">Newest</option><option value="questions">Most questions</option><option value="attempts">Most attempts</option><option value="title">Title A to Z</option>
           </select>
         </div>
@@ -339,14 +379,35 @@ export function QuizzesClient({ initialQuizzes, initialTotal, pageSize }: Quizze
           </button>
         </div>
       </div>
-      <div className={`mt-6 grid grid-cols-1 sm:grid-cols-2 ${density === 'compact' ? 'lg:grid-cols-4 gap-3' : 'lg:grid-cols-3 gap-5'}`}>
-        {loading && <div className="col-span-full grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((i) => <div key={i} className="h-48 animate-pulse rounded-2xl border border-ink-100 bg-ink-50" />)}</div>}
+      <div className={`mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 ${density === 'compact' ? 'lg:grid-cols-4 lg:gap-3' : 'lg:grid-cols-3'}`}>
+        {loading && <div className="col-span-full grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">{[1, 2, 3].map((i) => <div key={i} className="h-48 animate-pulse rounded-2xl border border-ink-100 bg-ink-50" />)}</div>}
         {!loading && visibleQuizzes.map((quiz) => <QuizCard key={quiz.id} quiz={quiz} />)}
         {!loading && visibleQuizzes.length === 0 && (
           <div className="ui-empty-state col-span-full rounded-2xl border border-dashed border-ink-200 bg-white px-6 py-12 text-center">
-            <p className="font-semibold text-ink-700">No quizzes match these filters.</p>
-            <p className="mt-1 text-sm text-ink-400">Try another search or clear the active filters.</p>
-            <button type="button" onClick={() => { setQuery(''); setSearchResults(null); setMode('all'); setDifficulty('all'); setCategory('all'); setStudyTime(null); clearQuizFilters(); }} className="mt-3 text-sm font-semibold text-pulse-600">Clear filters</button>
+            {/* Distinguish "filters narrowed too tightly" from
+                "category exists but no quizzes yet". The first asks the
+                learner to relax filters; the second suggests uploading. */}
+            {filtersActive ? (
+              <>
+                <p className="font-semibold text-ink-700">No quizzes match these filters.</p>
+                <p className="mt-1 text-sm text-ink-400">
+                  Try a wider search term, switch the mode back to “All modes”, or clear all filters to see the full list.
+                </p>
+                <button type="button" onClick={() => { setQuery(''); setSearchResults(null); setMode('all'); setDifficulty('all'); setCategory('all'); setStudyTime(null); clearQuizFilters(); }} className="mt-3 text-sm font-semibold text-pulse-600 hover:text-pulse-700">
+                  Clear filters
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-ink-700">No quizzes published yet.</p>
+                <p className="mt-1 text-sm text-ink-400">
+                  Be the first to add a quiz for this category. Your peers will see it on this page and on the homepage.
+                </p>
+                <Link href="/quizzes/new" className="mt-3 inline-flex min-h-10 items-center rounded-md bg-pulse-600 px-4 py-2 text-sm font-semibold text-white hover:bg-pulse-700">
+                  Create the first quiz
+                </Link>
+              </>
+            )}
           </div>
         )}
       </div>

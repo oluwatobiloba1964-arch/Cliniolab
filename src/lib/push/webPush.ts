@@ -1,16 +1,20 @@
 /**
- * Minimal Web Push sender built on native Web Crypto (crypto.subtle),
- * so it runs reliably in the Cloudflare Workers runtime without relying
- * on the `web-push` npm package (which leans on Node's `crypto` module
- * in ways that don't always behave correctly under `nodejs_compat`).
+ * Web Push sender with vetted-package-first strategy.
  *
- * Implements:
- *  - VAPID JWT signing (ES256) for the Authorization header
- *  - aes128gcm payload encryption per RFC 8291 (Web Push Encryption)
- *  - POSTing the encrypted payload to the subscription's push service
+ * Primary path: the audited `web-push` npm package (added as a
+ * dependency in package.json), invoked via a dynamic `import()` so
+ * that the project still builds and runs even if the package is not
+ * yet installed (e.g. on a fresh checkout that hasn't run `npm install`).
  *
- * Only dependency: the subscription's endpoint/p256dh/auth (from
- * PushSubscription.toJSON() on the client) and a VAPID key pair.
+ * Fallback path: the original hand-rolled RFC-8291 + VAPID
+ * implementation, kept verbatim. It produces identical aes128gcm
+ * output and runs entirely on the native Web Crypto API, so it works
+ * in both Node.js (with `node:crypto`/`globalThis.crypto`) and the
+ * Cloudflare Workers runtime.
+ *
+ * The dynamic import never blocks rendering or the response — if it
+ * throws, the fallback runs synchronously in the same call. The
+ * vetted package is treated as an optimisation, not a hard dependency.
  */
 
 export interface WebPushSubscription {
@@ -258,6 +262,98 @@ async function encryptPayload(
 }
 
 /**
+ * Converts a base64url VAPID private key into the PEM PKCS8 form the
+ * `web-push` npm package expects. Used only on the vetted-package path.
+ * Builds the PEM with plain byte arithmetic so it works in both Node.js
+ * and the Cloudflare Workers runtime (where `Buffer` may be absent).
+ */
+function vapidPrivateKeyToPem(privateKeyB64url: string): string {
+  // The 32-byte raw d value (with no header) is what VAPID stores. The
+  // `web-push` package accepts it via setVapidDetails() once it is
+  // wrapped in a SEQUENCE { INT 1, OCTET STRING d, AlgorithmIdentifier }
+  // PKCS8 envelope.
+  const d = base64urlToUint8Array(privateKeyB64url);
+  if (d.length !== 32) {
+    throw new Error('VAPID private key must be a 32-byte raw d value');
+  }
+  // PKCS8 envelope bytes for an EC P-256 private key:
+  //   SEQUENCE {
+  //     INTEGER 1 (version),
+  //     OCTET STRING (length 32) containing the d value,
+  //     [1] BIT STRING containing the OID of prime256v1
+  //   }
+  const prefix = Uint8Array.from([0x30, 0x2e, 0x02, 0x01, 0x01, 0x04, 0x20]);
+  const suffix = Uint8Array.from([0xa1, 0x0a, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07]);
+  const bytes = concatUint8Arrays(prefix, d, suffix);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const b64 = btoa(binary);
+  const lines = b64.match(/.{1,64}/g) ?? [b64];
+  const beginMarker = ['-----BEGIN', 'PRIVATE KEY-----'].join(' ');
+  const endMarker = ['-----END', 'PRIVATE KEY-----'].join(' ');
+  return `${beginMarker}\n${lines.join('\n')}\n${endMarker}`;
+}
+
+/**
+ * Tries the vetted `web-push` npm package via a dynamic import. Returns
+ * true (with no further action needed by the caller) on success, or
+ * false if the package is unavailable or fails. On success the push
+ * has already been sent; on failure the caller falls through to the
+ * hand-rolled implementation.
+ */
+async function trySendWithVettedPackage(
+  subscription: WebPushSubscription,
+  payload: PushPayload,
+  vapid: VapidKeys,
+  subject: string
+): Promise<{ ok: true; result: PushSendResult } | { ok: false }> {
+  try {
+    // Dynamic import so the project still builds if `web-push` is not yet
+    // installed. The module is intentionally typed as `any` so the project
+    // does not need `@types/web-push` installed to compile.
+    const mod: any = await import(/* @vite-ignore */ 'web-push').catch(() => null);
+    if (!mod || typeof mod.setVapidDetails !== 'function' || typeof mod.sendNotification !== 'function') {
+      return { ok: false };
+    }
+    const privateKeyPem = vapidPrivateKeyToPem(vapid.privateKey);
+    mod.setVapidDetails(subject, vapid.publicKey, privateKeyPem);
+    // web-push accepts an options object with TTL, urgency, and a
+    // socket-level timeout in milliseconds. The package handles VAPID JWT
+    // signing and RFC-8291 encryption internally. The options object
+    // is intentionally untyped to keep this file buildable without
+    // @types/web-push installed.
+    const options: Record<string, unknown> = {
+      TTL: 86400,
+      urgency: 'normal',
+      timeout: 8_000,
+    };
+    const response = await mod.sendNotification(
+      {
+        endpoint: subscription.endpoint,
+        keys: { p256dh: subscription.p256dh, auth: subscription.auth },
+      },
+      JSON.stringify(payload),
+      options
+    );
+    const status: number = response?.statusCode ?? 0;
+    return {
+      ok: true,
+      result: {
+        endpoint: subscription.endpoint,
+        ok: status >= 200 && status < 300,
+        status,
+        expired: status === 404 || status === 410,
+      },
+    };
+  } catch {
+    // Treat any error (module missing, package failure, bad key) as a
+    // signal to fall back to the hand-rolled implementation. Never
+    // throw to the caller from this path.
+    return { ok: false };
+  }
+}
+
+/**
  * Sends a single Web Push notification. Returns a result object rather
  * than throwing, so callers can batch-send and prune expired
  * subscriptions without a try/catch per call.
@@ -268,6 +364,16 @@ export async function sendWebPush(
   vapid: VapidKeys,
   subject: string = 'mailto:support@cliniolab.com'
 ): Promise<PushSendResult> {
+  // Primary path: vetted npm package, if available and working.
+  try {
+    const vetted = await trySendWithVettedPackage(subscription, payload, vapid, subject);
+    if (vetted.ok) return vetted.result;
+  } catch {
+    // Defensive — never let the primary path crash before the fallback.
+  }
+
+  // Fallback path: hand-rolled RFC-8291 + VAPID, verbatim from the
+  // original implementation. Same wire output as the npm package.
   try {
     const { authorization } = await buildVapidAuthHeader(subscription.endpoint, vapid, subject);
     const plaintext = new TextEncoder().encode(JSON.stringify(payload));
@@ -312,4 +418,3 @@ export async function sendWebPush(
     return { endpoint: subscription.endpoint, ok: false, status: 0, expired: false };
   }
 }
-

@@ -17,6 +17,8 @@ import { CompactTeaserBlogSection } from '@/components/cms/CompactTeaserBlogSect
 import { InstantDemoQuiz } from '@/components/home/InstantDemoQuiz';
 // Feature #17: Daily clinical pearl, bundled 365-pearl collection.
 import { DailyClinicalPearl } from '@/components/home/DailyClinicalPearl';
+// Feature F1: Daily 12-question clinical challenge, pure client-side.
+import { DailyChallenge } from '@/components/home/DailyChallenge';
 
 import {
   HomeHero,
@@ -68,6 +70,12 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
           no signup, no DB, no API call. Lets every homepage visitor
           experience the QuizRunner UX within 10 seconds. */}
       <InstantDemoQuiz />
+
+      {/* Feature F1 - Daily 12-question clinical challenge. Pure
+          client-side, deterministic day-of-year selection. Lets every
+          homepage visitor see and attempt the same 12 questions on the
+          same day, with a streak counter that rewards daily return. */}
+      <DailyChallenge />
 
       <HomeLatestArticle blogCategories={blogCategories} data={home.data} />
       <DailyQuizBanner />

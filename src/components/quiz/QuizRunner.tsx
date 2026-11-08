@@ -34,6 +34,10 @@ import { parseArrayAnswer, parseObjectAnswer } from '@/lib/quizAnswers';
 import { clearDraft, loadDraft, saveDraft } from '@/lib/localDraft';
 import { ATTEMPTED_QUIZZES_KEY, readJson, writeJson } from '@/lib/services/localExtrasService';
 import { saveConfidenceEntries, saveScore } from '@/lib/services/localInsightsService';
+// Feature F5: Add each missed question to the local SRS deck so it can
+// be reviewed on the dashboard on an SM-2-inspired schedule. Pure
+// client-side; no API call, no database read.
+import { addMissedQuestion } from '@/lib/services/missedQuestionSrsService';
 // Local XP, levels and badges. Device only, no database, no API calls.
 import { awardQuizXp, type QuizXpAward } from '@/lib/services/gamificationService';
 // Feature #13: Haptic feedback
@@ -583,6 +587,24 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           savedAt: new Date().toISOString(),
         }));
       if (confidenceEntries.length) saveConfidenceEntries(confidenceEntries);
+      // Feature F5: Add each incorrect question to the local SRS deck
+      // so it appears on the dashboard for spaced-repetition review.
+      // Defaults the reason to 'knowledge-gap' since we don't have a
+      // per-question reason here. The learner can refine via
+      // MissReasonJournal later, and reseedFromMissReasons() will
+      // preserve any manually tagged reasons over this default.
+      const savedAt = new Date().toISOString();
+      for (const pq of result.perQuestion) {
+        if (pq.isCorrect) continue;
+        addMissedQuestion({
+          questionId: pq.questionId,
+          quizId: quiz.id,
+          quizTitle: quiz.title,
+          prompt: pq.prompt.slice(0, 200),
+          reason: 'knowledge-gap',
+          savedAt,
+        });
+      }
       // Award local XP for this attempt. Deduped by attempt id inside the
       // service, so retakes of the same result never double pay.
       const award = awardQuizXp({
@@ -793,8 +815,43 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   }
 
   return (
-    <div className={`${focusMode ? 'quiz-focus-mode' : ''} ${reduceStudyMotion ? 'cliniolab-reduce-motion' : ''} mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12`}>
+    <div className={`${focusMode ? 'quiz-focus-mode' : ''} ${reduceStudyMotion ? 'cliniolab-reduce-motion' : ''} mx-auto max-w-3xl px-4 py-8 pb-32 sm:px-6 sm:py-12 lg:pb-8`}>
       {reduceStudyMotion && <style>{`.cliniolab-reduce-motion *, .cliniolab-reduce-motion *::before, .cliniolab-reduce-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }`}</style>}
+
+      {/* === Quiz header: title + mode/difficulty badges ===
+          Gives the learner context about which quiz they're in, with
+          a visible "Exit" affordance back to the quiz detail page.
+          Hidden in focus mode (which is meant to remove all chrome). */}
+      {!focusMode && (
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-pulse-600">
+              {quiz.mode === 'exam' ? 'Exam' : quiz.mode === 'study' ? 'Study' : 'Quiz'}
+            </p>
+            <h1 className="mt-0.5 font-display text-lg font-semibold leading-tight text-ink-900 sm:text-xl">
+              {quiz.title}
+            </h1>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                quiz.difficulty === 'easy' ? 'bg-pulse-50 text-pulse-700'
+                  : quiz.difficulty === 'medium' ? 'bg-flag-50 text-flag-700'
+                  : 'bg-critical-50 text-critical-700'
+              }`}>
+                {quiz.difficulty}
+              </span>
+              <span className="rounded-full bg-ink-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+                {questions.length} question{questions.length === 1 ? '' : 's'}
+              </span>
+              {quiz.timeLimitSeconds && (
+                <span className="rounded-full bg-ink-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+                  {Math.ceil(quiz.timeLimitSeconds / 60)} min
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
         <button type="button" onClick={() => setLargerQuestionText((value) => !value)} aria-pressed={largerQuestionText} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">{largerQuestionText ? 'Standard text' : 'Larger text'}</button>
         <button type="button" onClick={() => setComfortableQuestionSpacing((value) => !value)} aria-pressed={comfortableQuestionSpacing} className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 shadow-sm hover:border-pulse-300 hover:text-pulse-700">{comfortableQuestionSpacing ? 'Standard spacing' : 'More spacing'}</button>
@@ -834,10 +891,18 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           </div>
           {hasTimer && (
             <div className={`flex shrink-0 items-center gap-3 rounded-2xl border px-3 py-2.5 shadow-sm ${timerUrgent ? 'border-critical-300 bg-critical-50 text-critical-700' : timerWarning ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-pulse-100 bg-white text-ink-700'}`} aria-live={timerUrgent ? 'assertive' : 'off'}>
-              <div className="relative h-12 w-12 rounded-full p-[4px]" style={{ background: `conic-gradient(${timerUrgent ? '#dc2626' : timerWarning ? '#d97706' : '#0d9488'} ${timerPercent}%, #e5e7eb ${timerPercent}% 100%)` }} aria-hidden="true">
+              {/* Timer ring hidden below 380px wide screens to give the
+                  time display room to breathe on small phones. The
+                  percentage is preserved in an aria-label so screen
+                  readers still announce it. */}
+              <div
+                className="relative h-12 w-12 rounded-full p-[4px] max-[379px]:hidden"
+                style={{ background: `conic-gradient(${timerUrgent ? '#dc2626' : timerWarning ? '#d97706' : '#0d9488'} ${timerPercent}%, #e5e7eb ${timerPercent}% 100%)` }}
+                aria-hidden="true"
+              >
                 <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[10px] font-bold text-ink-700">{Math.ceil(timerPercent)}%</div>
               </div>
-              <div>
+              <div aria-label={`Time left: ${Math.floor(remainingSeconds / 60)} minutes ${remainingSeconds % 60} seconds, ${Math.ceil(timerPercent)} percent remaining`}>
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] opacity-70">Time left</p>
                 <p className="font-mono text-xl font-bold tabular-nums leading-tight">{String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:{String(remainingSeconds % 60).padStart(2, '0')}</p>
                 <p className="mt-0.5 text-[10px] font-medium">{timerUrgent ? 'Finish and submit soon' : timerWarning ? 'Time is running low' : 'Keep a steady pace'}</p>
@@ -847,7 +912,11 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div
+        className="mt-4 flex flex-wrap items-center gap-2 overflow-x-auto overscroll-x-contain pb-1 sm:flex-nowrap"
+        role="group"
+        aria-label="Question progress filters"
+      >
         {([
           { key: 'all', label: 'All' },
           { key: 'unanswered', label: 'Unanswered' },
@@ -859,7 +928,8 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
             key={k}
             type="button"
             onClick={() => setProgressFilter(k)}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+            aria-pressed={progressFilter === k}
+            className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
               progressFilter === k
                 ? 'border-pulse-400 bg-pulse-50 text-pulse-700'
                 : 'border-ink-100 text-ink-400 hover:bg-ink-50'
@@ -1223,6 +1293,62 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           </Button>
         </div>
       </div>
+
+      {/* === Sticky mobile action bar ===
+          On mobile, Previous/Next/Skip are far below the question card
+          and require scrolling. This sticky bar pins them above the
+          bottom nav so they're always one tap away. Hidden on desktop
+          (where the inline buttons above are enough) and in focus mode.
+          Sits above the mobile bottom nav (z-30 vs bottom-nav's z-40).
+          Accounts for the bottom nav height via padding-bottom so the
+          bar doesn't overlap the bottom nav. */}
+      {!focusMode && !result && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-30 border-t border-ink-100 bg-paper/95 px-3 py-2 backdrop-blur lg:hidden"
+          style={{ paddingBottom: 'calc(0.5rem + 56px + env(safe-area-inset-bottom, 0px))' }}
+          aria-label="Quick actions"
+        >
+          <div className="mx-auto flex max-w-3xl items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={current === 0}
+              onClick={() => setCurrent((c) => Math.max(0, c - 1))}
+              className="flex-1"
+            >
+              ← Prev
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={isAnswered(question.id)}
+              onClick={skipQuestion}
+              className="shrink-0"
+              aria-label="Skip question"
+            >
+              Skip
+            </Button>
+            {current < questions.length - 1 ? (
+              <Button
+                size="sm"
+                onClick={() => setCurrent((c) => Math.min(questions.length - 1, c + 1))}
+                className="flex-1"
+              >
+                Next →
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => setShowSubmitConfirm(true)}
+                disabled={submitting}
+                className="flex-1"
+              >
+                {submitting ? 'Submitting…' : 'Submit'}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {showSubmitConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 px-4">
