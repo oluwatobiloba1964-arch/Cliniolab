@@ -249,12 +249,12 @@ export function NavBar() {
         />
         <nav
           aria-label="Mobile menu"
-          className={`absolute right-0 top-0 flex h-full w-72 max-w-[85vw] flex-col gap-1 overflow-y-auto border-l border-ink-100 bg-paper px-4 py-4 shadow-xl transition-transform duration-200 ease-out ${
+          className={`absolute right-0 top-0 flex h-full w-80 max-w-[85vw] flex-col gap-2 overflow-y-auto border-l border-ink-100 bg-paper px-5 py-5 shadow-xl transition-transform duration-200 ease-out ${
             mobileOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="font-display text-sm font-semibold text-ink-800">Menu</span>
+          <div className="mb-4 flex items-center justify-between">
+            <span className="font-display text-base font-semibold text-ink-800">Menu</span>
             <div className="flex items-center gap-2">
               <ThemeToggle />
               <button
@@ -273,7 +273,7 @@ export function NavBar() {
               setMobileOpen(false);
               setSearchOpen(true);
             }}
-            className="text-left text-sm font-medium text-ink-600"
+            className="rounded-lg px-3 py-3 text-left text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
           >
             Search
           </button>
@@ -283,19 +283,19 @@ export function NavBar() {
                 type="button"
                 onClick={() => setMobileLearningOpen((v) => !v)}
                 aria-expanded={mobileLearningOpen}
-                className="flex w-full items-center justify-between text-left text-sm font-medium text-ink-600"
+                className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
               >
                 Learning
                 <span aria-hidden="true" className={`text-xs transition-transform ${mobileLearningOpen ? 'rotate-180' : ''}`}>▾</span>
               </button>
               {mobileLearningOpen && (
-                <div className="mt-2 flex flex-col gap-2 border-l border-ink-100 pl-3">
+                <div className="mb-1 ml-3 mt-1 flex flex-col gap-0.5 border-l border-ink-100 pl-4">
                   {learningCategories.slice(0, 10).map((c) => (
                     <Link
                       key={c.id}
                       href={`/blog/category/${c.slug}`}
                       onClick={() => setMobileOpen(false)}
-                      className="text-sm text-ink-500 hover:text-ink-800"
+                      className="rounded-lg px-3 py-2.5 text-sm text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-800"
                     >
                       {c.name}
                     </Link>
@@ -304,29 +304,33 @@ export function NavBar() {
               )}
             </div>
           )}
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMobileOpen(false)}
-              className="text-sm font-medium text-ink-600"
-            >
-              {link.label}
-            </Link>
-          ))}
+          <div className="my-2 h-px bg-ink-100" aria-hidden="true" />
+          <div className="flex flex-col gap-1">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+                className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          <div className="my-2 h-px bg-ink-100" aria-hidden="true" />
           {user ? (
-            <>
-              <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-ink-600">
+            <div className="flex flex-col gap-1">
+              <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
                 Dashboard
               </Link>
-              <Link href="/quizzes/bulk-upload" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-ink-600">
+              <Link href="/quizzes/bulk-upload" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
                 Upload quizzes
               </Link>
-              <Link href="/flashcards/bulk-upload" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-ink-600">
+              <Link href="/flashcards/bulk-upload" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
                 Upload flashcards
               </Link>
               {(user.role === 'admin' || user.role === 'moderator') && (
-                <Link href="/admin" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-ink-600">
+                <Link href="/admin" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
                   Admin
                 </Link>
               )}
@@ -335,20 +339,28 @@ export function NavBar() {
                   setMobileOpen(false);
                   logout();
                 }}
-                className="text-left text-sm font-medium text-critical-500"
+                className="rounded-lg px-3 py-3 text-left text-sm font-medium text-critical-500 transition-colors hover:bg-critical-50"
               >
                 Log out
               </button>
-            </>
+            </div>
           ) : (
-            <>
-              <Link href="/login" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-ink-600">
+            <div className="flex flex-col gap-2 px-1 pt-1">
+              <Link
+                href="/login"
+                onClick={() => setMobileOpen(false)}
+                className="rounded-lg border border-ink-200 px-4 py-2.5 text-center text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
+              >
                 Log in
               </Link>
-              <Link href="/register" onClick={() => setMobileOpen(false)} className="text-sm font-medium text-pulse-600">
+              <Link
+                href="/register"
+                onClick={() => setMobileOpen(false)}
+                className="rounded-lg bg-pulse-500 px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-pulse-600"
+              >
                 Sign up
               </Link>
-            </>
+            </div>
           )}
         </nav>
       </div>
