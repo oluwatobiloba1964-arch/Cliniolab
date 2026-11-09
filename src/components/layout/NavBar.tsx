@@ -58,6 +58,7 @@ export function NavBar() {
   }, [learningOpen]);
 
   return (
+    <>
     <header className="sticky top-0 z-50 border-b border-ink-100 bg-paper/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
@@ -181,10 +182,33 @@ export function NavBar() {
         </button>
       </div>
 
+      {searchOpen && (
+        <div className="border-t border-ink-100 bg-paper px-4 py-3">
+          <div className="mx-auto max-w-7xl">
+            <SearchAutocomplete
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onSubmit={() => {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }}
+              placeholder="Search quizzes, articles, resources…"
+              compact
+              className="overflow-visible"
+              inputClassName="rounded-l-md border border-ink-100"
+            />
+          </div>
+        </div>
+      )}
+    </header>
+
       {/* Mobile bottom navigation: PWA-style bar with the four most
           important destinations for a learner on a phone — Home,
-          Quizzes, Dashboard, Search. Replaces the old horizontal pill
-          row which scrolled awkwardly and hid the active state. */}
+          Quizzes, Dashboard, Search. Rendered as a sibling of <header>,
+          not a descendant: header has backdrop-blur, and any ancestor
+          with a backdrop-filter/transform/filter becomes the containing
+          block for position:fixed children, which would trap this bar
+          inside header's own (short) box instead of the viewport. */}
       <nav
         aria-label="Mobile primary"
         className="cliniolab-mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around border-t border-ink-100 bg-paper/95 backdrop-blur lg:hidden"
@@ -205,27 +229,11 @@ export function NavBar() {
         </button>
       </nav>
 
-      {searchOpen && (
-        <div className="border-t border-ink-100 bg-paper px-4 py-3">
-          <div className="mx-auto max-w-7xl">
-            <SearchAutocomplete
-              value={searchQuery}
-              onChange={setSearchQuery}
-              onSubmit={() => {
-                setSearchOpen(false);
-                setSearchQuery('');
-              }}
-              placeholder="Search quizzes, articles, resources…"
-              compact
-              className="overflow-visible"
-              inputClassName="rounded-l-md border border-ink-100"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Right-side slide-in drawer menu (mobile/tablet, < lg). Backdrop
-          closes on click; drawer itself stops click-through. */}
+      {/* Right-side slide-in drawer menu (mobile/tablet, < lg). Also a
+          sibling of header for the same containing-block reason above —
+          "fixed inset-0" needs to cover the real viewport, not just
+          header's ~64px strip. Backdrop closes on click; drawer itself
+          stops click-through. */}
       <div
         className={`fixed inset-0 z-50 lg:hidden ${mobileOpen ? '' : 'pointer-events-none'}`}
         aria-hidden={!mobileOpen}
@@ -344,7 +352,7 @@ export function NavBar() {
           )}
         </nav>
       </div>
-    </header>
+    </>
   );
 }
 
