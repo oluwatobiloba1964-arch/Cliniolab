@@ -815,7 +815,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   }
 
   return (
-    <div className={`${focusMode ? 'quiz-focus-mode' : ''} ${reduceStudyMotion ? 'cliniolab-reduce-motion' : ''} mx-auto max-w-3xl px-4 py-8 pb-32 sm:px-6 sm:py-12 lg:pb-8`}>
+    <div className={`${focusMode ? 'quiz-focus-mode' : ''} ${reduceStudyMotion ? 'cliniolab-reduce-motion' : ''} mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12`}>
       {reduceStudyMotion && <style>{`.cliniolab-reduce-motion *, .cliniolab-reduce-motion *::before, .cliniolab-reduce-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }`}</style>}
 
       {/* === Quiz header: title + mode/difficulty badges ===
@@ -1294,61 +1294,6 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         </div>
       </div>
 
-      {/* === Sticky mobile action bar ===
-          On mobile, Previous/Next/Skip are far below the question card
-          and require scrolling. This sticky bar pins them above the
-          bottom nav so they're always one tap away. Hidden on desktop
-          (where the inline buttons above are enough) and in focus mode.
-          Sits above the mobile bottom nav (z-30 vs bottom-nav's z-40).
-          Accounts for the bottom nav height via padding-bottom so the
-          bar doesn't overlap the bottom nav. */}
-      {!focusMode && !result && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-30 border-t border-ink-100 bg-paper/95 px-3 py-2 backdrop-blur lg:hidden"
-          style={{ paddingBottom: 'calc(0.5rem + 56px + env(safe-area-inset-bottom, 0px))' }}
-          aria-label="Quick actions"
-        >
-          <div className="mx-auto flex max-w-3xl items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={current === 0}
-              onClick={() => setCurrent((c) => Math.max(0, c - 1))}
-              className="flex-1"
-            >
-              ← Prev
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isAnswered(question.id)}
-              onClick={skipQuestion}
-              className="shrink-0"
-              aria-label="Skip question"
-            >
-              Skip
-            </Button>
-            {current < questions.length - 1 ? (
-              <Button
-                size="sm"
-                onClick={() => setCurrent((c) => Math.min(questions.length - 1, c + 1))}
-                className="flex-1"
-              >
-                Next →
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                onClick={() => setShowSubmitConfirm(true)}
-                disabled={submitting}
-                className="flex-1"
-              >
-                {submitting ? 'Submitting…' : 'Submit'}
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
 
       {showSubmitConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 px-4">
