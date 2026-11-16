@@ -26,6 +26,7 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { QuestionNavigator } from '@/components/quiz/QuestionNavigator';
+import { CBTExamSkin } from '@/components/quiz/CBTExamSkin';
 import { QuizStudyToolkit } from '@/components/quiz/QuizStudyToolkit';
 import { FlashcardRunner } from '@/components/flashcards/FlashcardRunner';
 import { QuizResultsScreen } from '@/components/quiz/QuizResultsScreen';
@@ -141,6 +142,12 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
   // across a refresh, no clock recovery. Everything else (quizzes, and
   // exams without anti-cheat) gets the resumable safety net.
   const draftsEnabled = !quiz.antiCheatEnabled;
+
+  // NMCN-style CBT simulator skin: renders exam-mode attempts inside the
+  // Council's familiar layout (numbered question grid, header timer,
+  // flag-for-review) using the previously-dead CBTExamSkin component.
+  // Study/quiz modes keep the standard Cliniolab runner layout.
+  const cbtSkinEnabled = quiz.mode === 'exam';
 
   const initialDraft = useRef<AttemptDraft | null>(
     draftsEnabled && typeof window !== 'undefined' ? loadDraft<AttemptDraft>(DRAFT_NAMESPACE, quiz.id) : null
@@ -814,7 +821,56 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
     );
   }
 
+  // Slots for the CBT simulator skin (exam mode only). The timer node is
+  // the same urgency-aware block the standard layout renders; the flag
+  // button toggles the current question's mark-for-review state.
+  const cbtTimer = hasTimer ? (
+    <div
+      className={`flex shrink-0 items-center gap-3 rounded-2xl border px-3 py-2.5 shadow-sm ${timerUrgent ? 'border-critical-300 bg-critical-50 text-critical-700' : timerWarning ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-pulse-100 bg-white text-ink-700'}`}
+      aria-live={timerUrgent ? 'assertive' : 'off'}
+    >
+      <div aria-label={`Time left: ${Math.floor(remainingSeconds / 60)} minutes ${remainingSeconds % 60} seconds`}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] opacity-70">Time left</p>
+        <p className="font-mono text-xl font-bold tabular-nums leading-tight">{String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:{String(remainingSeconds % 60).padStart(2, '0')}</p>
+      </div>
+    </div>
+  ) : null;
+
+  const cbtFlagButton = (
+    <button
+      type="button"
+      onClick={() => toggleMarkForReview(question.id)}
+      className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+        markedForReview.has(question.id)
+          ? 'border-flag-400 bg-flag-50 text-flag-600'
+          : 'border-ink-200 bg-white text-ink-500 hover:bg-ink-50'
+      }`}
+    >
+      {markedForReview.has(question.id) ? 'Flagged ✓' : 'Flag for review'}
+    </button>
+  );
+
+  const cbtNavigator = (
+    <QuestionNavigator
+      total={questions.length}
+      current={current}
+      states={navigatorStates}
+      onJump={(i) => setCurrent(i)}
+      summary={`${questions.length - unansweredCount} answered · ${unansweredCount} unanswered · ${markedForReview.size} marked for review`}
+      actionLabel={submitting ? 'Submitting…' : `Submit ${quiz.mode === 'exam' ? 'exam' : 'quiz'}`}
+      actionDisabled={submitting}
+      onAction={() => setShowSubmitConfirm(true)}
+      className=""
+    />
+  );
+
   return (
+    <CBTExamSkin
+      enabled={cbtSkinEnabled}
+      navigator={cbtNavigator}
+      timer={cbtTimer}
+      flagButton={cbtSkinEnabled ? cbtFlagButton : undefined}
+    >
     <div className={`${focusMode ? 'quiz-focus-mode' : ''} ${reduceStudyMotion ? 'cliniolab-reduce-motion' : ''} mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12`}>
       {reduceStudyMotion && <style>{`.cliniolab-reduce-motion *, .cliniolab-reduce-motion *::before, .cliniolab-reduce-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }`}</style>}
 
@@ -889,7 +945,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
               <span>{unansweredCount} unanswered</span>
             </div>
           </div>
-          {hasTimer && (
+          {hasTimer && !cbtSkinEnabled && (
             <div className={`flex shrink-0 items-center gap-3 rounded-2xl border px-3 py-2.5 shadow-sm ${timerUrgent ? 'border-critical-300 bg-critical-50 text-critical-700' : timerWarning ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-pulse-100 bg-white text-ink-700'}`} aria-live={timerUrgent ? 'assertive' : 'off'}>
               {/* Timer ring hidden below 380px wide screens to give the
                   time display room to breathe on small phones. The
@@ -897,7 +953,7 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
                   readers still announce it. */}
               <div
                 className="relative h-12 w-12 rounded-full p-[4px] max-[379px]:hidden"
-                style={{ background: `conic-gradient(${timerUrgent ? '#dc2626' : timerWarning ? '#d97706' : '#0d9488'} ${timerPercent}%, #e5e7eb ${timerPercent}% 100%)` }}
+                style={{ background: `conic-gradient(${timerUrgent ? '#dc2626' : timerWarning ? '#d97706' : '#0d9488'} ${timerPercent}%, var(--score-ring-track, #e5e7eb) ${timerPercent}% 100%)` }}
                 aria-hidden="true"
               >
                 <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[10px] font-bold text-ink-700">{Math.ceil(timerPercent)}%</div>
@@ -956,17 +1012,19 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
           <ReadAloudButton text={question.prompt} variant="ghost" />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => toggleMarkForReview(question.id)}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-              markedForReview.has(question.id)
-                ? 'border-flag-400 bg-flag-50 text-flag-600'
-                : 'border-ink-100 text-ink-400 hover:bg-ink-50'
-            }`}
-          >
-            {markedForReview.has(question.id) ? 'Marked ✓' : 'Mark for review'}
-          </button>
+          {!cbtSkinEnabled && (
+            <button
+              type="button"
+              onClick={() => toggleMarkForReview(question.id)}
+              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                markedForReview.has(question.id)
+                  ? 'border-flag-400 bg-flag-50 text-flag-600'
+                  : 'border-ink-100 text-ink-400 hover:bg-ink-50'
+              }`}
+            >
+              {markedForReview.has(question.id) ? 'Marked ✓' : 'Mark for review'}
+            </button>
+          )}
           {quiz.showMarks && (
             <span className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-500">
               {question.mark ?? quiz.defaultMark} mark{(question.mark ?? quiz.defaultMark) === 1 ? '' : 's'}
@@ -1333,17 +1391,19 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         </button>
       </div>
 
-      <QuestionNavigator
-        total={questions.length}
-        current={current}
-        states={navigatorStates}
-        onJump={(i) => setCurrent(i)}
-        summary={`${questions.length - unansweredCount} answered · ${unansweredCount} unanswered · ${markedForReview.size} marked for review`}
-        actionLabel={submitting ? 'Submitting…' : `Submit ${quiz.mode === 'exam' ? 'exam' : 'quiz'}`}
-        actionDisabled={submitting}
-        onAction={() => setShowSubmitConfirm(true)}
-        className="mt-6 rounded-xl border border-ink-100 bg-white p-4 sm:p-5"
-      />
+      {!cbtSkinEnabled && (
+        <QuestionNavigator
+          total={questions.length}
+          current={current}
+          states={navigatorStates}
+          onJump={(i) => setCurrent(i)}
+          summary={`${questions.length - unansweredCount} answered · ${unansweredCount} unanswered · ${markedForReview.size} marked for review`}
+          actionLabel={submitting ? 'Submitting…' : `Submit ${quiz.mode === 'exam' ? 'exam' : 'quiz'}`}
+          actionDisabled={submitting}
+          onAction={() => setShowSubmitConfirm(true)}
+          className="mt-6 rounded-xl border border-ink-100 bg-white p-4 sm:p-5"
+        />
+      )}
 
       <QuizStudyToolkit quizId={quiz.id} quizTitle={quiz.title} />
 
@@ -1360,5 +1420,6 @@ export function QuizRunner({ quiz, questions: rawQuestions, submitEndpoint, isFi
         </div>
       )}
     </div>
+    </CBTExamSkin>
   );
 }

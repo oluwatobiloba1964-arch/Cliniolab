@@ -16,6 +16,7 @@ export default function LeaderboardPage() {
   const [enabled, setEnabled] = useState(true);
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +29,7 @@ export default function LeaderboardPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadFailed(false);
     const endpoint =
       selected === 'general' ? '/api/leaderboard/general' : `/api/leaderboard/category/${selected}`;
     // Leaderboard responses can include the signed-in user's rank, so do not
@@ -43,7 +45,13 @@ export default function LeaderboardPage() {
         setEntries(data.entries ?? []);
         setCurrentUserRank(data.currentUserRank ?? null);
       })
-      .catch(() => { if (!cancelled) { setEntries([]); setCurrentUserRank(null); } })
+      .catch(() => {
+        if (!cancelled) {
+          setEntries([]);
+          setCurrentUserRank(null);
+          setLoadFailed(true);
+        }
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [selected]);
@@ -100,6 +108,11 @@ export default function LeaderboardPage() {
           {loading ? (
             <div className="rounded-2xl border border-ink-100 bg-white p-8 text-center text-sm text-ink-400 shadow-sm">
               Loading rankings…
+            </div>
+          ) : loadFailed ? (
+            <div className="rounded-2xl border border-critical-200 bg-critical-50 px-6 py-10 text-center">
+              <p className="text-sm font-semibold text-critical-600">Couldn't load the leaderboard</p>
+              <p className="mt-1 text-sm text-ink-500">Check your connection and pick a category again to retry.</p>
             </div>
           ) : enabled ? (
             <LeaderboardList

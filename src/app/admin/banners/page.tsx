@@ -9,6 +9,7 @@ import { Toggle } from '@/components/ui/Toggle';
 import { ImagePicker } from '@/components/ui/ImagePicker';
 import { resolveImageUrl } from '@/lib/storage/imageUrl';
 import type { Banner, BannerPlacement, BannerDisplayMode, BannerStats } from '@/types';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 const PLACEMENTS: { key: BannerPlacement; flagKey: 'banners_header' | 'banners_footer'; label: string; hint: string }[] = [
   {
@@ -35,6 +36,7 @@ interface DraftBanner {
 const EMPTY_DRAFT: DraftBanner = { title: '', imagePath: '', linkUrl: '', displayMode: 'static' };
 
 export default function AdminBannersPage() {
+  const { confirm } = useConfirm();
   const [banners, setBanners] = useState<Banner[]>([]);
   const [stats, setStats] = useState<Record<string, BannerStats>>({});
   const [flags, setFlags] = useState<Record<string, boolean>>({});
@@ -127,7 +129,13 @@ export default function AdminBannersPage() {
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
 
   async function deleteBanner(banner: Banner) {
-    if (!confirm(`Delete "${banner.title}"? This can't be undone.`)) return;
+    const ok = await confirm({
+          title: `Delete "${banner.title}"?`,
+          message: "This can't be undone.",
+          confirmLabel: 'Delete',
+          destructive: true,
+        });
+        if (!ok) return;
     setDeleteWarning(null);
     setBanners((prev) => prev.filter((b) => b.id !== banner.id));
     const res = await fetch(`/api/admin/banners/${banner.id}`, { method: 'DELETE' });

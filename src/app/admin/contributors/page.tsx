@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
 import { ImagePicker } from '@/components/ui/ImagePicker';
 import type { Contributor } from '@/types';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 const EMPTY = { name: '', credentials: '', title: '', bio: '', photoUrl: '', isActive: true };
 
 /** Contributors library: outside writers/reviewers with name, credentials and photo. Used on blog posts as byline/reviewer. */
 export default function ContributorsPage() {
+  const { confirm } = useConfirm();
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,7 +70,13 @@ export default function ContributorsPage() {
   }
 
   async function remove(id: string) {
-    if (!window.confirm('Delete this contributor? Posts keep their byline text; only the link to this profile is removed.')) return;
+    const ok = await confirm({
+      title: 'Delete this contributor?',
+      message: 'Posts keep their byline text; only the link to this profile is removed.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     await fetch(`/api/admin/contributors/${id}`, { method: 'DELETE' });
     await load();
   }

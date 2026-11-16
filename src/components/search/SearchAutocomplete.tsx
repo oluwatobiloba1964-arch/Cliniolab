@@ -32,17 +32,44 @@ const TYPE_LABEL: Record<SearchSuggestion['type'], string> = {
   resource: 'Resource',
 };
 
-const RECENT_KEY = 'cliniolab_recent_searches_v1';
+// Shared with useRecentSearches (homepage hero) and /search so every
+// search box on the site records into ONE history. Previously this
+// component kept its own 'cliniolab_recent_searches_v1' list, which
+// never made it to the homepage or the search page.
+const RECENT_KEY = 'cliniolab_recent_searches';
+const LEGACY_RECENT_KEY = 'cliniolab_recent_searches_v1';
 const RECENT_MAX = 8;
 
 function readRecent(): string[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(RECENT_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((v): v is string => typeof v === 'string').slice(0, RECENT_MAX);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    let items: string[] = Array.isArray(parsed)
+      ? parsed.filter((v): v is string => typeof v === 'string')
+      : [];
+    // One-time migration from the old private key: merge without dupes.
+    const legacyRaw = window.localStorage.getItem(LEGACY_RECENT_KEY);
+    if (legacyRaw) {
+      try {
+        const legacy = JSON.parse(legacyRaw);
+        if (Array.isArray(legacy)) {
+          const seen = new Set(items.map((t) => t.toLowerCase()));
+          for (const t of legacy) {
+            if (typeof t === 'string' && !seen.has(t.toLowerCase())) {
+              items.push(t);
+              seen.add(t.toLowerCase());
+            }
+          }
+          items = items.slice(0, RECENT_MAX);
+          window.localStorage.setItem(RECENT_KEY, JSON.stringify(items));
+        }
+      } catch {
+        // ignore malformed legacy entry
+      }
+      window.localStorage.removeItem(LEGACY_RECENT_KEY);
+    }
+    return items.slice(0, RECENT_MAX);
   } catch {
     return [];
   }

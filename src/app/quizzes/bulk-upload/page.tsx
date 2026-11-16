@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
+import { loadSheetJS } from '@/lib/sheetjs';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -244,7 +244,7 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
  * CSV-only parser produced, so the rest of the pipeline doesn't change.
  */
 async function parseSpreadsheet(file: File): Promise<string[][]> {
-  const buffer = await file.arrayBuffer();
+  const [buffer, XLSX] = await Promise.all([file.arrayBuffer(), loadSheetJS()]);
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheetName];
@@ -997,7 +997,7 @@ export default function BulkUploadPage() {
   }
 
   /** Builds a downloadable template in whichever of the accepted formats is selected. */
-  function downloadTemplate(format: TemplateFormat = templateFormat) {
+  async function downloadTemplate(format: TemplateFormat = templateFormat) {
     if (format === 'csv') {
       downloadBlob(CSV_TEMPLATE, 'cliniolab-bulk-quiz-template.csv', 'text/csv;charset=utf-8');
       return;
@@ -1015,6 +1015,7 @@ export default function BulkUploadPage() {
     // xlsx, xls, and ods all go through the same SheetJS workbook, just
     // written out with a different bookType/extension.
     const rows = CSV_TEMPLATE.split('\n').map((line) => parseTemplateLine(line));
+    const XLSX = await loadSheetJS();
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     worksheet['!cols'] = CSV_HEADERS.map((h) =>
       h === 'prompt' || h === 'explanation' || h === 'incorrect_rationale' ? { wch: 40 } : { wch: 16 }

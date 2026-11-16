@@ -17,16 +17,69 @@ interface Props {
  * Learn mode. Every card starts unlearned. A correct multiple-choice answer
  * moves it to "familiar"; a correct typed answer moves it to "mastered".
  * Wrong answers send the card back to the start and it comes around again.
- * Progress lives in component state only (nothing is saved anywhere).
+ *
+ * Session progress (levels, queue position, score) is persisted to
+ * sessionStorage so a mid-deck refresh or accidental navigation does not
+ * throw away a Learn session — consistent with the quiz runner's draft
+ * system. Storage is keyed per deck and cleared on completion/restart.
  */
+interface SavedLearnState {
+  level: Record<string, number>;
+  queue: string[];
+  wrongCount: number;
+  rightCount: number;
+}
+
+function learnSessionKey(title?: string): string {
+  return `cliniolab:learn-session:${title ?? cardsKeyFallback}`;
+}
+
+// Stable fallback when no title is passed: derive a key from the card ids
+// so different decks never share a saved session.
+let cardsKeyFallback = 'deck';
+function setCardsKey(ids: string[]) {
+  cardsKeyFallback = ids.length ? `${ids.length}-${ids[0]}` : 'empty';
+}
+
+function loadSavedState(key: string, validIds: Set<string>): SavedLearnState | null {
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SavedLearnState;
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!Array.isArray(parsed.queue) || parsed.queue.length === 0) return null;
+    // Drop saved cards that no longer exist in this deck (edited deck).
+    const queue = parsed.queue.filter((id) => validIds.has(id));
+    if (queue.length === 0) return null;
+    const level: Record<string, number> = {};
+    for (const [id, lv] of Object.entries(parsed.level ?? {})) {
+      if (validIds.has(id) && typeof lv === 'number' && lv >= 0 && lv <= 2) level[id] = lv;
+    }
+    return {
+      level,
+      queue,
+      wrongCount: Number.isFinite(parsed.wrongCount) ? Math.max(0, Math.round(parsed.wrongCount)) : 0,
+      rightCount: Number.isFinite(parsed.rightCount) ? Math.max(0, Math.round(parsed.rightCount)) : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function FlashcardLearn({ cards, title, onDone, onComplete }: Props) {
-  const [level, setLevel] = useState<Record<string, number>>({});
-  const [queue, setQueue] = useState<string[]>(() => shuffled(cards.map((c) => c.id)));
+  setCardsKey(cards.map((c) => c.id));
+  const sessionKey = learnSessionKey(title);
+  const [restored] = useState<SavedLearnState | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return loadSavedState(sessionKey, new Set(cards.map((c) => c.id)));
+  });
+  const [level, setLevel] = useState<Record<string, number>>(() => restored?.level ?? {});
+  const [queue, setQueue] = useState<string[]>(() => restored?.queue ?? shuffled(cards.map((c) => c.id)));
   const [picked, setPicked] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
   const [checked, setChecked] = useState<null | boolean>(null);
-  const [wrongCount, setWrongCount] = useState(0);
-  const [rightCount, setRightCount] = useState(0);
+  const [wrongCount, setWrongCount] = useState(() => restored?.wrongCount ?? 0);
+  const [rightCount, setRightCount] = useState(() => restored?.rightCount ?? 0);
   const completed = useRef(false);
 
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
@@ -48,10 +101,20 @@ export function FlashcardLearn({ cards, title, onDone, onComplete }: Props) {
   useEffect(() => {
     if (done && !completed.current) {
       completed.current = true;
+      // Session finished — a later "Learn again" starts from scratch.
+      try { window.sessionStorage.removeItem(sessionKey); } catch { /* ignore */ }
       onComplete?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done]);
+
+  // Persist progress on every queue change (i.e. after each answered card).
+  useEffect(() => {
+    if (done || !currentId) return;
+    const state: SavedLearnState = { level, queue, wrongCount, rightCount };
+    try { window.sessionStorage.setItem(sessionKey, JSON.stringify(state)); } catch { /* quota — ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId]);
 
   function settle(correct: boolean) {
     if (!card) return;
@@ -78,6 +141,7 @@ export function FlashcardLearn({ cards, title, onDone, onComplete }: Props) {
 
   function restart() {
     completed.current = false;
+    try { window.sessionStorage.removeItem(sessionKey); } catch { /* ignore */ }
     setLevel({});
     setQueue(shuffled(cards.map((c) => c.id)));
     setPicked(null);

@@ -180,7 +180,24 @@ export function RawHtmlFrame({ html, maxHeightPx }: RawHtmlFrameProps) {
     };
 
     frameEl.addEventListener('load', resize);
-    const interval = setInterval(resize, 500);
+    // Adaptive sizing: poll at 500ms while the document is still settling
+    // (images/fonts loading can change height), and stop entirely once the
+    // height has been stable for 3 consecutive checks. Previously this ran
+    // every 500ms forever for the lifetime of the frame — pure idle CPU on
+    // every blog post page. A `load` event re-fires on full reloads, and
+    // the cleanup clears everything on unmount.
+    let stableChecks = 0;
+    let lastHeight = -1;
+    const interval = setInterval(() => {
+      resize();
+      if (height === lastHeight) {
+        stableChecks += 1;
+        if (stableChecks >= 3) clearInterval(interval);
+      } else {
+        stableChecks = 0;
+        lastHeight = height;
+      }
+    }, 500);
 
     return () => {
       frameEl.removeEventListener('load', resize);

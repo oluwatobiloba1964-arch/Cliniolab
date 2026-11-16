@@ -13,6 +13,7 @@
  * parent component decides what to do with the selected ids.
  */
 import { useState, useCallback, type MouseEvent, type ReactNode } from 'react';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 interface BulkQuestionSelectProps {
   /** All question ids in the current view. */
@@ -37,6 +38,7 @@ export function BulkQuestionSelect({
   allowReorder = true,
 }: BulkQuestionSelectProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { confirm } = useConfirm();
   const [lastClicked, setLastClicked] = useState<string | null>(null);
 
   const handleRowClick = useCallback(
@@ -130,8 +132,14 @@ export function BulkQuestionSelect({
           )}
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm(`Delete ${count} selected question${count === 1 ? '' : 's'}? This cannot be undone.`)) {
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Delete ${count} selected question${count === 1 ? '' : 's'}?`,
+                message: 'Permanently delete the selected questions? This cannot be undone.',
+                confirmLabel: 'Delete',
+                destructive: true,
+              });
+              if (ok) {
                 onBulkAction?.('delete', Array.from(selected));
                 setSelected(new Set());
               }

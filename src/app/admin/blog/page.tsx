@@ -17,10 +17,22 @@ import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
 import { ImagePicker } from '@/components/ui/ImagePicker';
 import { InlineImageManager } from '@/components/ui/InlineImageManager';
-import { TiptapEditor, type TiptapEditorHandle } from '@/components/ui/TiptapEditor';
+import dynamic from 'next/dynamic';
+import type { TiptapEditorHandle } from '@/components/ui/TiptapEditor';
+
+const TiptapEditor = dynamic(
+  () => import('@/components/ui/TiptapEditor').then((m) => m.TiptapEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 animate-pulse rounded-lg border border-ink-200 bg-ink-50" aria-label="Loading editor…" />
+    ),
+  }
+);
 import { RawHtmlFrame } from '@/components/ui/RawHtmlFrame';
 import type { BlogContentFormat, BlogPost, BlogStatus } from '@/types';
 import { AuthorFields, type AuthorFieldsValue } from '@/components/blog/AuthorFields';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 interface BlogCategoryOption { id: string; name: string; slug: string; sortOrder: number }
 interface BlogSubcategoryOption { id: string; blogCategoryId: string; name: string; slug: string; sortOrder: number }
@@ -38,6 +50,7 @@ function lengthHint(length: number, ideal: [number, number]): { label: string; c
 }
 
 export default function AdminBlogPage() {
+  const { confirm } = useConfirm();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -122,16 +135,18 @@ export default function AdminBlogPage() {
   // for an in-content image insert. Only offers recovery when there is no
   // in-flight edit already (fresh page load) and something was actually
   // saved, so this never clobbers a normal fresh "New post" start.
-  useEffect(() => {
+  useEffect(() => { void (async () => {
     const saved = window.localStorage.getItem('cliniolab-blog-draft');
     if (!saved) return;
     try {
       const draft = JSON.parse(saved) as { title: string; content: string; excerpt: string; savedAt: number };
       if (!draft.content && !draft.title) return;
       const ageMinutes = Math.round((Date.now() - draft.savedAt) / 60000);
-      const restore = window.confirm(
-        `Recover unsaved draft "${draft.title || '(untitled)'}" from ${ageMinutes} minute(s) ago? This can happen after the editor reloads mid-edit (e.g. right after picking an image).`
-      );
+      const restore = await confirm({
+        title: 'Recover unsaved draft?',
+        message: `Recover unsaved draft "${draft.title || '(untitled)'}" from ${ageMinutes} minute(s) ago? This can happen after the editor reloads mid-edit (e.g. right after picking an image).`,
+        confirmLabel: 'Recover draft',
+      });
       if (restore) {
         setTitle(draft.title);
         setContent(draft.content);
@@ -143,6 +158,7 @@ export default function AdminBlogPage() {
       window.localStorage.removeItem('cliniolab-blog-draft');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  })(); 
   }, []);
 
   // Continuously mirror the in-progress post to localStorage so a WebView
@@ -299,7 +315,13 @@ export default function AdminBlogPage() {
   }
 
   async function removePost(post: BlogPost) {
-    if (!window.confirm(`Delete "${post.title}"? This can't be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete "${post.title}"?`,
+      message: "This can't be undone.",
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     setError(null);
     try {
       const res = await fetch(`/api/admin/blog/${post.id}`, { method: 'DELETE' });

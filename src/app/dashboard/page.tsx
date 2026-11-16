@@ -2,7 +2,7 @@
 // File: src/app/dashboard/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -34,6 +34,7 @@ import { WeakSpotTrainerCard } from '@/components/dashboard/WeakSpotTrainerCard'
 import { MissedQuestionSrsCard } from '@/components/dashboard/MissedQuestionSrsCard';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 interface QuizAttemptTaker {
   id: string;
@@ -57,8 +58,35 @@ interface FlashcardAttemptTaker {
 }
 
 export default function DashboardPage() {
+  const { confirm } = useConfirm();
   const router = useRouter();
   const { user, loading } = useAuth();
+  // First-session welcome: accounts created within the last 24 hours get a
+  // "Welcome to Cliniolab" greeting instead of "Welcome back", which read
+  // oddly on the very first visit after registering.
+  // The auth context does not expose account creation time, so approximate
+  // "first session on this device" with a localStorage marker: set the
+  // first time the dashboard renders for a given user id, and show the
+  // first-session welcome whenever that marker is younger than 24 hours.
+  const [seenBefore, setSeenBefore] = useState(true);
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const key = `cliniolab:dashboard-seen:${user.id}`;
+      const first = window.localStorage.getItem(key);
+      if (!first) {
+        window.localStorage.setItem(key, String(Date.now()));
+        setSeenBefore(false);
+      } else if (Date.now() - Number(first) < 24 * 60 * 60 * 1000) {
+        setSeenBefore(false);
+      } else {
+        setSeenBefore(true);
+      }
+    } catch {
+      setSeenBefore(true);
+    }
+  }, [user?.id]);
+  const isNewAccount = !seenBefore;
   const [stats, setStats] = useState<UserDashboardStats | null>(null);
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [certificatesEnabled, setCertificatesEnabled] = useState(true);
@@ -180,7 +208,13 @@ export default function DashboardPage() {
   }
 
   async function deleteFlashcardSet(setId: string) {
-    if (!confirm('Delete this flashcard set permanently? This cannot be undone.')) return;
+    const ok = await confirm({
+        title: 'Delete this flashcard set permanently?',
+        message: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+        destructive: true,
+      });
+      if (!ok) return;
     setFcDeleteError(null);
     setDeletingFcSetId(setId);
     try {
@@ -405,7 +439,13 @@ export default function DashboardPage() {
   }
 
   async function deleteQuiz(quizId: string) {
-    if (!confirm('Delete this quiz permanently? This cannot be undone.')) return;
+    const ok = await confirm({
+        title: 'Delete this quiz permanently?',
+        message: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+        destructive: true,
+      });
+      if (!ok) return;
     setDeleteError(null);
     setDeletingQuizId(quizId);
     try {
@@ -489,7 +529,9 @@ export default function DashboardPage() {
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-pulse-500" /> Cliniolab learning hub
             </p>
             <h1 className="mt-3 break-words font-display text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl lg:text-4xl">
-              Welcome back, {user.displayName ?? user.email}
+              {isNewAccount
+                ? <>Welcome to Cliniolab, {user.displayName ?? user.email}</>
+                : <>Welcome back, {user.displayName ?? user.email}</>}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-500 sm:text-base">Your learning, practice and progress in one place. Choose a next step and keep building confidence.</p>
           </div>
@@ -1129,7 +1171,12 @@ export default function DashboardPage() {
 
       {certificates.length > 0 && (
         <div className="mt-10">
-          <h2 className="font-display text-xl font-semibold text-ink-800">Certificates</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-xl font-semibold text-ink-800">Certificates</h2>
+            <Link href="/certificates" className="text-xs font-semibold text-pulse-700 hover:underline">
+              View all ({certificates.length})
+            </Link>
+          </div>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {certificates.map((cert) => (
               <Link key={cert.id} href={`/certificates/${cert.id}`}>

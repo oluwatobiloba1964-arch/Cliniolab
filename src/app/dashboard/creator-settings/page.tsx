@@ -183,6 +183,7 @@ export default function CreatorSettingsPage() {
           <Link
             href={`/creator/${user.id}`}
             target="_blank"
+            rel="noopener"
             className="text-sm font-medium text-pulse-600 hover:underline"
           >
             View public profile →

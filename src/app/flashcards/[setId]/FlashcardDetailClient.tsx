@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { CreatorProfileCard } from '@/components/creator/CreatorProfileCard';
 import type { Flashcard, FlashcardSet } from '@/types';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 // Caches the full { set, cards } payload so a later visit to the same set
 // can skip re-fetching every card from the server. Keyed by set.updatedAt:
@@ -31,6 +32,7 @@ function formatNaira(kobo: number): string {
 }
 
 export function FlashcardDetailClient({ setId }: { setId: string }) {
+  const { confirm } = useConfirm();
   const router = useRouter();
   const { user, loading } = useAuth();
   const [set, setSet] = useState<FlashcardSet | null>(null);
@@ -183,7 +185,13 @@ export function FlashcardDetailClient({ setId }: { setId: string }) {
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this flashcard set permanently? This cannot be undone.')) return;
+    const ok = await confirm({
+          title: 'Delete this flashcard set permanently?',
+          message: 'This cannot be undone.',
+          confirmLabel: 'Delete',
+          destructive: true,
+        });
+        if (!ok) return;
     setDeleteError(null);
     setDeleting(true);
     try {

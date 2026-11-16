@@ -4,6 +4,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
+import { useConfirm } from '@/components/ui/ToastProvider';
 import { downloadLocalFile, LOCAL_STUDY_KEY, RECENTLY_VIEWED_KEY, readLocalStudy, writeLocalStudy } from '@/lib/services/localStudyService';
 import { PersonalFormulaSheet } from './PersonalFormulaSheet';
 import { ReflectionJournal } from './ReflectionJournal';
@@ -42,6 +43,7 @@ const primary = 'rounded-lg bg-pulse-600 px-3 py-2 text-sm font-semibold text-wh
 
 /** Extra learning tools built entirely on browser storage and already-loaded content. */
 export function LocalStudyExtras() {
+  const { confirm } = useConfirm();
   const [tab, setTab] = useState<Tab>('overview');
   const [data, setData] = useState<Toolkit>({});
   const [recent, setRecent] = useState<Viewed[]>([]);
@@ -174,9 +176,15 @@ export function LocalStudyExtras() {
       setMessage(error instanceof Error ? error.message : "Couldn't read that backup file.");
     } finally { e.target.value = ''; }
   }
-  function restoreBackup() {
+  async function restoreBackup() {
     if (!backupPreview) return;
-    if (!window.confirm('Restore this backup on this device? Your current local study toolkit will be replaced. Export a backup of current data first if you need to keep it.')) return;
+    const ok = await confirm({
+      title: 'Restore backup?',
+      message: 'Restore this backup on this device? Your current local study toolkit will be replaced. Export a backup of current data first if you need to keep it.',
+      confirmLabel: 'Restore',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const parsed = backupPreview;
       const allowedLocalKey = (key: string) => key.startsWith('cl-guest-missed:') || key.startsWith('cl-missed:') || key.startsWith('cliniolab:spaced-repetition:') || key.startsWith('cliniolab:draft:flashcards:') || key.startsWith('cliniolab:draft:study:');

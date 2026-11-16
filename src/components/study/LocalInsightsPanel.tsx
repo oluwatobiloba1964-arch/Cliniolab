@@ -30,7 +30,20 @@ export function LocalInsightsPanel() {
     setWeakTopics(getWeakTopics());
   }, []);
 
-  if (!readiness) return null;
+  if (!readiness) {
+    // Fresh device: no attempt history yet. Show a discovery card instead
+    // of nothing so users know the insights panel exists.
+    return (
+      <div className="rounded-2xl border border-dashed border-ink-200 bg-white px-6 py-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-pulse-600">Local insights</p>
+        <h2 className="mt-1.5 font-display text-xl font-semibold text-ink-900">Your learning patterns appear here</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-500">
+          Take a quiz or study a flashcard deck and Cliniolab will start charting your readiness score,
+          confidence calibration and weak topics on this device.
+        </p>
+      </div>
+    );
+  }
 
   const hasData = readiness.components.some((c) => c.value > 0) || missBreakdown.some((m) => m.count > 0);
 
@@ -71,7 +84,7 @@ export function LocalInsightsPanel() {
                   readiness.score >= 75 ? 'text-pulse-500' : readiness.score >= 50 ? 'text-flag-500' : 'text-critical-400'
                 }`}
                 style={{
-                  background: `conic-gradient(currentColor ${readiness.score}%, #e8eef1 ${readiness.score}% 100%)`,
+                  background: `conic-gradient(currentColor ${readiness.score}%, var(--score-ring-track, #e8eef1) ${readiness.score}% 100%)`,
                   boxShadow: '0 0 0 6px rgba(255,255,255,0.9), 0 8px 20px rgba(15,37,49,0.08)',
                 }}
                 aria-label={`Readiness ${readiness.score} percent`}

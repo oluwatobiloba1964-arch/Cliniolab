@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CalendarDays, Flame, Layers, ListChecks, Target } from 'lucide-react';
+import { ArrowRight, CalendarDays, Flame, Layers, ListChecks, Target, Zap } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { computeReadinessScore, countDueFlashcards, getWeakTopics } from '@/lib/services/localInsightsService';
 import { computeStreak } from '@/lib/services/gamificationService';
@@ -185,7 +185,28 @@ export function TodayPlanCard() {
     return null;
   }, [nextExam, dueCards, queueCount, weakest, streak, hasHistory, weakTopic]);
 
-  if (!ready || !plan) return null;
+  if (!ready) return null;
+
+  if (!plan) {
+    // Nothing to plan from yet (no exams, no due cards, no history).
+    // Show a getting-started card instead of vanishing from the dashboard.
+    return (
+      <Card className="p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-pulse-50 text-pulse-600">
+            <Zap className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-semibold text-ink-900">Build today's study plan</h2>
+            <p className="mt-1 text-sm leading-relaxed text-ink-500">
+              Add an upcoming exam date or take your first quiz, and this card will suggest what to study
+              each day leading up to it.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   const secondary: { key: string; label: string; href: string; icon: 'flash' | 'queue' | 'exam' | 'streak' }[] = [];
   if (plan.key !== 'flashcards' && dueCards >= 1) {

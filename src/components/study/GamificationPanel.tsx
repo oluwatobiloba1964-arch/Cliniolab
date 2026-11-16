@@ -60,7 +60,29 @@ export function GamificationPanel() {
     setReady(true);
   }, []);
 
-  if (!ready || !state) return null;
+  if (!ready) return null;
+
+  // Fresh device / new user: no XP or active days yet. Show a discovery
+  // card instead of nothing, so new users learn the streak/XP/badge system
+  // exists before it silently appears later.
+  if (!state) {
+    return (
+      <Card className="p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-pulse-50 text-pulse-600">
+            <Sparkles className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-semibold text-ink-900">Earn XP, keep streaks, unlock badges</h2>
+            <p className="mt-1 text-sm leading-relaxed text-ink-500">
+              Finish a quiz or a flashcard session to earn your first XP. Come back daily to build a streak and
+              unlock badges as you study.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   const { level, streak, badges } = state;
   const unlockedCount = badges.filter((badge) => badge.unlocked).length;
@@ -89,7 +111,7 @@ export function GamificationPanel() {
             <div
               className="relative grid h-28 w-28 place-items-center rounded-full text-pulse-500"
               style={{
-                background: `conic-gradient(currentColor ${xpPct}%, #e8eef1 ${xpPct}% 100%)`,
+                background: `conic-gradient(currentColor ${xpPct}%, var(--score-ring-track, #e8eef1) ${xpPct}% 100%)`,
                 boxShadow: '0 0 0 6px rgba(255,255,255,0.9), 0 8px 20px rgba(15,37,49,0.08)',
               }}
               aria-label={`Level ${level.level}, ${level.name}`}

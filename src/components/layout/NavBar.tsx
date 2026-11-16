@@ -249,11 +249,12 @@ export function NavBar() {
         />
         <nav
           aria-label="Mobile menu"
-          className={`absolute right-0 top-0 flex h-full w-80 max-w-[85vw] flex-col gap-2 overflow-y-auto border-l border-ink-100 bg-paper px-5 py-5 shadow-xl transition-transform duration-200 ease-out ${
+          className={`absolute right-0 top-0 flex h-full w-80 max-w-[85vw] flex-col overflow-hidden border-l border-ink-100 bg-paper shadow-xl transition-transform duration-200 ease-out ${
             mobileOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
-          <div className="mb-4 flex items-center justify-between">
+          {/* Fixed drawer header */}
+          <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
             <span className="font-display text-base font-semibold text-ink-800">Menu</span>
             <div className="flex items-center gap-2">
               <ThemeToggle />
@@ -267,101 +268,120 @@ export function NavBar() {
               </button>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setMobileOpen(false);
-              setSearchOpen(true);
-            }}
-            className="rounded-lg px-3 py-3 text-left text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
-          >
-            Search
-          </button>
-          {learningCategories.length > 0 && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setMobileLearningOpen((v) => !v)}
-                aria-expanded={mobileLearningOpen}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
-              >
-                Learning
-                <span aria-hidden="true" className={`text-xs transition-transform ${mobileLearningOpen ? 'rotate-180' : ''}`}>▾</span>
-              </button>
-              {mobileLearningOpen && (
-                <div className="mb-1 ml-3 mt-1 flex flex-col gap-0.5 border-l border-ink-100 pl-4">
-                  {learningCategories.slice(0, 10).map((c) => (
-                    <Link
-                      key={c.id}
-                      href={`/blog/category/${c.slug}`}
-                      onClick={() => setMobileOpen(false)}
-                      className="rounded-lg px-3 py-2.5 text-sm text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-800"
-                    >
-                      {c.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          <div className="my-2 h-px bg-ink-100" aria-hidden="true" />
-          <div className="flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-          <div className="my-2 h-px bg-ink-100" aria-hidden="true" />
-          {user ? (
+
+          {/* Scrollable middle: links live here. The auth actions were
+              previously the last items of one long scrolling list, which
+              pushed Log in / Sign up / Log out below the fold on phones —
+              they looked unreachable. Now they can never be scrolled out
+              of view (see the footer below). */}
+          <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                setSearchOpen(true);
+              }}
+              className="rounded-lg px-3 py-3 text-left text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
+            >
+              Search
+            </button>
+            {learningCategories.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setMobileLearningOpen((v) => !v)}
+                  aria-expanded={mobileLearningOpen}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
+                >
+                  Learning
+                  <span aria-hidden="true" className={`text-xs transition-transform ${mobileLearningOpen ? 'rotate-180' : ''}`}>▾</span>
+                </button>
+                {mobileLearningOpen && (
+                  <div className="mb-1 ml-3 mt-1 flex flex-col gap-0.5 border-l border-ink-100 pl-4">
+                    {learningCategories.slice(0, 10).map((c) => (
+                      <Link
+                        key={c.id}
+                        href={`/blog/category/${c.slug}`}
+                        onClick={() => setMobileOpen(false)}
+                        className="rounded-lg px-3 py-2.5 text-sm text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-800"
+                      >
+                        {c.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="my-2 h-px bg-ink-100" aria-hidden="true" />
             <div className="flex flex-col gap-1">
-              <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
-                Dashboard
-              </Link>
-              <Link href="/quizzes/bulk-upload" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
-                Upload quizzes
-              </Link>
-              <Link href="/flashcards/bulk-upload" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
-                Upload flashcards
-              </Link>
-              {(user.role === 'admin' || user.role === 'moderator') && (
-                <Link href="/admin" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
-                  Admin
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-lg px-3 py-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50"
+                >
+                  {link.label}
                 </Link>
-              )}
-              <button
-                onClick={() => {
-                  setMobileOpen(false);
-                  logout();
-                }}
-                className="rounded-lg px-3 py-3 text-left text-sm font-medium text-critical-500 transition-colors hover:bg-critical-50"
-              >
-                Log out
-              </button>
+              ))}
             </div>
-          ) : (
-            <div className="flex flex-col gap-2 px-1 pt-1">
-              <Link
-                href="/login"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-lg border border-ink-200 px-4 py-2.5 text-center text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
-              >
-                Log in
-              </Link>
-              <Link
-                href="/register"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-lg bg-pulse-500 px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-pulse-600"
-              >
-                Sign up
-              </Link>
-            </div>
-          )}
+          </div>
+
+          {/* Fixed drawer footer: auth actions are ALWAYS visible, no
+              matter how long the link list above is or how short the
+              viewport is. This is the fix for "can't see the sign out /
+              sign in buttons" on phones. */}
+          <div
+            className="shrink-0 border-t border-ink-100 bg-paper px-5 pb-5 pt-4"
+            style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))' }}
+          >
+            {user ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1">
+                  <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
+                    Dashboard
+                  </Link>
+                  <Link href="/quizzes/bulk-upload" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
+                    Upload quizzes
+                  </Link>
+                  <Link href="/flashcards/bulk-upload" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
+                    Upload flashcards
+                  </Link>
+                  {(user.role === 'admin' || user.role === 'moderator') && (
+                    <Link href="/admin" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50">
+                      Admin
+                    </Link>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileOpen(false);
+                    logout();
+                  }}
+                  className="rounded-lg border border-critical-200 px-4 py-2.5 text-center text-sm font-semibold text-critical-500 transition-colors hover:bg-critical-50"
+                >
+                  Log out
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-lg border border-ink-200 px-4 py-2.5 text-center text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/register"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-lg bg-pulse-500 px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-pulse-600"
+                >
+                  Sign up
+                </Link>
+              </div>
+            )}
+          </div>
         </nav>
       </div>
     </>

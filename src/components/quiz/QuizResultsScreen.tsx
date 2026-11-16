@@ -128,7 +128,7 @@ export function QuizResultsScreen({
                     : 'text-critical-400'
               }`}
               style={{
-                background: `conic-gradient(currentColor ${roundedPercentage}%, #e8eef1 ${roundedPercentage}% 100%)`,
+                background: `conic-gradient(currentColor ${roundedPercentage}%, var(--score-ring-track, #e8eef1) ${roundedPercentage}% 100%)`,
                 boxShadow: '0 0 0 8px rgba(255,255,255,0.9), 0 12px 28px rgba(15,37,49,0.08)',
               }}
               aria-label={`Score ${roundedPercentage} percent`}

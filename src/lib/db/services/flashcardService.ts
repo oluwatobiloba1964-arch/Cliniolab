@@ -325,46 +325,33 @@ export async function listFlashcardSetsByCategory(categoryId: string, limit?: nu
 }
 
 
-/** Public homepage feed: rank a small slice per category in one D1 statement. */
+/** Public homepage feed: a small indexed slice per category.
+ *  Same pattern as quizQueryService.listQuizzesByCategories — one prepared
+ *  statement per category with LIMIT, instead of a ROW_NUMBER() window
+ *  function over the whole flashcard_sets table, so cold homepage cache
+ *  misses no longer trigger a full-table scan on D1. */
 export async function listFlashcardSetsByCategories(categoryIds: string[], limit = 1): Promise<Record<string, FlashcardSetWithStats[]>> {
   const grouped: Record<string, FlashcardSetWithStats[]> = {};
   if (!categoryIds.length) return grouped;
-  const db = getDb();
-  const placeholders = categoryIds.map(() => '?').join(', ');
-  const { results } = await db
-    .prepare(
-      `WITH ranked AS (
-        SELECT fs.*, c.id as category_id,
-          ROW_NUMBER() OVER (
-            PARTITION BY c.id
-            ORDER BY fs.updated_at DESC
-          ) AS category_rank
-        FROM flashcard_sets fs
-        JOIN subcategories s ON s.id = fs.subcategory_id
-        JOIN categories c ON c.id = s.category_id
-        WHERE c.id IN (${placeholders})
-          AND fs.visibility = 'public' AND fs.status = 'published'
-      ),
-      top_ranked AS (
-        SELECT * FROM ranked WHERE category_rank <= ?
-      )
-      SELECT top_ranked.*,
-        (SELECT COUNT(*) FROM flashcards WHERE set_id = top_ranked.id) as card_count,
-        (SELECT COUNT(*) FROM flashcard_attempts WHERE set_id = top_ranked.id) as attempt_count,
-        c.name as category_name,
-        s.name as subcategory_name,
-        u.display_name as creator_name
-      FROM top_ranked
-      JOIN subcategories s ON s.id = top_ranked.subcategory_id
-      JOIN categories c ON c.id = top_ranked.category_id
-      JOIN users u ON u.id = top_ranked.creator_id
-      ORDER BY top_ranked.category_id, top_ranked.updated_at DESC`
-    )
-    .bind(...categoryIds, limit)
-    .all<StatsRow & { category_id: string; category_rank: number }>();
 
-  for (const id of categoryIds) grouped[id] = [];
-  for (const row of results) (grouped[row.category_id] ??= []).push(mapStatsRow(row));
+  const db = getDb();
+  const perCategory = await Promise.all(
+    categoryIds.map((categoryId) =>
+      db
+        .prepare(
+          `SELECT ${STATS_SELECT}
+           WHERE c.id = ? AND fs.visibility = 'public' AND fs.status = 'published'
+           ORDER BY fs.updated_at DESC
+           LIMIT ?`
+        )
+        .bind(categoryId, limit)
+        .all<StatsRow>()
+    )
+  );
+
+  categoryIds.forEach((categoryId, i) => {
+    grouped[categoryId] = perCategory[i].results.map(mapStatsRow);
+  });
   return grouped;
 }
 

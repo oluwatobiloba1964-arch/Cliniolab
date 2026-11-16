@@ -7,6 +7,9 @@
   --font-fraunces: 'Fraunces', Georgia, serif;
   --font-inter: 'Inter', system-ui, sans-serif;
   --font-plex-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Track color for the conic-gradient score/timer rings. Light default;
+     overridden to a dark slate in dark mode (see the .dark block). */
+  --score-ring-track: #e8eef1;
 }
 
 /* Deliberately NOT smooth by default. Every intentional scroll in the app
@@ -78,10 +81,21 @@ h1, h2, h3, h4 {
 .dark body { @apply bg-[#0B1420] text-[#E8EEF1]; }
 
 .dark .bg-white { background-color: #101C27; }
+.dark { --score-ring-track: #223140; }
 .dark .bg-paper { background-color: #0B1420; }
 .dark .bg-ink-50 { background-color: #16232E; }
 .dark .bg-ink-100 { background-color: #1C2C38; }
+.dark .bg-ink-200 { background-color: #223140; }
 
+/* Light accent surfaces: bg-pulse-50/100 are the primary "selected /
+   highlighted / active" chips and banners across the app (158 + 25 uses).
+   In dark mode the light pulse tint reads as a glare panel; re-point both
+   to a deep teal that keeps the same hue identity. */
+.dark .bg-pulse-50 { background-color: #0E2B31; }
+.dark .bg-pulse-100 { background-color: #123B43; }
+
+.dark .text-ink-900 { color: #F2F6F8; }
+.dark .hover\:text-ink-900:hover { color: #F2F6F8; }
 .dark .text-ink-800 { color: #E8EEF1; }
 .dark .text-ink-700 { color: #D3DEE3; }
 .dark .text-ink-600 { color: #B9C7CE; }
@@ -89,9 +103,15 @@ h1, h2, h3, h4 {
 .dark .text-ink-400 { color: #6E8494; }
 .dark .text-ink-300 { color: #556873; }
 
+/* Accent text on light backgrounds becomes a lighter tint in dark mode so
+   it stays legible on the dark accent surfaces above. */
+.dark .text-pulse-700 { color: #7DD8C7; }
+.dark .text-pulse-600 { color: #6BCDB9; }
+
 .dark .border-ink-50 { border-color: #1A2733; }
 .dark .border-ink-100 { border-color: #223140; }
 .dark .border-ink-200 { border-color: #2A3B4A; }
+.dark .border-ink-300 { border-color: #2A3B48; }
 .dark .divide-ink-100 > :not([hidden]) ~ :not([hidden]) { border-color: #223140; }
 
 .dark ::selection { background-color: theme('colors.pulse.700'); }
@@ -105,6 +125,12 @@ h1, h2, h3, h4 {
   color: #E8EEF1;
 }
 
+/* Placeholder text inside those inputs. */
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6E8494;
+}
+
 /* Prevents a light flash while the theme script runs on first paint. */
 html.theme-pending body { visibility: hidden; }
 
@@ -113,14 +139,32 @@ html.theme-pending body { visibility: hidden; }
    above do not match them. Cover every variant actually used in the app. */
 .dark .bg-paper\/95 { background-color: rgb(11 20 32 / 0.95); }
 .dark .bg-white\/95 { background-color: rgb(16 28 39 / 0.95); }
+.dark .bg-white\/90 { background-color: rgb(16 28 39 / 0.9); }
+.dark .bg-white\/80 { background-color: rgb(16 28 39 / 0.8); }
+.dark .bg-white\/70 { background-color: rgb(16 28 39 / 0.7); }
 .dark .bg-white\/60 { background-color: rgb(16 28 39 / 0.6); }
 .dark .bg-white\/50 { background-color: rgb(16 28 39 / 0.5); }
+.dark .bg-white\/20 { background-color: rgb(16 28 39 / 0.2); }
+.dark .bg-white\/15 { background-color: rgb(16 28 39 / 0.15); }
+.dark .bg-white\/10 { background-color: rgb(16 28 39 / 0.1); }
 .dark .bg-ink-50\/60 { background-color: rgb(22 35 46 / 0.6); }
 .dark .bg-ink-50\/50 { background-color: rgb(22 35 46 / 0.5); }
 .dark .bg-ink-50\/40 { background-color: rgb(22 35 46 / 0.4); }
 .dark .bg-ink-50\/30 { background-color: rgb(22 35 46 / 0.3); }
 .dark .bg-ink-900\/60 { background-color: rgb(11 20 32 / 0.6); }
 .dark .bg-ink-900\/40 { background-color: rgb(11 20 32 / 0.4); }
+
+/* Hover variants of the same neutrals — the plain-class overrides above
+   don't cascade into `hover:bg-ink-50` etc., so without these every
+   hoverable row/chip/button flashes light when dark mode is on. */
+.dark .hover\:bg-ink-50:hover { background-color: #16232E; }
+.dark .hover\:bg-ink-100:hover { background-color: #1C2C38; }
+.dark .hover\:bg-ink-200:hover { background-color: #223140; }
+.dark .hover\:bg-white:hover { background-color: #101C27; }
+.dark .hover\:bg-pulse-50:hover { background-color: #0E2B31; }
+.dark .hover\:bg-pulse-100:hover { background-color: #123B43; }
+.dark .hover\:bg-pulse-50\/40:hover { background-color: rgb(14 43 49 / 0.4); }
+.dark .hover\:bg-pulse-50\/30:hover { background-color: rgb(14 43 49 / 0.3); }
 
 /* ------------------------------------------------------------------ */
 /* Responsive UX polish                                                */

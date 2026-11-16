@@ -18,7 +18,10 @@ export const revalidate = 300; // 5 minutes
 
 export default async function BlogPage() {
   const [posts, blogCategories] = await Promise.all([
-    cmsService.listPublishedPosts(),
+    // Bounded: the listing client shows the newest slice anyway; without a
+    // LIMIT this query grows with the whole blog and becomes an outage
+    // vector as post count increases.
+    cmsService.listPublishedPosts(200),
     blogCategoryService.listBlogCategories(),
   ]);
 

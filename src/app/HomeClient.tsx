@@ -120,22 +120,28 @@ export function HomeClient({ initialCategories }: HomeClientProps) {
         <LocalClinicalPractice />
       </div>
 
-      <HomeCategoryFeeds
-        categories={initialCategories}
-        blogCategories={blogCategories}
-        data={home.data}
-        failed={home.failed}
-      />
+      {/* content-visibility skips render work for offscreen sections
+          until the user scrolls near them — cheaper first paint on the
+          long homepage. contain-intrinsic-size reserves approximate
+          space so the scrollbar doesn't jump. */}
+      <div className="[content-visibility:auto] [contain-intrinsic-size:1200px]">
+        <HomeCategoryFeeds
+          categories={initialCategories}
+          blogCategories={blogCategories}
+          data={home.data}
+          failed={home.failed}
+        />
 
-      <HomeLeaderboardSection
-        enabled={home.leaderboardEnabled}
-        label={home.leaderboardLabel}
-        entries={home.leaderboard}
-        currentUserId={user?.id ?? null}
-        currentUserRank={home.currentUserRank}
-      />
+        <HomeLeaderboardSection
+          enabled={home.leaderboardEnabled}
+          label={home.leaderboardLabel}
+          entries={home.leaderboard}
+          currentUserId={user?.id ?? null}
+          currentUserRank={home.currentUserRank}
+        />
 
-      <ScholarOfTheDayCard />
+        <ScholarOfTheDayCard />
+      </div>
 
       <div className="[content-visibility:auto] [contain-intrinsic-size:1200px]">
         <HomeResourcesSection data={home.data} />

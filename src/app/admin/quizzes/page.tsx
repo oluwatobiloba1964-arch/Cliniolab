@@ -5,10 +5,12 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/ui/Pagination';
 import type { QuizWithStats } from '@/types';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 const PAGE_SIZE = 20;
 
 export default function AdminQuizzesPage() {
+  const { confirm } = useConfirm();
   const [quizzes, setQuizzes] = useState<QuizWithStats[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -33,7 +35,13 @@ export default function AdminQuizzesPage() {
   }, [page]);
 
   async function deleteQuiz(id: string) {
-    if (!confirm('Delete this quiz permanently? This cannot be undone.')) return;
+    const ok = await confirm({
+          title: 'Delete this quiz permanently?',
+          message: 'This cannot be undone.',
+          confirmLabel: 'Delete',
+          destructive: true,
+        });
+        if (!ok) return;
     setError(null);
     setDeletingId(id);
     try {

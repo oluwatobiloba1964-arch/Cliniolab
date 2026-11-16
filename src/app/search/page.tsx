@@ -6,7 +6,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
+import { useRecentSearches } from '@/lib/hooks/useRecentSearches';
 import type { SearchResults } from '@/lib/db/services/searchService';
+
+const SEARCH_SUGGESTIONS = ['Anatomy', 'Pharmacology', 'Past questions', 'Clinical pearls', 'Flashcards'];
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
@@ -14,6 +17,15 @@ function SearchPageContent() {
   const [results, setResults] = useState<SearchResults | null>(null);
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
+  const { recent, push } = useRecentSearches();
+
+  // Record every executed search into the shared recent-searches list
+  // (same localStorage list as the homepage hero and navbar autocomplete).
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed) push(trimmed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -70,8 +82,48 @@ function SearchPageContent() {
         </div>
       )}
 
+      {!query.trim() && (
+        <div className="mt-8">
+          <p className="text-sm text-ink-500">Type in the search bar above, or start from one of these:</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {SEARCH_SUGGESTIONS.map((term) => (
+              <Link
+                key={term}
+                href={`/search?q=${encodeURIComponent(term)}`}
+                className="rounded-full border border-ink-100 bg-ink-50 px-3.5 py-1.5 text-sm font-medium text-ink-600 transition hover:border-pulse-200 hover:text-pulse-700"
+              >
+                {term}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {query.trim() && recent.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Recent searches</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {recent.filter((t) => t.toLowerCase() !== query.trim().toLowerCase()).slice(0, 5).map((term) => (
+              <Link
+                key={term}
+                href={`/search?q=${encodeURIComponent(term)}`}
+                className="rounded-full border border-ink-100 px-3.5 py-1.5 text-sm text-ink-500 transition hover:border-pulse-200 hover:text-pulse-700"
+              >
+                {term}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!loading && !hasResults && results && (
-        <p className="mt-6 text-sm text-ink-400">No results found.</p>
+        <div className="mt-8 rounded-2xl border border-dashed border-ink-200 bg-ink-50/50 px-6 py-10 text-center">
+          <p className="font-semibold text-ink-800">No results for &ldquo;{query}&rdquo;</p>
+          <p className="mt-1 text-sm text-ink-500">
+            Check the spelling, try a shorter or broader term (e.g. a subject instead of a phrase), or browse the{' '}
+            <Link href="/categories" className="font-medium text-pulse-600 hover:underline">full category list</Link>.
+          </p>
+        </div>
       )}
 
       {!loading && results && results.quizzes.length > 0 && (

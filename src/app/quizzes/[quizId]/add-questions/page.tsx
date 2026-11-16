@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
+import { loadSheetJS } from '@/lib/sheetjs';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -85,7 +85,7 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
 
 /** Same SheetJS-backed reader as the quiz bulk-upload page, so .xlsx/.xls/.ods/.csv all work. */
 async function parseSpreadsheet(file: File): Promise<string[][]> {
-  const buffer = await file.arrayBuffer();
+  const [buffer, XLSX] = await Promise.all([file.arrayBuffer(), loadSheetJS()]);
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheetName];

@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import type { MedicalAbbreviation } from '@/types';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 type Filter = 'all' | 'abbreviation' | 'glossary';
 
 export default function AdminAbbreviationsPage() {
+  const { confirm } = useConfirm();
   const [abbreviations, setAbbreviations] = useState<MedicalAbbreviation[]>([]);
   const [abbreviation, setAbbreviation] = useState('');
   const [meaning, setMeaning] = useState('');
@@ -86,7 +88,13 @@ export default function AdminAbbreviationsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this entry?')) return;
+    const ok = await confirm({
+          title: 'Delete this entry?',
+          message: 'This cannot be undone.',
+          confirmLabel: 'Delete',
+          destructive: true,
+        });
+        if (!ok) return;
     const res = await fetch(`/api/abbreviations/${id}`, { method: 'DELETE' });
     if (res.ok) load();
   }

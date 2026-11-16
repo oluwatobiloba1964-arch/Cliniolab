@@ -103,8 +103,11 @@ function RegisterForm() {
       <Card className="mt-6 p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-ink-700">Display name</label>
+            <label htmlFor="reg-name" className="text-sm font-medium text-ink-700">Display name</label>
             <input
+              id="reg-name"
+              name="name"
+              autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               required
@@ -112,9 +115,13 @@ function RegisterForm() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-ink-700">Email</label>
+            <label htmlFor="reg-email" className="text-sm font-medium text-ink-700">Email</label>
             <input
+              id="reg-email"
               type="email"
+              name="email"
+              autoComplete="email"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -122,10 +129,13 @@ function RegisterForm() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-ink-700">Password</label>
+            <label htmlFor="reg-password" className="text-sm font-medium text-ink-700">Password</label>
             <div className="relative mt-1">
               <input
+                id="reg-password"
                 type={showPassword ? 'text' : 'password'}
+                name="password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -143,10 +153,13 @@ function RegisterForm() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-ink-700">Confirm password</label>
+            <label htmlFor="reg-confirm" className="text-sm font-medium text-ink-700">Confirm password</label>
             <div className="relative mt-1">
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
+                id="reg-confirm"
+                name="confirm-password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required

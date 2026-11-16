@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { ImagePicker } from '@/components/ui/ImagePicker';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import type { Resource, ResourceCategory, ResourceKind, ResourcePricing } from '@/types';
+import { useConfirm, useToast } from '@/components/ui/ToastProvider';
 
 interface PendingPurchase {
   id: string;
@@ -18,6 +19,8 @@ interface PendingPurchase {
 }
 
 export default function AdminResourcesPage() {
+  const { confirm } = useConfirm();
+  const { toast } = useToast();
   const { user } = useAuth();
   const [resources, setResources] = useState<Resource[]>([]);
   const [pending, setPending] = useState<PendingPurchase[]>([]);
@@ -223,13 +226,19 @@ export default function AdminResourcesPage() {
   }
 
   async function deleteResource(id: string) {
-    if (!confirm('Delete this resource permanently?')) return;
+    const ok = await confirm({
+          title: 'Delete this resource permanently?',
+          message: 'This cannot be undone.',
+          confirmLabel: 'Delete',
+          destructive: true,
+        });
+        if (!ok) return;
     const res = await fetch(`/api/admin/resources/${id}`, { method: 'DELETE' });
     if (res.ok) {
       loadResources();
     } else {
       const data = await res.json().catch(() => ({}));
-      alert(data.error ?? `Delete failed (${res.status}). Check that you are logged in as admin.`);
+      toast.error(data.error ?? `Delete failed (${res.status}). Check that you are logged in as admin.`);
     }
   }
 

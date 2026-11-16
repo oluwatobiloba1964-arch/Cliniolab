@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 interface Settings {
   attemptAnswersDays: number;
@@ -48,6 +49,7 @@ function formatBytes(bytes: number): string {
 }
 
 export default function AdminStoragePage() {
+  const { confirm } = useConfirm();
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [saving, setSaving] = useState(false);
@@ -98,8 +100,24 @@ export default function AdminStoragePage() {
   }
 
   async function run(action: 'retention' | 'orphans-preview' | 'orphans-delete') {
-    if (action === 'retention' && !window.confirm('Delete all data older than the windows above now? This cannot be undone.')) return;
-    if (action === 'orphans-delete' && !window.confirm('Permanently delete every unused image from storage? Run "Preview" first if you are unsure.')) return;
+    if (action === 'retention') {
+      const ok = await confirm({
+        title: 'Delete old data now?',
+        message: 'Delete all data older than the windows above now? This cannot be undone.',
+        confirmLabel: 'Delete',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+    if (action === 'orphans-delete') {
+      const ok = await confirm({
+        title: 'Delete unused images?',
+        message: 'Permanently delete every unused image from storage? Run "Preview" first if you are unsure.',
+        confirmLabel: 'Delete all',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
 
     setBusy(action);
     setError(null);

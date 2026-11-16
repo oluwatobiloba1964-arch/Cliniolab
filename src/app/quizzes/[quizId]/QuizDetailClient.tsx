@@ -21,6 +21,7 @@ import { QuizNotesPanel } from '@/components/quiz/QuizNotesPanel';
 import { AddToQueueButton } from '@/components/quiz/AddToQueueButton';
 import { AttemptedQuizBadge } from '@/components/quiz/AttemptedQuizBadge';
 import type { Quiz, QuizQuestion, QuizWithStats } from '@/types';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 // Caches the full "Start" payload (quiz + questions) so repeat Start
 // clicks on the same quiz - same session or a later visit - can skip the
@@ -97,6 +98,7 @@ export function QuizDetailClient({
   quizId: string;
   previewStats?: QuizWithStats | null;
 }) {
+  const { confirm } = useConfirm();
   const router = useRouter();
   const { user, loading } = useAuth();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -247,7 +249,13 @@ export function QuizDetailClient({
   }, [user, started, quiz]);
 
   async function handleDelete() {
-    if (!confirm('Delete this quiz permanently? This cannot be undone.')) return;
+    const ok = await confirm({
+          title: 'Delete this quiz permanently?',
+          message: 'This cannot be undone.',
+          confirmLabel: 'Delete',
+          destructive: true,
+        });
+        if (!ok) return;
     setDeleteError(null);
     setDeleting(true);
     try {

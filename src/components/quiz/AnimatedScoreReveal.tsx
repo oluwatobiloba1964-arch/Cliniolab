@@ -190,7 +190,7 @@ export function AnimatedScoreReveal({
       <div
         className="relative grid h-32 w-32 place-items-center rounded-full"
         style={{
-          background: `conic-gradient(${color} ${displayed}%, #e8eef1 ${displayed}% 100%)`,
+          background: `conic-gradient(${color} ${displayed}%, var(--score-ring-track, #e8eef1) ${displayed}% 100%)`,
           boxShadow: '0 0 0 6px rgba(255,255,255,0.9), 0 8px 20px rgba(15,37,49,0.08)',
         }}
         aria-label={`Score ${displayed} percent`}

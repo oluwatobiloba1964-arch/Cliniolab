@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Button } from '@/components/ui/Button';
 import type { Comment } from '@/types';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 /** Lightweight relative-time formatter — no dependency needed for this. */
 function timeAgo(iso: string): string {
@@ -37,6 +38,7 @@ interface CommentThreadProps {
 }
 
 export function CommentThread({ endpoint, placeholder = 'Share your thoughts on this quiz…' }: CommentThreadProps) {
+  const { confirm } = useConfirm();
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [enabled, setEnabled] = useState(true);
@@ -164,7 +166,13 @@ export function CommentThread({ endpoint, placeholder = 'Share your thoughts on 
   }
 
   async function deleteComment(commentId: string) {
-    if (!confirm('Delete this comment and all its replies permanently?')) return;
+    const ok = await confirm({
+      title: 'Delete this comment?',
+      message: 'This comment and all its replies will be permanently deleted.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     const res = await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
     if (res.ok) loadComments();
   }

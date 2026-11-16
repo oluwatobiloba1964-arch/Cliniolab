@@ -68,33 +68,21 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Narrowed from matching literally every route to just the ones that
-  // actually read auth state (client components calling useAuth(), or
-  // server pages that branch on a logged-in user): dashboard, admin,
-  // content-creation flows, auth pages themselves, and the homepage (which
-  // needs to know if a visitor is logged in). Purely public/static pages —
-  // blog, terms, privacy, faq, disclaimer, editorial-policy,
-  // medical-review-policy, contact, about, resources, scholarships, jobs,
-  // certificates — no longer run this on every single visit.
-  //
-  // Trade-off: @supabase/ssr's own guidance is to refresh the session
-  // cookie on EVERY request, including static-feeling pages, so a logged-in
-  // user's session technically refreshes slightly less often now. In
-  // practice the cookie's lifetime is far longer than a normal browsing
-  // session, so this is very unlikely to log anyone out early — but if you
-  // ever see unexpected session-expiry reports, that's the first thing to
-  // revisit here.
+  // Narrowed again: purely public surfaces — homepage, quizzes, flashcards
+  // and categories — no longer run this middleware at all. Those are the
+  // highest-traffic pages and they don't branch on auth server-side
+  // (auth-aware UI there is client-side via useAuth(), which refreshes its
+  // own session). Every public page view previously paid an extra
+  // cross-continental Supabase round trip here before rendering; that hop
+  // is now gone. Dashboard/admin/creator/guest/leaderboard/login/register
+  // still refresh the session cookie as before.
   matcher: [
     '/dashboard/:path*',
     '/admin/:path*',
-    '/quizzes/:path*',
-    '/flashcards/:path*',
-    '/categories/:path*',
     '/leaderboard',
     '/login',
     '/register',
     '/creator/:path*',
     '/guest/:path*',
-    '/',
   ],
 };

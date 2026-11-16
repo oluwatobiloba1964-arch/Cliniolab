@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { usePublicConfig } from '@/lib/hooks/usePublicConfig';
 import type { GuestItem, GuestItemKind } from '@/lib/db/services/guestService';
 import { publicFetchJsonLocalCached, PUBLIC_LIST_TTL_MS } from '@/lib/client/publicFetch';
+import { useLocalRecentlyViewed } from '@/lib/hooks/useLocalRecentlyViewed';
 
 const KIND_LABEL: Record<GuestItem['kind'], string> = {
   quiz: 'Quiz',
@@ -27,6 +28,10 @@ const PAGE_SIZE = 24;
 
 export function GuestHubClient() {
   const { flags } = usePublicConfig();
+  // Pure-local "continue" strip: the shared recently-viewed store already
+  // records guest quiz/flashcard visits (LocalActivityTracker), so guests
+  // get a resume list without any account or database.
+  const recentItems = useLocalRecentlyViewed(20).filter((r) => r.href.startsWith('/guest/')).slice(0, 3);
   const [items, setItems] = useState<GuestItem[]>([]);
   const [total, setTotal] = useState(0);
   const [kind, setKind] = useState<GuestItemKind | 'all'>('all');
@@ -69,6 +74,22 @@ export function GuestHubClient() {
       <p className="mt-2 max-w-2xl text-ink-500">
         Try quizzes, study mode and flashcards right now. No account needed, and nothing is saved.
       </p>
+
+      {recentItems.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-400">Continue where you left off</h2>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {recentItems.map((item) => (
+              <Link key={item.href} href={item.href}>
+                <Card className="h-full p-4 transition-shadow hover:shadow-md">
+                  <p className="line-clamp-2 text-sm font-medium text-ink-800">{item.title}</p>
+                  <p className="mt-1 text-xs text-ink-400">Opened in this browser</p>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 flex gap-2 overflow-x-auto">
         {FILTERS.map((f) => (

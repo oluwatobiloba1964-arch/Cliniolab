@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Toggle } from '@/components/ui/Toggle';
+import { useConfirm } from '@/components/ui/ToastProvider';
 import { clearPublicFetchCache } from '@/lib/client/publicFetch';
 import type {
   Category,
@@ -77,6 +78,7 @@ export function QuizForm({
   submittingLabel,
   onSubmit,
 }: QuizFormProps) {
+  const { confirm } = useConfirm();
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
 
@@ -129,7 +131,7 @@ export function QuizForm({
   const draftKey = `cliniolab-quiz-builder-draft-v1-${initialQuiz?.id ?? 'new'}`;
 
   // Local-only recovery for the quiz builder. Existing quiz data is never replaced automatically.
-  useEffect(() => {
+  useEffect(() => { void (async () => {
     if (initialQuiz) { setDraftReady(true); return; }
     try {
       const raw = window.localStorage.getItem(draftKey);
@@ -137,7 +139,11 @@ export function QuizForm({
         const draft = JSON.parse(raw) as { title?: string; description?: string; subcategoryId?: string; mode?: QuizMode; difficulty?: QuizDifficulty; questions?: QuizQuestionInput[]; savedAt?: number };
         if (draft.title || draft.description || (draft.questions?.length ?? 0) > 1 || draft.questions?.[0]?.prompt) {
           const age = draft.savedAt ? Math.max(0, Math.round((Date.now() - draft.savedAt) / 60000)) : 0;
-          if (window.confirm(`Recover your local quiz draft from ${age} minute(s) ago?`)) {
+          if (await confirm({
+            title: 'Recover draft?',
+            message: `Recover your local quiz draft from ${age} minute(s) ago?`,
+            confirmLabel: 'Recover draft',
+          })) {
             if (draft.title !== undefined) setTitle(draft.title);
             if (draft.description !== undefined) setDescription(draft.description);
             if (draft.subcategoryId !== undefined) setSubcategoryId(draft.subcategoryId);
@@ -153,6 +159,7 @@ export function QuizForm({
     setDraftReady(true);
   // Restore once when the form opens, not whenever the draft key changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  })(); 
   }, []);
 
   useEffect(() => {
@@ -353,9 +360,13 @@ export function QuizForm({
       return;
     }
     const count = selectedQuestions.size;
-    if (!window.confirm(`Permanently delete ${count} selected question${count === 1 ? '' : 's'}? This cannot be undone.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Delete ${count} selected question${count === 1 ? '' : 's'}?`,
+      message: 'Permanently delete the selected questions? This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     setQuestions(remaining);
     setSelectedQuestions(new Set());
 

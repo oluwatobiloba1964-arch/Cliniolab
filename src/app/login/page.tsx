@@ -66,9 +66,13 @@ function LoginForm() {
       <Card className="mt-6 p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-ink-700">Email</label>
+            <label htmlFor="login-email" className="text-sm font-medium text-ink-700">Email</label>
             <input
+              id="login-email"
               type="email"
+              name="email"
+              autoComplete="email"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -76,10 +80,13 @@ function LoginForm() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-ink-700">Password</label>
+            <label htmlFor="login-password" className="text-sm font-medium text-ink-700">Password</label>
             <div className="relative mt-1">
               <input
+                id="login-password"
                 type={showPassword ? 'text' : 'password'}
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

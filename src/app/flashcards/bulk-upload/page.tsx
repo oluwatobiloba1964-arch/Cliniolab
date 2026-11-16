@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
+import { loadSheetJS } from '@/lib/sheetjs';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -107,7 +107,7 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
 }
 
 async function parseSpreadsheet(file: File): Promise<string[][]> {
-  const buffer = await file.arrayBuffer();
+  const [buffer, XLSX] = await Promise.all([file.arrayBuffer(), loadSheetJS()]);
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheetName];
@@ -283,7 +283,7 @@ export default function FlashcardBulkUploadPage() {
     return loadSubcategories();
   }
 
-  function downloadTemplate() {
+  async function downloadTemplate() {
     if (templateFormat === 'csv') {
       downloadBlob(CSV_TEMPLATE, 'flashcards-template.csv', 'text/csv');
       return;
@@ -295,6 +295,7 @@ export default function FlashcardBulkUploadPage() {
     const rows = CSV_TEMPLATE.split('\n').map((line) =>
       line.match(/(".*?"|[^,]+)(?=,|$)/g)?.map((c) => c.replace(/^"|"$/g, '').replace(/""/g, '"')) ?? []
     );
+    const XLSX = await loadSheetJS();
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Flashcards');

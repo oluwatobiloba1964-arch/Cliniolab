@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/Button';
 import { ImagePicker } from '@/components/ui/ImagePicker';
 import { resolveImageUrl } from '@/lib/storage/imageUrl';
 import type { ScholarOfTheDay } from '@/types';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 export default function AdminScholarsPage() {
+  const { confirm } = useConfirm();
   const [scholars, setScholars] = useState<ScholarOfTheDay[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -82,7 +84,13 @@ export default function AdminScholarsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this scholar entry?')) return;
+    const ok = await confirm({
+          title: 'Delete this scholar entry?',
+          message: 'This cannot be undone.',
+          confirmLabel: 'Delete',
+          destructive: true,
+        });
+        if (!ok) return;
     const res = await fetch(`/api/scholars/${id}`, { method: 'DELETE' });
     if (res.ok) load();
   }

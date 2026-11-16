@@ -5,9 +5,11 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import type { DataCleanTarget } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
+import { useConfirm } from '@/components/ui/ToastProvider';
 
 /** Admin Data Clean: shows what can be removed, saves age windows, and supports one-click general cleanup. */
 export default function DataCleanPage() {
+  const { confirm } = useConfirm();
   const [targets, setTargets] = useState<DataCleanTarget[] | null>(null);
   const [days, setDays] = useState<Record<string, number>>({});
   const [savedDays, setSavedDays] = useState<Record<string, number>>({});
@@ -61,7 +63,13 @@ export default function DataCleanPage() {
   async function clean(key: string) {
     if (key === 'open_reports') {
       const age = days[key] ?? 180;
-      if (!window.confirm(`Remove unresolved question reports older than ${age} days? The questions themselves will not be deleted.`)) return;
+      const okReport = await confirm({
+        title: 'Remove old reports?',
+        message: `Remove unresolved question reports older than ${age} days? The questions themselves will not be deleted.`,
+        confirmLabel: 'Remove',
+        destructive: true,
+      });
+      if (!okReport) return;
     }
 
     setBusyKey(key);
@@ -95,11 +103,13 @@ export default function DataCleanPage() {
       setMessage('Nothing is currently cleanable.');
       return;
     }
-    if (
-      !window.confirm(
-        `Clear all ${cleanableTotal.toLocaleString()} currently cleanable rows using the saved windows? This includes stale unresolved question reports. This cannot be undone.`
-      )
-    ) return;
+    const ok = await confirm({
+      title: `Clear all ${cleanableTotal.toLocaleString()} cleanable rows?`,
+      message: 'Clear all currently cleanable rows using the saved windows? This includes stale unresolved question reports. This cannot be undone.',
+      confirmLabel: 'Clear all',
+      destructive: true,
+    });
+    if (!ok) return;
 
     setBusyKey('all');
     setMessage(null);

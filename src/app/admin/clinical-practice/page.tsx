@@ -2,8 +2,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
+import { loadSheetJS } from '@/lib/sheetjs';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { useConfirm } from '@/components/ui/ToastProvider';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
@@ -113,7 +114,7 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
 }
 
 async function parseSpreadsheet(file: File): Promise<string[][]> {
-  const buffer = await file.arrayBuffer();
+  const [buffer, XLSX] = await Promise.all([file.arrayBuffer(), loadSheetJS()]);
   const workbook = XLSX.read(buffer, { type: 'array' });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const grid = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' });
@@ -204,6 +205,7 @@ function rowsToOsceEntries(rows: string[][]): { entries: OscePreview[]; warnings
 
 export default function ClinicalPracticeAdminPage() {
   const { user, loading } = useAuth();
+  const { confirm } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [kind, setKind] = useState<Kind>('case');
@@ -276,7 +278,13 @@ export default function ClinicalPracticeAdminPage() {
   }
 
   async function handleDelete(id: string, title: string) {
-    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete "${title}"?`,
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     setDeleteError(null);
     try {
@@ -303,7 +311,13 @@ export default function ClinicalPracticeAdminPage() {
   async function handleBulkDelete() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (!window.confirm(`Delete ${ids.length} selected ${KIND_LABELS[kind].toLowerCase()}? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete ${ids.length} selected ${KIND_LABELS[kind].toLowerCase()}?`,
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     setBulkDeleting(true);
     setDeleteError(null);
     try {

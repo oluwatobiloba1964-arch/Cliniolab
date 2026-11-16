@@ -20,9 +20,14 @@ export function SmartRevisionBadge() {
       setCount(items.length);
     }
     refresh();
-    // Refresh every 60s while the navbar is mounted, so a card that
-    // becomes due while the learner is browsing is reflected.
-    const timer = setInterval(refresh, 60_000);
+    // Refresh every 60s while the navbar is mounted AND the tab is
+    // visible, so a card that becomes due while the learner is browsing is
+    // reflected. Each tick JSON.parses the whole SRS store, so skip it
+    // entirely for hidden tabs — the focus listener below catches up the
+    // moment the user returns.
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, 60_000);
     const onFocus = () => refresh();
     window.addEventListener('focus', onFocus);
     return () => {
