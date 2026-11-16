@@ -211,7 +211,10 @@ export function NavBar() {
           inside header's own (short) box instead of the viewport. */}
       <nav
         aria-label="Mobile primary"
-        className="cliniolab-mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around border-t border-ink-100 bg-paper/95 backdrop-blur lg:hidden"
+        aria-hidden={mobileOpen}
+        className={`cliniolab-mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around border-t border-ink-100 bg-paper/95 backdrop-blur lg:hidden ${
+          mobileOpen ? 'pointer-events-none opacity-0' : ''
+        }`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <BottomNavItem href="/" label="Home" icon={<Home className="h-5 w-5" aria-hidden="true" />} pathname={pathname} exactMatch />
@@ -235,7 +238,7 @@ export function NavBar() {
           header's ~64px strip. Backdrop closes on click; drawer itself
           stops click-through. */}
       <div
-        className={`fixed inset-0 z-50 lg:hidden ${mobileOpen ? '' : 'pointer-events-none'}`}
+        className={`fixed inset-0 z-[60] h-[100dvh] lg:hidden ${mobileOpen ? '' : 'pointer-events-none'}`}
         aria-hidden={!mobileOpen}
       >
         <button
