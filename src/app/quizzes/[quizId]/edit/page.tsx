@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Button } from '@/components/ui/Button';
 import { QuizForm } from '@/components/quiz/QuizForm';
+import { invalidateDashboardCache } from '@/lib/client/dashboardCache';
 import type { Quiz, QuizInput, QuizQuestion } from '@/types';
 
 export default function EditQuizPage() {
@@ -70,6 +71,9 @@ export default function EditQuizPage() {
     });
     const data = await res.json();
     if (!res.ok) return { error: data.error ?? 'Failed to update quiz' };
+    // Otherwise the dashboard keeps showing the pre-edit snapshot until its
+    // local cache (up to 5 minutes) expires.
+    invalidateDashboardCache(user?.id);
     router.push(`/quizzes/${params.quizId}`);
   }
 
