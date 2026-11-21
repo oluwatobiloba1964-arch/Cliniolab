@@ -35,6 +35,7 @@ import { MissedQuestionSrsCard } from '@/components/dashboard/MissedQuestionSrsC
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 import { useConfirm } from '@/components/ui/ToastProvider';
+import { invalidateDashboardCache } from '@/lib/client/dashboardCache';
 
 interface QuizAttemptTaker {
   id: string;
@@ -120,8 +121,7 @@ export default function DashboardPage() {
   const [attemptsSort, setAttemptsSort] = useState<'score' | 'date'>('score');
 
   function invalidateDashboardLocalCache() {
-    if (!user?.id) return;
-    try { window.localStorage.removeItem(`cliniolab:dashboard-cache:v1:${user.id}`); } catch { /* Optional cache. */ }
+    invalidateDashboardCache(user?.id);
   }
 
   const sortedAttemptsList = [...attemptsList].sort((a, b) =>
