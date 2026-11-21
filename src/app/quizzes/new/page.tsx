@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Button } from '@/components/ui/Button';
 import { QuizForm } from '@/components/quiz/QuizForm';
+import { invalidateDashboardCache } from '@/lib/client/dashboardCache';
 import type { QuizInput } from '@/types';
 
 export default function NewQuizPage() {
@@ -30,6 +31,9 @@ export default function NewQuizPage() {
     });
     const data = await res.json();
     if (!res.ok) return { error: data.error ?? 'Failed to create quiz' };
+    // So the new quiz shows up on the dashboard right away instead of
+    // waiting out the dashboard's local cache (up to 5 minutes stale).
+    invalidateDashboardCache(user?.id);
     router.push(`/quizzes/${data.quiz.id}`);
   }
 
