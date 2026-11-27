@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { cache } from 'react';
 import { quizService } from '@/lib/db';
 import { getQuizzesWithStatsByIds } from '@/lib/db/services/quizService';
+import { quizPath, extractQuizId } from '@/lib/utils/quizUrl';
 import { QuizDetailClient } from './QuizDetailClient';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
@@ -57,7 +58,8 @@ function formatTime(seconds: number | null): string | null {
  * WhatsApp/Telegram/Twitter, similar to QuizzerWeb's quiz preview cards.
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { quizId } = await params;
+  const { quizId: rawParam } = await params;
+  const quizId = extractQuizId(rawParam);
   const quiz = await getQuizForRequest(quizId);
 
   if (!quiz || quiz.visibility !== 'public') {
@@ -93,15 +95,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? `${quiz.description.slice(0, 140)} · ${statsLine}`
     : `${statsLine}. Practice ${quiz.title} on Cliniolab, a nursing and clinical exam practice platform.`;
 
+  // Canonical always points at the keyword-rich "slug--id" form, even when
+  // this page was reached via a bare "/quizzes/<id>" link (old shares,
+  // bookmarks, anything not yet updated to quizPath()) — that's how a bare
+  // id eventually gets replaced by the slugged URL in Google's index,
+  // without needing a redirect or breaking the old link.
+  const canonicalUrl = `${BASE_URL}${quizPath(quiz)}`;
+
   return {
     title,
     description,
-    alternates: { canonical: `${BASE_URL}/quizzes/${quiz.id}` },
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       title,
       description,
       type: 'website',
-      url: `${BASE_URL}/quizzes/${quiz.id}`,
+      url: canonicalUrl,
     },
     twitter: {
       card: 'summary',
@@ -115,7 +124,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function QuizDetailPage({ params }: PageProps) {
-  const { quizId } = await params;
+  const { quizId: rawParam } = await params;
+  const quizId = extractQuizId(rawParam);
 
   // Public preview stats (price, time, question count, attempts, creator)
   // fetched server-side so they're visible on first paint, matching the
