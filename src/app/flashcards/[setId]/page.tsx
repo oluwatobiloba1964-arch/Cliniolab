@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { flashcardService } from '@/lib/db';
+import { flashcardSetPath, extractFlashcardSetId } from '@/lib/utils/flashcardUrl';
 import { FlashcardDetailClient } from './FlashcardDetailClient';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
@@ -14,7 +15,8 @@ function formatPrice(pricing: 'free' | 'paid', priceKobo: number | null): string
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { setId } = await params;
+  const { setId: rawParam } = await params;
+  const setId = extractFlashcardSetId(rawParam);
   const set = await flashcardService.getFlashcardSetById(setId).catch(() => null);
 
   if (!set || set.visibility !== 'public') {
@@ -27,16 +29,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? `${set.description.slice(0, 140)} · Price: ${price}`
     : `Study ${set.title} with flip-card flashcards on Cliniolab. Price: ${price}`;
 
+  // Canonical always points at the keyword-rich "slug--id" form, even when
+  // reached via a bare "/flashcards/<id>" link — see quizUrl.ts for why.
+  const canonicalUrl = `${BASE_URL}${flashcardSetPath(set)}`;
+
   return {
     title,
     description,
-    alternates: { canonical: `${BASE_URL}/flashcards/${set.id}` },
-    openGraph: { title, description, type: 'website', url: `${BASE_URL}/flashcards/${set.id}` },
+    alternates: { canonical: canonicalUrl },
+    openGraph: { title, description, type: 'website', url: canonicalUrl },
     twitter: { card: 'summary', title, description },
   };
 }
 
 export default async function FlashcardSetDetailPage({ params }: PageProps) {
-  const { setId } = await params;
+  const { setId: rawParam } = await params;
+  const setId = extractFlashcardSetId(rawParam);
   return <FlashcardDetailClient setId={setId} />;
 }
