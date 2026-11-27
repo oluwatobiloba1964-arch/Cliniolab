@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
-import { categoryService, cmsService, guestService, platformSettingsService, quizService } from '@/lib/db';
+import { categoryService, cmsService, flashcardService, guestService, platformSettingsService, quizService } from '@/lib/db';
+import { quizPath } from '@/lib/utils/quizUrl';
+import { flashcardSetPath } from '@/lib/utils/flashcardUrl';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://cliniolab.com';
 
@@ -27,6 +29,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: BASE_URL, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
     { url: `${BASE_URL}/categories`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${BASE_URL}/quizzes`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
+    // Was missing entirely — the /flashcards listing page itself was never
+    // submitted, let alone any individual set (see flashcardRoutes below).
+    { url: `${BASE_URL}/flashcards`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
     { url: `${BASE_URL}/resources`, lastModified: now, changeFrequency: 'daily', priority: 0.8 },
     { url: `${BASE_URL}/abbreviations`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${BASE_URL}/mnemonics`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
@@ -50,10 +55,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // (e.g. D1 binding briefly unavailable), the sitemap still returns the
   // static routes and whatever dynamic sections did succeed, rather than
   // the whole sitemap erroring out to nothing.
-  const [categories, subcategories, quizzes, posts, guestSetting, guestItems] = await Promise.all([
+  const [categories, subcategories, quizzes, flashcardSets, posts, guestSetting, guestItems] = await Promise.all([
     categoryService.listCategories().catch(() => []),
     categoryService.listSubcategories().catch(() => []),
     quizService.listLatestPublicQuizzes(500).catch(() => []),
+    flashcardService.listLatestPublicFlashcardSets(500).catch(() => []),
     cmsService.listPublishedPosts(500).catch(() => []),
     platformSettingsService.getGuestPracticeSetting().catch(() => platformSettingsService.DEFAULT_GUEST_PRACTICE),
     guestService.listGuestItems({ limit: 500 }).catch(() => []),
@@ -89,8 +95,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const quizRoutes: MetadataRoute.Sitemap = quizzes
     .filter((quiz) => quiz.pricing === 'free')
     .map((quiz) => ({
-      url: `${BASE_URL}/quizzes/${quiz.id}`,
+      // Keyword-rich URL (slug derived from the live title, id still the
+      // real lookup key) — see lib/utils/quizUrl.ts.
+      url: `${BASE_URL}${quizPath(quiz)}`,
       lastModified: new Date(quiz.updatedAt),
+      changeFrequency: 'weekly',
+      priority: 0.6,
+    }));
+
+  // Free public flashcard sets only - same reasoning as quizRoutes above
+  // (private sets have no stable indexable URL, paid sets' content is
+  // gated so indexing the gate page drives no organic traffic worth it).
+  const flashcardRoutes: MetadataRoute.Sitemap = flashcardSets
+    .filter((set) => set.pricing === 'free')
+    .map((set) => ({
+      url: `${BASE_URL}${flashcardSetPath(set)}`,
+      lastModified: new Date(set.updatedAt),
       changeFrequency: 'weekly',
       priority: 0.6,
     }));
@@ -116,6 +136,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...categoryRoutes,
     ...subcategoryRoutes,
     ...quizRoutes,
+    ...flashcardRoutes,
     ...postRoutes,
     ...blogCategoryRoutes,
     ...guestRoutes,
