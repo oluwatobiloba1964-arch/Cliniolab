@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/Card';
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import type { FlashcardSetWithStats } from '@/types';
+import { flashcardSetPath } from '@/lib/utils/flashcardUrl';
 
 function shareStats(set: FlashcardSetWithStats) {
   return {
@@ -17,7 +18,7 @@ function shareStats(set: FlashcardSetWithStats) {
 
 export function FlashcardSetCard({ set }: { set: FlashcardSetWithStats }) {
   return (
-    <Link href={`/flashcards/${set.id}`}>
+    <Link href={flashcardSetPath(set)}>
       <Card className="border-l-4 border-l-pulse-300 p-5 transition-shadow hover:shadow-md">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-display text-lg font-semibold text-ink-800">{set.title}</h3>
@@ -45,7 +46,7 @@ export function FlashcardSetCard({ set }: { set: FlashcardSetWithStats }) {
         {set.visibility === 'public' && (
           <div className="mt-3" onClick={(e) => e.preventDefault()}>
             <ShareButton
-              url={typeof window !== 'undefined' ? `${window.location.origin}/flashcards/${set.id}` : ''}
+              url={typeof window !== 'undefined' ? `${window.location.origin}${flashcardSetPath(set)}` : ''}
               title={set.title}
               stats={shareStats(set)}
             />
@@ -58,7 +59,7 @@ export function FlashcardSetCard({ set }: { set: FlashcardSetWithStats }) {
 
 export function FeaturedFlashcardSetCard({ set }: { set: FlashcardSetWithStats }) {
   return (
-    <Link href={`/flashcards/${set.id}`}>
+    <Link href={flashcardSetPath(set)}>
       <Card className="border-l-4 border-l-pulse-300 p-6 transition-shadow hover:shadow-md sm:p-8">
         <div className="flex items-start justify-between gap-3">
           <h3 className="font-display text-2xl font-semibold text-ink-800 sm:text-3xl">{set.title}</h3>
@@ -84,7 +85,7 @@ export function FeaturedFlashcardSetCard({ set }: { set: FlashcardSetWithStats }
         {set.visibility === 'public' && (
           <div className="mt-4" onClick={(e) => e.preventDefault()}>
             <ShareButton
-              url={typeof window !== 'undefined' ? `${window.location.origin}/flashcards/${set.id}` : ''}
+              url={typeof window !== 'undefined' ? `${window.location.origin}${flashcardSetPath(set)}` : ''}
               title={set.title}
               stats={shareStats(set)}
             />
@@ -97,7 +98,7 @@ export function FeaturedFlashcardSetCard({ set }: { set: FlashcardSetWithStats }
 
 export function CompactFlashcardSetCard({ set }: { set: FlashcardSetWithStats }) {
   return (
-    <Link href={`/flashcards/${set.id}`}>
+    <Link href={flashcardSetPath(set)}>
       <div className="flex items-start justify-between gap-3 py-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
