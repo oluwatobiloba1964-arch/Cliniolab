@@ -32,6 +32,7 @@ import { RecentActivityTimeline } from '@/components/dashboard/RecentActivityTim
 import { WeakSpotTrainerCard } from '@/components/dashboard/WeakSpotTrainerCard';
 // Feature F5: Missed-question SRS — SM-2-inspired spaced repetition deck.
 import { MissedQuestionSrsCard } from '@/components/dashboard/MissedQuestionSrsCard';
+import { CollapsibleSection } from '@/components/dashboard/CollapsibleSection';
 import type { Certificate, FlashcardSetWithStats, QuestionReportWithContext, QuizWithStats, UserDashboardStats } from '@/types';
 import { LoadingState } from '@/components/ui/StateMessage';
 import { useConfirm } from '@/components/ui/ToastProvider';
@@ -546,7 +547,12 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <nav aria-label="Dashboard shortcuts" className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:grid-cols-4 sm:gap-3">
+      {/* Sticky so "My content" (quizzes/flashcards) is reachable in one tap
+          from anywhere on the page, not just right after the header — the
+          sections above are now collapsed by default so the page is short,
+          but this stays within reach even once you've opened one back up
+          and scrolled through it. */}
+      <nav aria-label="Dashboard shortcuts" className="sticky top-0 z-20 -mx-4 mt-4 grid grid-cols-2 gap-2.5 bg-gradient-to-b from-pulse-50/95 via-white/95 to-white/95 px-4 py-2 backdrop-blur sm:mt-5 sm:grid-cols-4 sm:gap-3 sm:px-6 lg:px-8">
         {[
           { href: '#learning-overview', icon: '📈', label: 'Overview' },
           { href: '#study-toolkit', icon: '🧰', label: 'Study tools' },
@@ -559,7 +565,8 @@ export default function DashboardPage() {
         ))}
       </nav>
 
-      <section id="learning-overview" className="mt-5 grid scroll-mt-6 gap-4 sm:mt-6 sm:gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.8fr)]">
+      <CollapsibleSection id="learning-overview" title="Learning overview" icon="📈" subtitle="Your next step, mastery progress and learning path">
+      <section className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.8fr)]">
         <Card className="overflow-hidden p-0">
           <div className="bg-gradient-to-br from-pulse-50/90 via-white to-sky-50/60 p-5 sm:p-7 lg:p-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -678,13 +685,10 @@ export default function DashboardPage() {
           </Link>
         </Card>
       </section>
+      </CollapsibleSection>
 
-      <section id="study-toolkit" className="mt-10 scroll-mt-6 space-y-5 rounded-3xl border border-ink-100/80 bg-white/70 p-4 sm:mt-12 sm:p-6 lg:p-7">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-pulse-600">Your workspace</p>
-          <h2 className="mt-1 font-display text-xl font-semibold text-ink-900 sm:text-2xl">Study tools and revision</h2>
-          <p className="mt-1 text-sm leading-6 text-ink-500">Your existing personal tools, revision queue and learning utilities, grouped together for easier access.</p>
-        </div>
+      <CollapsibleSection id="study-toolkit" title="Study tools and revision" icon="🧰" subtitle="Your personal tools, revision queue and learning utilities">
+      <section className="space-y-5 rounded-3xl border border-ink-100/80 bg-white/70 p-4 sm:p-6 lg:p-7">
         <TodayPlanCard />
         <WeakSpotTrainerCard />
         <MissedQuestionSrsCard />
@@ -705,12 +709,10 @@ export default function DashboardPage() {
         </div>
         <RecentActivityTimeline />
       </section>
+      </CollapsibleSection>
 
-      <section id="clinical-practice" className="mt-8 scroll-mt-6 space-y-4 rounded-3xl border border-pulse-100/80 bg-gradient-to-br from-pulse-50/60 to-white p-4 sm:mt-10 sm:p-6 lg:p-7">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-pulse-600">Apply your knowledge</p>
-          <h2 className="mt-1 font-display text-xl font-semibold text-ink-900 sm:text-2xl">Clinical practice</h2>
-        </div>
+      <CollapsibleSection id="clinical-practice" title="Clinical practice" icon="🩺" subtitle="Apply your knowledge, plus where you left off">
+      <section className="space-y-4 rounded-3xl border border-pulse-100/80 bg-gradient-to-br from-pulse-50/60 to-white p-4 sm:p-6 lg:p-7">
         <LocalClinicalPractice />
       </section>
 
@@ -737,6 +739,7 @@ export default function DashboardPage() {
           </div>
         </Card>
       )}
+      </CollapsibleSection>
 
       <div className={`mt-8 grid grid-cols-2 gap-3 sm:gap-4 ${certificatesEnabled ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
         <Card className="rounded-2xl border border-ink-100/80 bg-white p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
@@ -764,9 +767,9 @@ export default function DashboardPage() {
       </div>
 
       {stats && stats.scoreHistory.length > 0 && (
-        <Card className="mt-8 p-6">
-          <h2 className="font-display text-lg font-semibold text-ink-800">Score history</h2>
-          <div className="mt-4 flex items-end gap-1.5" style={{ height: 120 }}>
+        <CollapsibleSection id="score-history" title="Score history" icon="📊">
+        <Card className="p-6">
+          <div className="flex items-end gap-1.5" style={{ height: 120 }}>
             {stats.scoreHistory.slice(-20).map((h, i) => (
               <div
                 key={i}
@@ -777,6 +780,7 @@ export default function DashboardPage() {
             ))}
           </div>
         </Card>
+        </CollapsibleSection>
       )}
 
       <div id="my-content" role="tablist" aria-label="Your content" className="mt-10 scroll-mt-6 flex gap-2 rounded-t-2xl border-b border-ink-100 bg-white/70 px-2 pt-2 sm:mt-12">
