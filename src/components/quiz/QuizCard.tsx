@@ -3,6 +3,7 @@ import { Card, DifficultyBadge, difficultyEdgeClass } from '@/components/ui/Card
 import { ShareButton } from '@/components/quiz/ShareButton';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import type { QuizWithStats } from '@/types';
+import { quizPath } from '@/lib/utils/quizUrl';
 
 export function QuizCard({ quiz }: { quiz: QuizWithStats }) {
   return (
@@ -12,7 +13,7 @@ export function QuizCard({ quiz }: { quiz: QuizWithStats }) {
             and share controls outside the Link avoids link-nested-buttons,
             which screen readers misannounce. */}
         <h3 className="font-display text-lg font-semibold text-ink-800">
-          <Link href={`/quizzes/${quiz.id}`} className="hover:underline">{quiz.title}</Link>
+          <Link href={quizPath(quiz)} className="hover:underline">{quiz.title}</Link>
         </h3>
         <div className="flex items-center gap-2">
           {quiz.pricing === 'paid' && (
@@ -61,7 +62,7 @@ export function QuizCard({ quiz }: { quiz: QuizWithStats }) {
       {quiz.visibility === 'public' && (
         <div className="mt-3">
           <ShareButton
-              url={typeof window !== 'undefined' ? `${window.location.origin}/quizzes/${quiz.id}` : ''}
+              url={typeof window !== 'undefined' ? `${window.location.origin}${quizPath(quiz)}` : ''}
               title={quiz.title}
               stats={{
                 creatorName: quiz.creatorName,
@@ -94,7 +95,7 @@ export function QuizCard({ quiz }: { quiz: QuizWithStats }) {
  */
 export function FeaturedQuizCard({ quiz }: { quiz: QuizWithStats }) {
   return (
-    <Link href={`/quizzes/${quiz.id}`}>
+    <Link href={quizPath(quiz)}>
       <Card className={`p-6 transition-shadow hover:shadow-md sm:p-8 ${difficultyEdgeClass(quiz.difficulty)}`}>
         <div className="flex items-start justify-between gap-3">
           <h3 className="font-display text-2xl font-semibold text-ink-800 sm:text-3xl">{quiz.title}</h3>
@@ -148,7 +149,7 @@ export function FeaturedQuizCard({ quiz }: { quiz: QuizWithStats }) {
             onClick={(e) => e.preventDefault()} // don't trigger the card's Link navigation
           >
             <ShareButton
-              url={typeof window !== 'undefined' ? `${window.location.origin}/quizzes/${quiz.id}` : ''}
+              url={typeof window !== 'undefined' ? `${window.location.origin}${quizPath(quiz)}` : ''}
               title={quiz.title}
               stats={{
                 creatorName: quiz.creatorName,
@@ -182,7 +183,7 @@ export function FeaturedQuizCard({ quiz }: { quiz: QuizWithStats }) {
  */
 export function CompactQuizCard({ quiz }: { quiz: QuizWithStats }) {
   return (
-    <Link href={`/quizzes/${quiz.id}`}>
+    <Link href={quizPath(quiz)}>
       <div className="flex items-start justify-between gap-3 py-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
